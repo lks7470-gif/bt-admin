@@ -2,10 +2,3 @@ streamlit
 pandas
 supabase
 qrcode
-pillow
-opencv-python-headlessstreamlit
-pandas
-supabase
-qrcode
-pillow
-opencv-python-headless
