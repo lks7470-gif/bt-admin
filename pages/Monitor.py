@@ -1,13 +1,21 @@
 # 파일명: pages/Monitor.py
 import streamlit as st
-from supabase import create_client, Client
-import pandas as pd
-from datetime import datetime, timedelta
 import time
-import math
-import re
-# [✅ 새로 추가할 코드]
+
+# ==========================================
+# 🛑 [문지기] 로그인 안 했으면 메인으로 강제 이동
+# ==========================================
+if 'logged_in' not in st.session_state or not st.session_state.logged_in:
+    st.warning("⚠️ 로그인이 필요합니다. 메인 화면으로 이동합니다...")
+    time.sleep(1) # 유저가 메시지를 볼 시간을 줌
+    st.switch_page("Main.py") # 메인으로 강제 소환!
+    st.stop() # 아래 코드 실행 중단
+
+# ------------------------------------------
+# 👇 원래 있던 코드들 (DB 연결 등)은 이 밑에 있어야 함
+# ------------------------------------------
 from connection import get_supabase_client
+supabase = get_supabase_client()
 
 # 연결 가져오기 (connection.py가 알아서 금고에서 키를 꺼내옵니다)
 try:
@@ -234,3 +242,4 @@ st.session_state.page_index = (st.session_state.page_index + 1) % total_pages
 time.sleep(5) 
 
 st.rerun()
+
