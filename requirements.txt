@@ -1,4 +1,6 @@
 streamlit
-pandas
 supabase
+pandas
 qrcode
+Pillow
+opencv-python-headless  <-- 이 줄을 꼭 추가해야 합니다!
