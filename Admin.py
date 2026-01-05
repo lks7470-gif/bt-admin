@@ -9,41 +9,12 @@ import io
 import base64
 import math
 import time
-import re
+# (import re는 삭제됨)
+# (from supabase... 는 삭제해도 되고 둬도 되지만, 안 쓰면 지우는 게 깔끔합니다)
 
-# ==========================================
-# 🚀 1. Supabase 연결 (초강력 에러 차단)
-# ==========================================
-SUPABASE_URL = "https://fkebyokmlhkbxcbyjijb.supabase.co"
-
-# [핵심] 키 값 정제: 눈에 안 보이는 모든 찌꺼기 제거
-RAW_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrZWJ5b2ttbGhrYnhjYnlqaWpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NjY4MTUsImV4cCI6MjA4MjQ0MjgxNX0.SRvsxwIa6oIUoqlAJBl1lDy1sSM27CZiCYEsDzkIyhc"
-
-# 1단계: 허용된 문자(영어,숫자,점,빼기,밑줄) 외 전부 삭제
-step1_key = re.sub(r'[^a-zA-Z0-9\.\-\_]', '', RAW_KEY).strip()
-
-# 2단계: 아스키 코드로 강제 변환하여 유령 문자 박멸 (이게 핵심)
-try:
-    SUPABASE_KEY = step1_key.encode('ascii', 'ignore').decode('ascii')
-except:
-    SUPABASE_KEY = step1_key
-
-# 사장님이 제안하신 캐시 방식 적용 (URL, KEY를 인자로 받음)
-@st.cache_resource
-def init_connection(url: str, key: str):
-    try:
-        return create_client(url, key)
-    except:
-        return None
-
-try:
-    supabase = init_connection(SUPABASE_URL, SUPABASE_KEY)
-    if not supabase:
-        st.error("🚨 서버 연결 실패! 키 값을 확인해주세요.")
-        st.stop()
-except:
-    st.error("🚨 서버 연결 오류!")
-    st.stop()
+# 👇 여기 딱 2줄로 연결 끝!
+from connection import get_supabase_client
+supabase = get_supabase_client()
 
 # ==========================================
 # ⚙️ 2. 기본 설정
