@@ -6,18 +6,11 @@ import cv2
 import numpy as np
 import time
 
-# ==========================================
-# 🚀 [필수] Admin.py와 똑같은 URL, KEY를 넣으세요!
-# ==========================================
-SUPABASE_URL = "https://fkebyokmlhkbxcbyjijb.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrZWJ5b2ttbGhrYnhjYnlqaWpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NjY4MTUsImV4cCI6MjA4MjQ0MjgxNX0.SRvsxwIa6oIUoqlAJBl1lDy1sSM27CZiCYEsDzkIyhc"
+# (from supabase... 는 삭제해도 되고 둬도 되지만, 안 쓰면 지우는 게 깔끔합니다)
 
-# 서버 연결 (에러 방지)
-try:
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-except Exception as e:
-    st.error(f"🚨 서버 연결 실패: {e}")
-    st.stop()
+# 👇 여기 딱 2줄로 연결 끝!
+from connection import get_supabase_client
+supabase = get_supabase_client()
 
 # ==========================================
 # ⚙️ 화면 설정
@@ -188,4 +181,5 @@ if img_file is not None:
         st.warning("❌ QR 인식을 못 했습니다. 다시 찍어주세요.")
 
 # 🔥 [핵심] 화면 맨 아래에 넉넉한 여백 추가 (버튼이 바닥에 붙지 않게 함)
+
 st.markdown("<div style='height: 150px;'></div>", unsafe_allow_html=True)
