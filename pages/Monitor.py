@@ -6,29 +6,19 @@ from datetime import datetime, timedelta
 import time
 import math
 import re
-import os
+# [✅ 새로 추가할 코드]
+from connection import get_supabase_client
 
-# ==========================================
-# 🚀 1. Supabase 연결
-# ==========================================
-SUPABASE_URL = "https://fkebyokmlhkbxcbyjijb.supabase.co"
-RAW_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrZWJ5b2ttbGhrYnhjYnlqaWpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NjY4MTUsImV4cCI6MjA4MjQ0MjgxNX0.SRvsxwIa6oIUoqlAJBl1lDy1sSM27CZiCYEsDzkIyhc"
-
+# 연결 가져오기 (connection.py가 알아서 금고에서 키를 꺼내옵니다)
 try:
-    clean_key = re.sub(r'\s+', '', RAW_KEY)
-    SUPABASE_KEY = clean_key.encode("ascii", "ignore").decode("ascii")
-except:
-    SUPABASE_KEY = clean_key
+    supabase = get_supabase_client()
+    if not supabase:
+        st.error("🚨 서버 연결 실패! (connection.py 파일 확인 필요)")
+        st.stop()
+except Exception as e:
+    st.error(f"🚨 연결 오류: {e}")
+    st.stop()
 
-@st.cache_resource
-def init_connection(url, key):
-    try: return create_client(url, key)
-    except: return None
-
-try:
-    supabase = init_connection(SUPABASE_URL, SUPABASE_KEY)
-    if not supabase: st.error("🚨 서버 연결 실패!"); st.stop()
-except: st.error("🚨 서버 연결 오류!"); st.stop()
 
 # ==========================================
 # ⚙️ 설정 및 스타일
@@ -242,4 +232,5 @@ else:
 
 st.session_state.page_index = (st.session_state.page_index + 1) % total_pages
 time.sleep(5) 
+
 st.rerun()
