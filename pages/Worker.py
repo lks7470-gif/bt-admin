@@ -1,17 +1,21 @@
 # 파일명: pages/Worker.py
 import streamlit as st
-from supabase import create_client, Client
-from datetime import datetime
-import cv2
-import numpy as np
 import time
 
-# (from supabase... 는 삭제해도 되고 둬도 되지만, 안 쓰면 지우는 게 깔끔합니다)
+# ==========================================
+# 🛑 [문지기] 로그인 안 했으면 메인으로 강제 이동
+# ==========================================
+if 'logged_in' not in st.session_state or not st.session_state.logged_in:
+    st.warning("⚠️ 로그인이 필요합니다. 메인 화면으로 이동합니다...")
+    time.sleep(1) # 유저가 메시지를 볼 시간을 줌
+    st.switch_page("Main.py") # 메인으로 강제 소환!
+    st.stop() # 아래 코드 실행 중단
 
-# 👇 여기 딱 2줄로 연결 끝!
+# ------------------------------------------
+# 👇 원래 있던 코드들 (DB 연결 등)은 이 밑에 있어야 함
+# ------------------------------------------
 from connection import get_supabase_client
 supabase = get_supabase_client()
-
 # ==========================================
 # ⚙️ 화면 설정
 # ==========================================
@@ -183,3 +187,4 @@ if img_file is not None:
 # 🔥 [핵심] 화면 맨 아래에 넉넉한 여백 추가 (버튼이 바닥에 붙지 않게 함)
 
 st.markdown("<div style='height: 150px;'></div>", unsafe_allow_html=True)
+
