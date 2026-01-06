@@ -8,7 +8,7 @@ def get_supabase_client():
     try:
         # Streamlit 'secrets' 금고에서 키를 꺼내옴
         url = st.secrets["supabase"]["https://fkebyokmlhkbxcbyjijb.supabase.co"]
-        key = st.secrets["supabase"]["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrZWJ5b2ttbGhrYnhjYnlqaWpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NjY4MTUsImV4cCI6MjA4MjQ0MjgxNX0.SRvsxwIa6oIUoqlAJBl1lDy1sSM27CZiCYEsDzkIyhc"]
+        key = st.secrets["supabase"]["eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrZWJ5b2ttbGhrYnhjYnlqaWpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NjY4MTUsImV4cCI6MjA4MjQ0MjgxNX0.SRvsxwIa6oIUoqlAJBl1lDy1sSM27CZiCYEsDzkIyhc"]
         return create_client(url, key)
     except Exception as e:
         st.error(f"🚨 Supabase 연결 오류: {e}")
