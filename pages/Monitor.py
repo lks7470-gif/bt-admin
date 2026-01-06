@@ -6,7 +6,7 @@ import os
 from datetime import datetime, timedelta
 
 # ==========================================
-# 🚀 1. Supabase 연결
+# 🚀 1. Supabase 연결 (connection.py 사용)
 # ==========================================
 try:
     from connection import get_supabase_client
@@ -16,80 +16,94 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# ⚙️ 설정 및 줌(Zoom) 기능 초기화
+# ⚙️ 설정 및 스타일
 # ==========================================
 st.set_page_config(page_title="BESTROOM 모니터링", page_icon="🖥️", layout="wide", initial_sidebar_state="collapsed")
-
-# 🔍 [핵심] 줌 레벨 상태 변수 (기본값 100%)
-if 'zoom_level' not in st.session_state:
-    st.session_state.zoom_level = 100
 
 def get_korea_time():
     return datetime.utcnow() + timedelta(hours=9)
 
-# 🎨 [디자인] CSS 스타일 + 줌 적용
-st.markdown(f"""
+# CSS 스타일 정의
+st.markdown("""
 <style>
-    /* 🔥 화면 전체 줌(Zoom) 적용 */
-    body {{
-        zoom: {st.session_state.zoom_level}%; 
-    }}
-
-    /* 1. 기본 배경 블랙 */
-    .stApp, .main, [data-testid="stAppViewContainer"] {{ background-color: #000000 !important; color: #e0e0e0 !important; }}
-    [data-testid="stSidebar"], [data-testid="collapsedControl"], header, footer {{ display: none !important; }}
-    .block-container {{ padding-top: 1rem; padding-bottom: 3rem; max-width: 99% !important; }}
+    /* 1. 기본 배경 블랙 설정 */
+    .stApp, .main, [data-testid="stAppViewContainer"] { background-color: #000000 !important; color: #e0e0e0 !important; }
+    [data-testid="stSidebar"], [data-testid="collapsedControl"], header, footer { display: none !important; }
+    .block-container { padding-top: 1rem; padding-bottom: 3rem; max-width: 99% !important; }
     
-    /* 2. 상단 집계 박스 */
-    .metric-container {{ display: flex; gap: 15px; margin-bottom: 25px; justify-content: center; }}
-    .metric-box {{ background: #111; border: 1px solid #333; border-radius: 12px; width: 18%; padding: 15px; text-align: center; box-shadow: 0 4px 15px rgba(255,255,255,0.05); }}
-    .metric-title {{ font-size: 16px; color: #888; margin-bottom: 5px; font-weight: bold; }}
-    .metric-num {{ font-size: 48px; font-weight: 900; line-height: 1; }}
-    .tx-white {{ color: #fff; }} .tx-blue {{ color: #00e5ff; }} .tx-green {{ color: #00e676; }} .tx-orange {{ color: #ff9100; }}
+    /* 2. 상단 집계 박스 스타일 */
+    .metric-container { display: flex; gap: 15px; margin-bottom: 25px; justify-content: center; }
+    .metric-box { background: #111; border: 1px solid #333; border-radius: 12px; width: 18%; padding: 15px; text-align: center; box-shadow: 0 4px 15px rgba(255,255,255,0.05); }
+    .metric-title { font-size: 16px; color: #888; margin-bottom: 5px; font-weight: bold; }
+    .metric-num { font-size: 48px; font-weight: 900; line-height: 1; }
+    .tx-white { color: #fff; } .tx-blue { color: #00e5ff; } .tx-green { color: #00e676; } .tx-orange { color: #ff9100; }
     
     /* 3. 테이블 스타일 */
-    .smart-table {{ width: 100%; border-collapse: separate; border-spacing: 0 10px; }}
-    .smart-table th {{ text-align: left; color: #666; font-size: 15px; padding: 10px 20px; border-bottom: 1px solid #333; font-weight: bold; }}
-    .smart-row {{ background-color: #0a0a0a; }}
-    .smart-cell {{ padding: 15px 20px; border-top: 1px solid #222; border-bottom: 1px solid #222; vertical-align: middle; }}
-    .smart-row td:first-child {{ border-left: 1px solid #222; border-top-left-radius: 12px; border-bottom-left-radius: 12px; }}
-    .smart-row td:last-child {{ border-right: 1px solid #222; border-top-right-radius: 12px; border-bottom-right-radius: 12px; }}
+    .smart-table { width: 100%; border-collapse: separate; border-spacing: 0 10px; }
+    .smart-table th { text-align: left; color: #666; font-size: 15px; padding: 10px 20px; border-bottom: 1px solid #333; font-weight: bold; }
+    .smart-row { background-color: #0a0a0a; }
+    .smart-cell { padding: 15px 20px; border-top: 1px solid #222; border-bottom: 1px solid #222; vertical-align: middle; }
+    .smart-row td:first-child { border-left: 1px solid #222; border-top-left-radius: 12px; border-bottom-left-radius: 12px; }
+    .smart-row td:last-child { border-right: 1px solid #222; border-top-right-radius: 12px; border-bottom-right-radius: 12px; }
     
-    /* 4. 뱃지 및 폰트 */
-    .time-badge {{ background: #222; color: #aaa; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 14px; border: 1px solid #333; }}
-    .lot-text {{ font-size: 15px; color: #4fc3f7; font-weight: bold; }}
-    .cell-cust {{ font-size: 22px; font-weight: 900; color: #fff; }}
-    .cell-prod {{ font-size: 15px; color: #888; }}
-    .cell-size {{ font-size: 18px; color: #ffffff; font-weight: 900; }} 
-    .spec-box {{ background-color: #111; border: 1px solid #444; color: #fff; padding: 12px; border-radius: 8px; font-size: 14px; font-family: 'Consolas', monospace; }}
-    .secret-box {{ background: repeating-linear-gradient(45deg, #111, #111 10px, #1a1a1a 10px, #1a1a1a 20px); color: #777; border: 1px dashed #555; text-align: center; padding: 12px; border-radius: 8px; font-size: 14px; }}
+    /* 4. 각종 뱃지 및 폰트 */
+    .time-badge { background: #222; color: #aaa; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 14px; border: 1px solid #333; }
+    .lot-text { font-size: 15px; color: #4fc3f7; font-weight: bold; }
+    .cell-cust { font-size: 22px; font-weight: 900; color: #fff; }
+    .cell-prod { font-size: 15px; color: #888; }
+    .cell-size { font-size: 18px; color: #ffffff; font-weight: 900; } 
     
-    .status-container {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }}
-    .status-badge {{ display: inline-block; padding: 5px 10px; border-radius: 15px; font-size: 12px; font-weight: 900; text-transform: uppercase; }}
-    .pct-text {{ font-size: 13px; font-weight: 900; color: #fff; }}
+    .spec-box { background-color: #111; border: 1px solid #444; color: #fff; padding: 12px; border-radius: 8px; font-size: 14px; font-family: 'Consolas', monospace; }
+    .secret-box { background: repeating-linear-gradient(45deg, #111, #111 10px, #1a1a1a 10px, #1a1a1a 20px); color: #777; border: 1px dashed #555; text-align: center; padding: 12px; border-radius: 8px; font-size: 14px; }
     
-    .badge-white {{ background: #333; color: #ccc; border: 1px solid #555; }}
-    .badge-blue {{ background: #0277bd; color: white; border: 1px solid #0288d1; }}
-    .badge-green {{ background: #2e7d32; color: white; border: 1px solid #388e3c; }}
-    .badge-orange {{ background: #ef6c00; color: white; border: 1px solid #f57c00; }}
-    .badge-red {{ background: #b71c1c; color: white; border: 1px solid #d32f2f; }}
+    .status-container { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .status-badge { display: inline-block; padding: 5px 10px; border-radius: 15px; font-size: 12px; font-weight: 900; text-transform: uppercase; }
+    .pct-text { font-size: 13px; font-weight: 900; color: #fff; }
     
-    .mini-progress-bg {{ width: 100%; height: 6px; background: #222; border-radius: 3px; overflow: hidden; }}
-    .mini-progress-fill {{ height: 100%; border-radius: 3px; transition: width 0.5s; }}
-    .bg-w {{ background: #555; }} .bg-b {{ background: linear-gradient(90deg, #00e5ff, #2979ff); }} 
-    .bg-g {{ background: linear-gradient(90deg, #00e676, #00c853); }} .bg-o {{ background: linear-gradient(90deg, #ff9100, #ff3d00); }} .bg-r {{ background: linear-gradient(90deg, #ff5252, #d50000); }}
+    .badge-white { background: #333; color: #ccc; border: 1px solid #555; }
+    .badge-blue { background: #0277bd; color: white; border: 1px solid #0288d1; }
+    .badge-green { background: #2e7d32; color: white; border: 1px solid #388e3c; }
+    .badge-orange { background: #ef6c00; color: white; border: 1px solid #f57c00; }
+    .badge-red { background: #b71c1c; color: white; border: 1px solid #d32f2f; }
     
-    .page-indicator {{ position: fixed; top: 20px; right: 20px; background: rgba(20,20,20,0.8); color: #888; padding: 5px 15px; border-radius: 15px; font-weight: bold; font-size: 14px; border: 1px solid #333; }}
+    /* 5. 미니 프로그레스 바 (테이블 내부) */
+    .mini-progress-bg { width: 100%; height: 6px; background: #222; border-radius: 3px; overflow: hidden; }
+    .mini-progress-fill { height: 100%; border-radius: 3px; transition: width 0.5s; }
+    .bg-w { background: #555; } .bg-b { background: linear-gradient(90deg, #00e5ff, #2979ff); } 
+    .bg-g { background: linear-gradient(90deg, #00e676, #00c853); } .bg-o { background: linear-gradient(90deg, #ff9100, #ff3d00); } .bg-r { background: linear-gradient(90deg, #ff5252, #d50000); }
+    
+    /* 6. 페이지 번호 표시 */
+    .page-indicator { position: fixed; top: 20px; right: 20px; background: rgba(20,20,20,0.8); color: #888; padding: 5px 15px; border-radius: 15px; font-weight: bold; font-size: 14px; border: 1px solid #333; }
 
-    /* 하단 타이머 애니메이션 */
-    @keyframes load-bar {{ 0% {{ width: 0%; }} 100% {{ width: 100%; }} }}
-    .timer-bar-container {{ position: fixed; bottom: 0; left: 0; width: 100%; height: 6px; background-color: #111; z-index: 999999; }}
-    .timer-bar-fill {{ height: 100%; background: linear-gradient(90deg, #00e5ff, #2979ff); box-shadow: 0 0 10px #00e5ff; animation: load-bar 5s linear infinite; }}
+    /* 🔥 [핵심] 하단 자동실행 타이머 바 (부드러운 애니메이션) */
+    @keyframes load-bar {
+        0% { width: 0%; }
+        100% { width: 100%; }
+    }
     
-    .logo-placeholder {{ width: 100%; height: 60px; background: #111; border: 2px dashed #333; display: flex; align-items: center; justify-content: center; color: #555; font-weight: bold; border-radius: 10px; }}
+    .timer-bar-container {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 6px;
+        background-color: #111;
+        z-index: 999999;
+    }
     
-    /* 줌 버튼 스타일 */
-    .zoom-btn {{ border: 1px solid #333; background: #222; color: #fff; border-radius: 5px; width: 100%; font-weight: bold; }}
+    .timer-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #00e5ff, #2979ff);
+        box-shadow: 0 0 10px #00e5ff;
+        animation: load-bar 5s linear infinite; /* 5초 동안 채워짐 */
+    }
+    
+    /* 로고가 없을 때 표시할 박스 스타일 */
+    .logo-placeholder {
+        width: 100%; height: 60px; background: #111; border: 2px dashed #333;
+        display: flex; align-items: center; justify-content: center;
+        color: #555; font-weight: bold; border-radius: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -129,43 +143,29 @@ else:
     cnt_ready=cnt_cut=cnt_elec=cnt_lam=cnt_out=0; df_view=pd.DataFrame(); total_pages=1
 
 # ==========================================
-# 🖼️ 레이아웃 구성 (줌 버튼 추가됨)
+# 🖼️ 레이아웃 구성 (로고 복구됨!)
 # ==========================================
 c1, c2, c3 = st.columns([2, 6, 2])
-
 with c1:
-    # 로고
+    # 로고 파일 찾기 로직 복구
     logo_path = None
     if os.path.exists("pages/company_logo.png"): logo_path = "pages/company_logo.png"
     elif os.path.exists("company_logo.png"): logo_path = "company_logo.png"
     
-    if logo_path: st.image(logo_path, width=300)
-    else: st.markdown("### 🏭 BESTROOM", unsafe_allow_html=True)
+    if logo_path:
+        st.image(logo_path, width=300)
+    else:
+        # 이미지가 없으면 텍스트로 대체
+        st.markdown("### 🏭 BESTROOM", unsafe_allow_html=True)
 
 with c2:
-    # 타이틀
     now_time = get_korea_time().strftime("%H:%M:%S")
     st.markdown(f"<h1 style='font-size:36px;'>MONITOR <span style='color:#ffd700;'>{now_time}</span></h1>", unsafe_allow_html=True)
 
 with c3:
-    # 🔥 [추가됨] 줌 컨트롤 버튼 (상단)
-    z1, z2, z3 = st.columns([1, 2, 1])
-    if z1.button("➖", use_container_width=True):
-        st.session_state.zoom_level = max(50, st.session_state.zoom_level - 10)
-        st.rerun()
-        
-    z2.markdown(f"<div style='text-align:center; font-weight:bold; padding-top:5px; color:#aaa;'>🔍 {st.session_state.zoom_level}%</div>", unsafe_allow_html=True)
-    
-    if z3.button("➕", use_container_width=True):
-        st.session_state.zoom_level = min(200, st.session_state.zoom_level + 10)
-        st.rerun()
-        
-    st.divider() # 구분선
-
-    # 보안 토글 (하단)
     col_t1, col_t2 = st.columns(2)
-    with col_t1: is_cust_secure = st.toggle("🔒 고객", value=True)
-    with col_t2: is_spec_secure = st.toggle("🔒 Spec", value=True)
+    with col_t1: is_cust_secure = st.toggle("🔒 고객사", value=True)
+    with col_t2: is_spec_secure = st.toggle("🔒 SPEC", value=True)
 
 st.markdown(f'<div class="page-indicator">PAGE {st.session_state.page_index + 1} / {total_pages}</div>', unsafe_allow_html=True)
 
@@ -232,7 +232,7 @@ else:
     st.info("현재 표시할 작업 지시가 없습니다.")
 
 # ==========================================
-# 🔄 부드러운 하단 타이머 바
+# 🔄 부드러운 하단 타이머 바 (HTML/CSS 애니메이션)
 # ==========================================
 st.markdown("""
 <div class="timer-bar-container">
@@ -240,8 +240,14 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# 5초 대기
 time.sleep(5)
+
+# 페이지 인덱스 증가
 st.session_state.page_index = (st.session_state.page_index + 1) % total_pages
 
-try: st.rerun()
-except AttributeError: st.experimental_rerun()
+# 안전한 새로고침
+try:
+    st.rerun()
+except AttributeError:
+    st.experimental_rerun()
