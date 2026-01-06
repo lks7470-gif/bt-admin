@@ -27,7 +27,7 @@ def get_korea_time():
     return datetime.utcnow() + timedelta(hours=9)
 
 # ==========================================
-# 🎨 [핵심] 줌 컨트롤러 & 스타일 (CSS)
+# 🎨 CSS 스타일 (위험한 코드 제거됨)
 # ==========================================
 st.markdown(f"""
 <style>
@@ -39,39 +39,12 @@ st.markdown(f"""
     [data-testid="stSidebar"], [data-testid="collapsedControl"], header, footer {{ display: none !important; }}
     .block-container {{ padding-top: 1rem; padding-bottom: 3rem; max-width: 99% !important; }}
 
-    /* 2. 줌 컨트롤러 (상단 고정 캡슐) - 페이지 표시 옆에 배치 */
-    div[data-testid="stHorizontalBlock"]:nth-of-type(1) {{
-        position: fixed !important;
-        top: 20px;
-        right: 150px; /* 페이지 번호(right:20px)의 왼쪽 */
-        width: 160px !important;
-        background: rgba(30,30,30,0.9);
-        z-index: 999999;
-        border-radius: 20px;
-        padding: 2px 10px;
-        border: 1px solid #444;
-        align-items: center;
-        gap: 0px !important;
-    }}
+    /* 2. 줌 버튼 스타일 (안전하게 클래스로 지정) */
+    .zoom-text {{ text-align: center; font-weight: bold; color: #00e5ff; font-size: 18px; margin-top: 8px; }}
     
-    /* 줌 버튼 스타일 (투명하고 작게) */
-    div[data-testid="stHorizontalBlock"]:nth-of-type(1) button {{
-        background: transparent !important;
-        border: none !important;
-        color: #aaa !important;
-        font-size: 18px !important;
-        padding: 0px !important;
-        height: auto !important;
-        min-height: 0px !important;
-        line-height: 1 !important;
-        margin-top: -3px; /* 수직 정렬 보정 */
-    }}
-    div[data-testid="stHorizontalBlock"]:nth-of-type(1) button:hover {{ color: #00e5ff !important; }}
-    div[data-testid="stHorizontalBlock"]:nth-of-type(1) p {{ font-size: 14px; font-weight: bold; margin: 0; padding-top: 2px; color: #fff; }}
-
     /* 3. 페이지 번호 표시 (우측 상단 고정) */
     .page-indicator {{ 
-        position: fixed; top: 20px; right: 20px; 
+        position: fixed; top: 15px; right: 20px; 
         background: rgba(20,20,20,0.8); color: #888; 
         padding: 5px 15px; border-radius: 15px; 
         font-weight: bold; font-size: 14px; border: 1px solid #333; 
@@ -123,22 +96,6 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 🔭 [플로팅] 미니 줌 컨트롤러 생성
-# ==========================================
-# 이 부분이 CSS에 의해 우측 상단 캡슐로 변신합니다.
-z1, z2, z3 = st.columns([1, 2, 1])
-
-if z1.button("➖"):
-    st.session_state.zoom_level = max(50, st.session_state.zoom_level - 10)
-    st.rerun()
-
-z2.markdown(f"<div style='text-align:center;'>🔍 {st.session_state.zoom_level}%</div>", unsafe_allow_html=True)
-
-if z3.button("➕"):
-    st.session_state.zoom_level = min(200, st.session_state.zoom_level + 10)
-    st.rerun()
-
-# ==========================================
 # 📊 데이터 로드 및 로직
 # ==========================================
 def load_data():
@@ -174,10 +131,11 @@ else:
     cnt_ready=cnt_cut=cnt_elec=cnt_lam=cnt_out=0; df_view=pd.DataFrame(); total_pages=1
 
 # ==========================================
-# 🖼️ 메인 레이아웃 (헤더 정리됨)
+# 🖼️ 메인 레이아웃 (안전한 배치)
 # ==========================================
-c1, c2, c3 = st.columns([2, 6, 2])
+c1, c2, c3 = st.columns([2, 5, 2])
 
+# 1. 로고 영역
 with c1:
     logo_path = None
     if os.path.exists("pages/company_logo.png"): logo_path = "pages/company_logo.png"
@@ -186,13 +144,27 @@ with c1:
     if logo_path: st.image(logo_path, width=300)
     else: st.markdown("### 🏭 BESTROOM", unsafe_allow_html=True)
 
+# 2. 타이틀 영역
 with c2:
     now_time = get_korea_time().strftime("%H:%M:%S")
-    st.markdown(f"<h1 style='font-size:36px;'>MONITOR <span style='color:#ffd700;'>{now_time}</span></h1>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='font-size:36px; text-align:center;'>MONITOR <span style='color:#ffd700;'>{now_time}</span></h1>", unsafe_allow_html=True)
 
+# 3. 우측 상단 컨트롤 영역 (여기에 줌 버튼을 안전하게 넣습니다)
 with c3:
-    # 줌 버튼은 사라지고, 토글 스위치만 깔끔하게 남음
-    st.markdown("<div style='height:15px'></div>", unsafe_allow_html=True) # 줄맞춤용 여백
+    # 줌 컨트롤 (아이콘 버튼)
+    z1, z2, z3 = st.columns([1, 2, 1])
+    if z1.button("➖", use_container_width=True):
+        st.session_state.zoom_level = max(50, st.session_state.zoom_level - 10)
+        st.rerun()
+        
+    z2.markdown(f"<div class='zoom-text'>🔍 {st.session_state.zoom_level}%</div>", unsafe_allow_html=True)
+    
+    if z3.button("➕", use_container_width=True):
+        st.session_state.zoom_level = min(200, st.session_state.zoom_level + 10)
+        st.rerun()
+
+    # 토글 버튼 (아래줄)
+    st.markdown("<div style='margin-top:5px;'></div>", unsafe_allow_html=True)
     col_t1, col_t2 = st.columns(2)
     with col_t1: is_cust_secure = st.toggle("🔒 고객", value=True)
     with col_t2: is_spec_secure = st.toggle("🔒 Spec", value=True)
