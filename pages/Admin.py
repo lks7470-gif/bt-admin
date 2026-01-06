@@ -1,411 +1,276 @@
-# 파일명: pages/Worker.py
+# 파일명: pages/Admin.py
 import streamlit as st
+import streamlit.components.v1 as components  # [필수] 인쇄 기능용
+import pandas as pd
+import qrcode
+import io
+import base64
+import math
 import time
-import cv2              # 👈 [필수] 카메라 영상 처리용
-import numpy as np      # 👈 [필수] 이미지 데이터 변환용
 from datetime import datetime
 
 # ==========================================
-# 🛑 [문지기] 로그인 안 했으면 메인으로 강제 이동
+# 🛑 [문지기] 로그인 체크
 # ==========================================
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
-    st.warning("⚠️ 로그인이 필요합니다. 메인 화면으로 이동합니다...")
+    st.warning("⚠️ 로그인이 필요합니다.")
     time.sleep(1)
     st.switch_page("Main.py")
     st.stop()
 
-# ==========================================
+# ------------------------------------------
 # 🔌 DB 연결 (connection.py 사용)
-# ==========================================
+# ------------------------------------------
 try:
     from connection import get_supabase_client
     supabase = get_supabase_client()
 except Exception as e:
-    st.error(f"❌ DB 연결 실패: {e}")
+    st.error(f"🚨 서버 연결 실패: {e}")
     st.stop()
 
 # ==========================================
-# ⚙️ 화면 설정 및 스타일
+# ⚙️ 2. 기본 설정
 # ==========================================
-st.set_page_config(page_title="현장 작업자", page_icon="👷")
+st.set_page_config(page_title="(주)베스트룸 생산관리", page_icon="🏭", layout="wide")
 
+if 'order_list' not in st.session_state: st.session_state.order_list = []
+if 'generated_qrs' not in st.session_state: st.session_state.generated_qrs = []
+if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
+
+# 🔥 [스타일] 인쇄 백지 방지 및 디자인
 st.markdown("""
 <style>
-    /* 1. 모바일 화면 최적화 (중앙 정렬) */
-    .block-container { 
-        max-width: 600px !important; 
-        padding: 1rem !important; 
-        margin: 0 auto !important; 
-    }
+    .stApp { background-color: #ffffff !important; color: #000000 !important; }
     
-    /* 2. 카메라 화면 테두리 강조 */
-    [data-testid="stCameraInput"] video { 
-        width: 100% !important;
-        border-radius: 15px !important; 
-        border: 3px solid #2196F3 !important; 
-    }
-    
-    /* 3. 버튼 크기 키우기 (터치하기 쉽게) */
-    div.stButton > button {
-        width: 100%;
-        height: 60px;
-        font-weight: bold;
-        font-size: 20px !important;
-        border-radius: 12px;
-        margin-top: 10px;
-    }
+    @media print {
+        @page { size: A4 portrait; margin: 0; }
+        body * { visibility: hidden; }
+        
+        /* 인쇄 영역 강제 표시 및 오버레이 */
+        .printable-area, .printable-area * {
+            visibility: visible !important;
+            color: black !important;
+        }
+        .printable-area {
+            position: fixed !important; left: 0; top: 0; width: 210mm; height: 297mm;
+            background-color: white !important; z-index: 999999; padding: 10mm; display: block !important;
+        }
 
-    /* 불량 모드일 때 스타일 */
-    .defect-box { 
-        border: 2px solid red; 
-        background-color: #ffe6e6; 
-        padding: 10px; 
-        border-radius: 10px;
-        text-align: center;
-        color: red;
-        font-weight: bold;
-        margin-bottom: 10px;
+        /* 불필요 요소 숨김 */
+        header, footer, .stButton, [data-testid="stHeader"] { display: none !important; }
+        
+        /* 테이블 스타일 (얇은 선) */
+        .info-table { width: 100%; border-collapse: collapse; border: 1px solid black !important; margin-bottom: 10px; font-size: 11pt; }
+        .info-table th { background: #f0f0f0 !important; font-weight: bold; width: 18%; border: 1px solid black !important; }
+        .info-table td { text-align: center; border: 1px solid black !important; padding: 5px; }
+
+        /* QR 그리드 (얇은 선) */
+        .qr-table { width: 100%; border-collapse: collapse; table-layout: fixed; border: 1px solid black !important; }
+        .qr-cell { width: 25%; height: 60mm; border: 1px solid black !important; text-align: center; vertical-align: middle; padding: 5px; }
+        
+        .top-time { position: absolute; top: 5mm; right: 5mm; font-size: 9pt; color: #555; }
+        .footer-warning { position: absolute; bottom: 5mm; left: 0; width: 100%; text-align: center; font-size: 10pt; font-weight: bold; }
     }
+    .printable-area { display: none; }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("👷 공정 작업 등록")
+def get_dimension_html(w, h, elec):
+    return f"<span style='font-size:16pt;'>{w}</span> x <span style='font-size:16pt; font-weight:bold;'>{h}</span>"
 
-# 1. 작업자 선택
-worker_list = ["작업자A", "작업자B", "김반장", "이주임", "박대리"]
-current_worker = st.selectbox("👤 작업자 선택", worker_list)
+def image_to_base64(img):
+    buffered = io.BytesIO(); img.save(buffered, format="PNG"); return base64.b64encode(buffered.getvalue()).decode()
 
-st.divider()
+# A4 출력용 HTML 생성
+def create_a4_html(header, items):
+    cells_data = items[:12] + [None] * (12 - len(items[:12]))
+    rows_html = ""
+    for r in range(3):
+        rows_html += "<tr>"
+        for c in range(4):
+            idx = r * 4 + c
+            item = cells_data[idx]
+            if item:
+                img = image_to_base64(item['img'])
+                content = f"""<div style="font-size:14pt; margin-bottom:5px;">{get_dimension_html(item['w'], item['h'], item['elec'])}</div><div style="font-size:12pt; font-weight:bold; margin-bottom:5px;">[{item['elec']}]</div><img src="data:image/png;base64,{img}" style="width:100px;"><div style="font-size:10pt; font-weight:bold; margin-top:5px;">{item['lot']}</div><div style="font-size:8pt;">{item['cust']} | {item['prod']}</div>"""
+            else: content = ""
+            rows_html += f'<td class="qr-cell">{content}</td>'
+        rows_html += "</tr>"
 
-# 2. 공정 단계 정의 (순서 체크용)
-STEP_LEVEL = {
-    "Full Cut": 10, "Half Cut": 20, "전극 완료": 30, 
-    "접합: 1. 준비 완료": 41, "접합: 2. 가열 시작": 42, "접합: 3. 공정 완료 (End)": 43
-}
-
-# 3. 불량 신고 모드 스위치
-is_defect_mode = st.toggle("🚨 불량 발생 신고", value=False)
-
-if is_defect_mode:
-    st.markdown('<div class="defect-box">🚨 불량 등록 모드 ON</div>', unsafe_allow_html=True)
-    step = st.selectbox("발견 공정", list(STEP_LEVEL.keys())) 
-    defect_type = st.selectbox("불량 유형", ["이물질", "기포/들뜸", "치수 불량", "스크래치", "전극 불량", "원단 불량", "기타"])
-    defect_note = st.text_input("상세 내용", placeholder="예: 우측 상단 3cm 찢어짐")
-    save_data = f"[{defect_type}] {defect_note}"
-    current_level = 999 
-else:
-    # 정상 작업 모드
-    step = st.radio("현재 진행 공정", list(STEP_LEVEL.keys()))
-    current_level = STEP_LEVEL.get(step, 0)
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
     
-    save_data = "-"
+    return f"""
+<div class="printable-area">
+<div class="top-time">출력일시: {now_str}</div>
+<div style="text-align:center; font-size:10pt; margin-top:5mm;">(주)베스트룸</div>
+<div style="text-align:center; font-size:24pt; font-weight:bold; margin-bottom:20px; text-decoration:underline;">작업 지시서 (Work Order)</div>
+<table class="info-table">
+<tr><th>고객사</th><td>{header['cust']}</td><th>제품 종류</th><td>{header['prod']}</td></tr>
+<tr><th>출고 요청일</th><td>{header['date']}</td><th>원단 정보</th><td>{header['fabric']}</td></tr>
+<tr><th>작업 가이드</th><td colspan="3" style="text-align:left;">{header['guide']}</td></tr>
+<tr><th>비고</th><td colspan="3" style="height:60px; text-align:left;">{header['note']}</td></tr>
+</table>
+<div style="font-size:14pt; font-weight:bold; margin-bottom:5px;">📋 생산 리스트 및 QR</div>
+<table class="qr-table">{rows_html}</table>
+<div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>
+</div>
+"""
+
+# 라벨 출력용 HTML 생성
+def create_label_html(items):
+    cells_data = items[:12] + [None] * (12 - len(items[:12]))
+    rows_html = ""
+    for r in range(3):
+        rows_html += "<tr>"
+        for c in range(4):
+            idx = r * 4 + c
+            item = cells_data[idx]
+            if item:
+                img = image_to_base64(item['img'])
+                content = f"""<div style="font-size:16pt; font-weight:bold; margin-bottom:2px;">{item['w']}x{item['h']}</div><div style="font-size:12pt; margin-bottom:5px;">[{item['elec']}]</div><img src="data:image/png;base64,{img}" style="width:110px;"><div style="font-size:9pt; font-weight:bold; margin-top:2px;">{item['lot']}</div>"""
+            else: content = ""
+            rows_html += f'<td class="qr-cell" style="vertical-align:middle;">{content}</td>'
+        rows_html += "</tr>"
+
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
     
-    # 공정별 입력창 (보내주신 로직 반영)
-    if "Cut" in step:
-        st.info("⚙️ 장비 세팅값 입력")
-        c1, c2, c3 = st.columns(3)
-        sp = c1.number_input("Speed", value=0); mx = c2.number_input("Max", value=0); mn = c3.number_input("Min", value=0)
-        save_data = f"S:{sp} / M:{mx} / m:{mn}"
-    elif "End" in step or "공정 완료" in step:
-        st.info("🌡️ 최종 온도 입력")
-        c1, c2 = st.columns(2)
-        t1 = c1.number_input("내부(℃)", value=0.0); t2 = c2.number_input("Start(℃)", value=0.0)
-        save_data = f"내부:{t1} / Start:{t2}"
-    else:
-        note = st.text_input("📝 특이사항 (선택)", placeholder="특이사항 없음")
-        if note: save_data = note
+    return f"""
+<div class="printable-area">
+<div class="top-time">Label Print: {now_str}</div>
+<div style="font-size:18px; font-weight:bold; margin-bottom:10px; text-align:center;">🏷️ QR 라벨 출력</div>
+<table class="qr-table" style="border: 2px solid black;">{rows_html}</table>
+</div>
+"""
 
-st.markdown("### 👇 QR 스캔 (카메라)")
-st.caption("※ 카메라 권한을 허용해주세요.")
-
-# ==========================================
-# 📷 카메라 로직 (여기가 핵심!)
-# ==========================================
-img_file = st.camera_input("QR 스캔", label_visibility="collapsed")
-
-if img_file is not None:
+def fetch_fabric_stock():
     try:
-        # 1. 이미지 파일 바이트로 읽기
-        bytes_data = img_file.getvalue()
-        
-        # 2. OpenCV 형식으로 디코딩 (numpy 필수)
-        cv2_img = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
-        
-        # 3. QR 인식률을 높이기 위해 흑백 변환
-        gray_img = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2GRAY)
-        
-        # 4. QR 코드 디코딩
-        detector = cv2.QRCodeDetector()
-        data, bbox, _ = detector.detectAndDecode(gray_img)
-
-        if data:
-            st.success(f"🔍 QR 인식 성공: **{data}**")
-            
-            # --- DB 조회 및 저장 로직 ---
-            # 1. 작업 지시서(work_orders)에서 해당 LOT 조회
-            response = supabase.table("work_orders").select("status").eq("lot_no", data).execute()
-            
-            if not response.data:
-                st.error("❌ 등록되지 않은 LOT 번호입니다.")
-            else:
-                prev_status = response.data[0]['status']
-                
-                # 불량/보류 체크
-                if "불량" in prev_status or "보류" in prev_status:
-                    st.error(f"⛔ 경고: 이미 불량 처리된 제품입니다! ({prev_status})")
-                    st.stop()
-
-                # 순서 체크 (정상 모드일 때만)
-                if not is_defect_mode:
-                    prev_level = 0
-                    for key, val in STEP_LEVEL.items():
-                        if key in prev_status: prev_level = val; break
-                    
-                    # 이미 더 높은 단계거나 같은 단계면 경고
-                    if prev_level >= current_level:
-                        st.warning(f"⚠️ 이미 완료된 공정입니다. (현재 상태: {prev_status})")
-                        st.stop()
-                
-                # 저장 버튼 표시
-                btn_label = "🚨 불량 등록 실행" if is_defect_mode else "💾 작업 완료 저장"
-                btn_type = "secondary" if is_defect_mode else "primary"
-
-                if st.button(btn_label, type=btn_type, use_container_width=True):
-                    if is_defect_mode:
-                        # 불량 테이블 저장
-                        supabase.table("defects").insert({
-                            "lot_no": data, "step": step, "defect_type": defect_type, 
-                            "note": defect_note, "status": "조치대기", "worker": current_worker
-                        }).execute()
-                        # 상태 업데이트
-                        supabase.table("work_orders").update({"status": f"⛔ 불량({defect_type})"}).eq("lot_no", data).execute()
-                        st.success(f"🚨 불량 등록 완료! ({defect_type})")
-                    else:
-                        # 생산 로그 저장
-                        supabase.table("production_logs").insert({
-                            "lot_no": data, "step": step, "data": save_data, 
-                            "worker": current_worker, "result": "OK"
-                        }).execute()
-                        # 상태 업데이트
-                        supabase.table("work_orders").update({"status": step}).eq("lot_no", data).execute()
-                        st.balloons()
-                        st.success(f"✅ 작업 저장 완료! ({step})")
-                    
-                    # 1.5초 후 새로고침
-                    time.sleep(1.5)
-                    st.rerun()
-
-        else:
-            st.warning("❌ QR 코드를 찾지 못했습니다. 다시 찍어주세요.")
-
-    except Exception as e:
-        st.error("📡 처리 중 오류가 발생했습니다.")
-        st.code(f"에러 상세: {e}")
-
-# 화면 하단 여백 확보
-st.markdown("<div style='height: 100px;'></div>", unsafe_allow_html=True)# 파일명: pages/Worker.py
-import streamlit as st
-import time
-import cv2              # 👈 [필수] 카메라 영상 처리용
-import numpy as np      # 👈 [필수] 이미지 데이터 변환용
-from datetime import datetime
+        response = supabase.table("fabric_stock").select("*").execute()
+        return {row['lot_no']: row for row in response.data}
+    except: return {}
 
 # ==========================================
-# 🛑 [문지기] 로그인 안 했으면 메인으로 강제 이동
+# 🖥️ 관리자 UI 시작
 # ==========================================
-if 'logged_in' not in st.session_state or not st.session_state.logged_in:
-    st.warning("⚠️ 로그인이 필요합니다. 메인 화면으로 이동합니다...")
-    time.sleep(1)
-    st.switch_page("Main.py")
-    st.stop()
 
-# ==========================================
-# 🔌 DB 연결 (connection.py 사용)
-# ==========================================
-try:
-    from connection import get_supabase_client
-    supabase = get_supabase_client()
-except Exception as e:
-    st.error(f"❌ DB 연결 실패: {e}")
-    st.stop()
+# 사이드바
+st.sidebar.title("👨‍💼 지시서 설정")
+if not st.session_state.fabric_db: st.session_state.fabric_db = fetch_fabric_stock()
+if st.sidebar.button("🔄 재고 정보 새로고침", use_container_width=True): st.session_state.fabric_db = fetch_fabric_stock(); st.toast("✅ 완료")
 
-# ==========================================
-# ⚙️ 화면 설정 및 스타일
-# ==========================================
-st.set_page_config(page_title="현장 작업자", page_icon="👷")
+customer = st.sidebar.text_input("🏢 고객사명", value="A건설", key="side_customer")
+delivery_date = st.sidebar.date_input("📅 출고 요청일", key="side_date")
+product_type = st.sidebar.selectbox("🧶 제품 종류", ["스마트글라스", "접합필름", "PDLC원단", "일반유리"], key="side_product")
+st.sidebar.markdown("---")
+fabric_lot = st.sidebar.text_input("원단 LOT No", value="Roll-2312-A", key="side_fabric_lot")
+curr_fabric = st.session_state.fabric_db.get(fabric_lot)
+fab_w = float(curr_fabric['width']) if curr_fabric else 1200
+fab_remain = float(curr_fabric['total_len']) - float(curr_fabric['used_len']) if curr_fabric else 100.0
+if curr_fabric: st.sidebar.success(f"✅ 확인됨 (폭: {fab_w}mm)"); st.sidebar.info(f"📏 잔량: {fab_remain:.1f} m")
+else: st.sidebar.warning("⚠️ 미등록 원단")
 
-st.markdown("""
-<style>
-    /* 1. 모바일 화면 최적화 (중앙 정렬) */
-    .block-container { 
-        max-width: 600px !important; 
-        padding: 1rem !important; 
-        margin: 0 auto !important; 
-    }
-    
-    /* 2. 카메라 화면 테두리 강조 */
-    [data-testid="stCameraInput"] video { 
-        width: 100% !important;
-        border-radius: 15px !important; 
-        border: 3px solid #2196F3 !important; 
-    }
-    
-    /* 3. 버튼 크기 키우기 (터치하기 쉽게) */
-    div.stButton > button {
-        width: 100%;
-        height: 60px;
-        font-weight: bold;
-        font-size: 20px !important;
-        border-radius: 12px;
-        margin-top: 10px;
-    }
+st.sidebar.divider()
+with st.sidebar.expander("✂️ 커팅 조건", expanded=True):
+    c1, c2 = st.columns(2); fs = c1.number_input("F속도", 50); fm = c1.number_input("F Max", 80); fmn = c1.number_input("F Min", 20); hs = c2.number_input("H속도", 100); hm = c2.number_input("H Max", 40); hmn = c2.number_input("H Min", 10)
+with st.sidebar.expander("🔥 접합 조건", expanded=True):
+    l1_c1, l1_c2 = st.columns(2); temp1 = l1_c1.number_input("1온도", 60); time1 = l1_c2.number_input("1시간", 30); use_step2 = st.checkbox("2단계", True); temp2=100; time2=50; temp3=110; time3=10
+    if use_step2: l2_c1, l2_c2 = st.columns(2); temp2 = l2_c1.number_input("2온도", 100); time2 = l2_c2.number_input("2시간", 50)
+    use_step3 = st.checkbox("3단계", True)
+    if use_step3: l3_c1, l3_c2 = st.columns(2); temp3 = l3_c1.number_input("3온도", 110); time3 = l3_c2.number_input("3시간", 10)
 
-    /* 불량 모드일 때 스타일 */
-    .defect-box { 
-        border: 2px solid red; 
-        background-color: #ffe6e6; 
-        padding: 10px; 
-        border-radius: 10px;
-        text-align: center;
-        color: red;
-        font-weight: bold;
-        margin-bottom: 10px;
-    }
-</style>
-""", unsafe_allow_html=True)
+lam_text = f"1단계({temp1}℃/{time1}분)"
+if use_step2: lam_text += f" → 2단계({temp2}℃/{time2}분)"
+if use_step3: lam_text += f" → 3단계({temp3}℃/{time3}분)"
+guide_full_text = f"Full({fs}/{fm}/{fmn}) | Half({hs}/{hm}/{hmn}) | {lam_text}"
+admin_notes = st.sidebar.text_area("비고", key="admin_notes_1")
 
-st.title("👷 공정 작업 등록")
+# 메인 탭
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["📝 작업 입력", "📄 지시서 인쇄", "🏷️ 라벨 인쇄", "🔄 QR 재발행", "🧵 원단 재고", "📊 발행 이력", "🔍 제품 추적", "🚨 불량 현황"])
 
-# 1. 작업자 선택
-worker_list = ["작업자A", "작업자B", "김반장", "이주임", "박대리"]
-current_worker = st.selectbox("👤 작업자 선택", worker_list)
+with tab1:
+    st.title("📝 관리자용 - 지시서 발행")
+    with st.container(border=True):
+        c1, c2, c3, c4 = st.columns([2, 2, 2, 1])
+        in_w = c1.number_input("가로(mm)", value=1000); in_h = c2.number_input("세로(mm)", value=2000); in_elec = c3.selectbox("전극", ["없음", "가로(1면)", "세로(1면)", "양쪽가로", "양쪽세로"]); in_qty = c4.number_input("수량", min_value=1, value=1) 
+        per_row = max(1, int(fab_w / in_w)) if in_w > 0 else 1
+        est_len = (math.ceil(in_qty / per_row) * in_h) / 1000.0
+        st.info(f"예상 소모량: {est_len:.1f} m")
+        if st.button("➕ 장바구니 추가", use_container_width=True):
+            st.session_state.order_list.append({"고객사": customer, "제품": product_type, "규격": f"{int(in_w)}x{int(in_h)}", "전극": in_elec, "수량": int(in_qty), "스펙": guide_full_text, "비고": admin_notes, "w": int(in_w), "h": int(in_h), "lot_no": fabric_lot, "calc_len": est_len})
 
-st.divider()
+    if st.session_state.order_list:
+        df = pd.DataFrame(st.session_state.order_list)
+        df.insert(0, "선택", False)
+        edited_df = st.data_editor(df, key="editor", hide_index=True, use_container_width=True, column_config={"선택": st.column_config.CheckboxColumn(default=False)})
+        c1, c2 = st.columns([1,4])
+        if c1.button("🗑️ 삭제"):
+            for i in sorted(edited_df[edited_df["선택"]].index.tolist(), reverse=True): del st.session_state.order_list[i]
+            st.rerun()
+        if c2.button("🚀 최종 발행 및 저장 (Supabase)", type="primary", use_container_width=True):
+            today_str = datetime.now().strftime("%y%m%d"); base_time = datetime.now().strftime('%H%M%S'); new_qrs, cnt = [], 0
+            for item in st.session_state.order_list:
+                for _ in range(item['수량']):
+                    cnt += 1; lot_id = f"LOT-{today_str}-{base_time}-{cnt:03d}"
+                    supabase.table("work_orders").insert({"lot_no": lot_id, "customer": item['고객사'], "product": item['제품'], "dimension": f"{item['규격']} [{item['전극']}]", "spec": item['스펙'], "status": "작업대기", "note": item['비고'], "fabric_lot_no": item['lot_no']}).execute()
+                    qr = qrcode.QRCode(box_size=5, border=2); qr.add_data(lot_id); qr.make(fit=True); img = qr.make_image(fill_color="black", back_color="white")
+                    new_qrs.append({"lot": lot_id, "w": item['w'], "h": item['h'], "elec": item['전극'], "prod": item['제품'], "cust": item['고객사'], "img": img})
+                try:
+                    curr = supabase.table("fabric_stock").select("used_len").eq("lot_no", item['lot_no']).execute()
+                    if curr.data: supabase.table("fabric_stock").update({"used_len": float(curr.data[0]['used_len']) + item['calc_len']}).eq("lot_no", item['lot_no']).execute()
+                except: pass
+            st.session_state.generated_qrs = new_qrs; st.session_state.order_list = []; st.session_state.fabric_db = fetch_fabric_stock(); st.success("✅ Supabase 저장 완료!"); st.rerun()
 
-# 2. 공정 단계 정의 (순서 체크용)
-STEP_LEVEL = {
-    "Full Cut": 10, "Half Cut": 20, "전극 완료": 30, 
-    "접합: 1. 준비 완료": 41, "접합: 2. 가열 시작": 42, "접합: 3. 공정 완료 (End)": 43
-}
-
-# 3. 불량 신고 모드 스위치
-is_defect_mode = st.toggle("🚨 불량 발생 신고", value=False)
-
-if is_defect_mode:
-    st.markdown('<div class="defect-box">🚨 불량 등록 모드 ON</div>', unsafe_allow_html=True)
-    step = st.selectbox("발견 공정", list(STEP_LEVEL.keys())) 
-    defect_type = st.selectbox("불량 유형", ["이물질", "기포/들뜸", "치수 불량", "스크래치", "전극 불량", "원단 불량", "기타"])
-    defect_note = st.text_input("상세 내용", placeholder="예: 우측 상단 3cm 찢어짐")
-    save_data = f"[{defect_type}] {defect_note}"
-    current_level = 999 
-else:
-    # 정상 작업 모드
-    step = st.radio("현재 진행 공정", list(STEP_LEVEL.keys()))
-    current_level = STEP_LEVEL.get(step, 0)
-    
-    save_data = "-"
-    
-    # 공정별 입력창 (보내주신 로직 반영)
-    if "Cut" in step:
-        st.info("⚙️ 장비 세팅값 입력")
-        c1, c2, c3 = st.columns(3)
-        sp = c1.number_input("Speed", value=0); mx = c2.number_input("Max", value=0); mn = c3.number_input("Min", value=0)
-        save_data = f"S:{sp} / M:{mx} / m:{mn}"
-    elif "End" in step or "공정 완료" in step:
-        st.info("🌡️ 최종 온도 입력")
-        c1, c2 = st.columns(2)
-        t1 = c1.number_input("내부(℃)", value=0.0); t2 = c2.number_input("Start(℃)", value=0.0)
-        save_data = f"내부:{t1} / Start:{t2}"
+with tab2:
+    st.header("📄 작업 지시서 인쇄")
+    print_mode = st.radio("출력 대상", ["🆕 방금 발행", "📅 이력 조회"], horizontal=True)
+    if print_mode == "🆕 방금 발행":
+        if st.session_state.generated_qrs:
+            qrs = st.session_state.generated_qrs
+            header_info = {'cust': qrs[0]['cust'], 'prod': qrs[0]['prod'], 'date': delivery_date.strftime('%Y-%m-%d'), 'fabric': fabric_lot, 'guide': guide_full_text, 'note': admin_notes}
+            st.markdown(create_a4_html(header_info, qrs), unsafe_allow_html=True)
+            if st.button("🖨️ 인쇄창 열기 (Print)", type="primary"): components.html("<script>parent.window.print()</script>", height=0, width=0)
+        else: st.info("데이터 없음")
     else:
-        note = st.text_input("📝 특이사항 (선택)", placeholder="특이사항 없음")
-        if note: save_data = note
+        with st.form("history_search"):
+            c1, c2 = st.columns([3, 1]); h_date = c1.date_input("날짜", value=datetime.now()); search_btn = c2.form_submit_button("조회")
+            if search_btn:
+                start = h_date.strftime("%Y-%m-%d 00:00:00"); end = h_date.strftime("%Y-%m-%d 23:59:59")
+                try: res = supabase.table("work_orders").select("*").gte("created_at", start).lte("created_at", end).execute(); st.session_state.history_data = res.data
+                except: st.session_state.history_data = []
+        if 'history_data' in st.session_state and st.session_state.history_data:
+            edited_hist = st.data_editor(pd.DataFrame(st.session_state.history_data).assign(선택=False), hide_index=True, use_container_width=True)
+            if not edited_hist[edited_hist["선택"]].empty:
+                if st.button("🖨️ 인쇄하기"): components.html("<script>parent.window.print()</script>", height=0, width=0)
 
-st.markdown("### 👇 QR 스캔 (카메라)")
-st.caption("※ 카메라 권한을 허용해주세요.")
+with tab3:
+    st.header("🏷️ QR 라벨 인쇄 (스티커용)")
+    if st.session_state.generated_qrs:
+        st.markdown(create_label_html(st.session_state.generated_qrs), unsafe_allow_html=True)
+        if st.button("🖨️ 스티커 인쇄", type="primary"): components.html("<script>parent.window.print()</script>", height=0, width=0)
+    else:
+        st.info("👈 먼저 [작업 입력] 탭에서 발행을 진행해주세요.")
 
-# ==========================================
-# 📷 카메라 로직 (여기가 핵심!)
-# ==========================================
-img_file = st.camera_input("QR 스캔", label_visibility="collapsed")
+with tab4:
+    with st.form("reprint"):
+        c1,c2=st.columns([3,1]); s_d=c1.date_input("날짜"); btn=c2.form_submit_button("조회")
+        if btn:
+            try: res=supabase.table("work_orders").select("*").gte("created_at",s_d).execute(); st.session_state.reprint_data=res.data
+            except: pass
+    if 'reprint_data' in st.session_state:
+        df=pd.DataFrame(st.session_state.reprint_data)
+        if not df.empty:
+            sel=st.data_editor(df.assign(선택=False),hide_index=True)
+            if st.button("재발행"): st.success("선택된 QR 재발행 준비 완료")
 
-if img_file is not None:
-    try:
-        # 1. 이미지 파일 바이트로 읽기
-        bytes_data = img_file.getvalue()
-        
-        # 2. OpenCV 형식으로 디코딩 (numpy 필수)
-        cv2_img = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
-        
-        # 3. QR 인식률을 높이기 위해 흑백 변환
-        gray_img = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2GRAY)
-        
-        # 4. QR 코드 디코딩
-        detector = cv2.QRCodeDetector()
-        data, bbox, _ = detector.detectAndDecode(gray_img)
+with tab5:
+    with st.form("fabric"):
+        c1,c2,c3=st.columns(3); n_lot=c1.text_input("LOT"); n_name=c2.text_input("제품명"); n_w=c3.number_input("폭",1200)
+        c4,c5,c6=st.columns(3); n_tot=c4.number_input("총길이",100.0); n_rem=c5.number_input("잔량",100.0)
+        if st.form_submit_button("입고"):
+            supabase.table("fabric_stock").insert({"lot_no":n_lot,"name":n_name,"width":n_w,"total_len":n_tot,"used_len":n_tot-n_rem}).execute(); st.rerun()
+    res=supabase.table("fabric_stock").select("*").execute(); st.data_editor(pd.DataFrame(res.data),hide_index=True)
 
-        if data:
-            st.success(f"🔍 QR 인식 성공: **{data}**")
-            
-            # --- DB 조회 및 저장 로직 ---
-            # 1. 작업 지시서(work_orders)에서 해당 LOT 조회
-            response = supabase.table("work_orders").select("status").eq("lot_no", data).execute()
-            
-            if not response.data:
-                st.error("❌ 등록되지 않은 LOT 번호입니다.")
-            else:
-                prev_status = response.data[0]['status']
-                
-                # 불량/보류 체크
-                if "불량" in prev_status or "보류" in prev_status:
-                    st.error(f"⛔ 경고: 이미 불량 처리된 제품입니다! ({prev_status})")
-                    st.stop()
-
-                # 순서 체크 (정상 모드일 때만)
-                if not is_defect_mode:
-                    prev_level = 0
-                    for key, val in STEP_LEVEL.items():
-                        if key in prev_status: prev_level = val; break
-                    
-                    # 이미 더 높은 단계거나 같은 단계면 경고
-                    if prev_level >= current_level:
-                        st.warning(f"⚠️ 이미 완료된 공정입니다. (현재 상태: {prev_status})")
-                        st.stop()
-                
-                # 저장 버튼 표시
-                btn_label = "🚨 불량 등록 실행" if is_defect_mode else "💾 작업 완료 저장"
-                btn_type = "secondary" if is_defect_mode else "primary"
-
-                if st.button(btn_label, type=btn_type, use_container_width=True):
-                    if is_defect_mode:
-                        # 불량 테이블 저장
-                        supabase.table("defects").insert({
-                            "lot_no": data, "step": step, "defect_type": defect_type, 
-                            "note": defect_note, "status": "조치대기", "worker": current_worker
-                        }).execute()
-                        # 상태 업데이트
-                        supabase.table("work_orders").update({"status": f"⛔ 불량({defect_type})"}).eq("lot_no", data).execute()
-                        st.success(f"🚨 불량 등록 완료! ({defect_type})")
-                    else:
-                        # 생산 로그 저장
-                        supabase.table("production_logs").insert({
-                            "lot_no": data, "step": step, "data": save_data, 
-                            "worker": current_worker, "result": "OK"
-                        }).execute()
-                        # 상태 업데이트
-                        supabase.table("work_orders").update({"status": step}).eq("lot_no", data).execute()
-                        st.balloons()
-                        st.success(f"✅ 작업 저장 완료! ({step})")
-                    
-                    # 1.5초 후 새로고침
-                    time.sleep(1.5)
-                    st.rerun()
-
-        else:
-            st.warning("❌ QR 코드를 찾지 못했습니다. 다시 찍어주세요.")
-
-    except Exception as e:
-        st.error("📡 처리 중 오류가 발생했습니다.")
-        st.code(f"에러 상세: {e}")
-
-# 화면 하단 여백 확보
-st.markdown("<div style='height: 100px;'></div>", unsafe_allow_html=True)
+with tab6: res=supabase.table("work_orders").select("*").order("created_at",desc=True).limit(50).execute(); st.dataframe(pd.DataFrame(res.data),use_container_width=True)
+with tab7:
+    with st.form("track"): c1,c2=st.columns([4,1]); l=c1.text_input("LOT"); b=c2.form_submit_button("조회")
+    if b: r=supabase.table("work_orders").select("*").eq("lot_no",l).execute(); st.write(r.data)
+with tab8: res=supabase.table("defects").select("*").execute(); st.dataframe(pd.DataFrame(res.data))
