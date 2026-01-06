@@ -57,9 +57,9 @@ st.markdown("""
 
         header, footer, .stButton, [data-testid="stHeader"] { display: none !important; }
         
-        /* 지시서 정보 테이블 */
+        /* 지시서 정보 테이블 (좌측) */
         .info-table { width: 100%; border-collapse: collapse; border: 1px solid black !important; font-size: 11pt; }
-        .info-table th { background: #f0f0f0 !important; font-weight: bold; width: 20%; border: 1px solid black !important; padding: 5px; }
+        .info-table th { background: #f0f0f0 !important; font-weight: bold; width: 25%; border: 1px solid black !important; padding: 5px; }
         .info-table td { text-align: left; border: 1px solid black !important; padding: 5px; }
 
         /* 하단 QR 그리드 */
@@ -71,7 +71,7 @@ st.markdown("""
             border: 2px solid black;
             padding: 5px;
             text-align: center;
-            height: 100%;
+            height: 140px; /* 높이 고정 */
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -95,22 +95,27 @@ def get_dimension_html(w, h, elec):
     return f"<span style='font-size:16pt;'>{w}</span> x <span style='font-size:16pt; font-weight:bold;'>{h}</span>"
 
 def image_to_base64(img):
-    buffered = io.BytesIO(); img.save(buffered, format="PNG"); return base64.b64encode(buffered.getvalue()).decode()
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode()
 
 # ----------------------------------------------------
-# 📄 [수정됨] 작업 지시서 HTML (우측 상단 QR 배치)
+# 📄 [핵심] 작업 지시서 HTML (우측 상단 QR 배치)
 # ----------------------------------------------------
 def create_a4_html(header, items):
-    # 1. 대표 QR 이미지 준비 (첫 번째 아이템의 QR을 대표로 사용)
+    # 1. 대표 QR 이미지 (첫 번째 아이템 기준)
     master_qr_html = ""
     if items:
-        master_img = image_to_base64(items[0]['img'])
+        # 첫 번째 QR 이미지를 가져와서 Base64 변환
+        # (주의: items['img']는 이미 PIL Image 객체여야 함)
+        master_img_b64 = image_to_base64(items[0]['img'])
         master_lot = items[0]['lot']
+        
         master_qr_html = f"""
         <div class="master-qr-box">
-            <div style="font-weight:bold; font-size:12pt; margin-bottom:5px;">Scan Me</div>
-            <img src="data:image/png;base64,{master_img}" style="width: 110px; height: 110px;">
-            <div style="font-size:9pt; font-weight:bold; margin-top:5px;">{master_lot}</div>
+            <div style="font-weight:bold; font-size:11pt; margin-bottom:2px;">Scan for Details</div>
+            <img src="data:image/png;base64,{master_img_b64}" style="width: 100px; height: 100px;">
+            <div style="font-size:8pt; font-weight:bold; margin-top:2px;">{master_lot}</div>
         </div>
         """
 
@@ -123,15 +128,15 @@ def create_a4_html(header, items):
             idx = r * 4 + c
             item = cells_data[idx]
             if item:
-                img = image_to_base64(item['img'])
-                content = f"""<div style="font-size:14pt; margin-bottom:5px;">{get_dimension_html(item['w'], item['h'], item['elec'])}</div><div style="font-size:12pt; font-weight:bold; margin-bottom:5px;">[{item['elec']}]</div><img src="data:image/png;base64,{img}" style="width:100px;"><div style="font-size:10pt; font-weight:bold; margin-top:5px;">{item['lot']}</div><div style="font-size:8pt;">{item['cust']} | {item['prod']}</div>"""
+                img_b64 = image_to_base64(item['img'])
+                content = f"""<div style="font-size:14pt; margin-bottom:5px;">{get_dimension_html(item['w'], item['h'], item['elec'])}</div><div style="font-size:12pt; font-weight:bold; margin-bottom:5px;">[{item['elec']}]</div><img src="data:image/png;base64,{img_b64}" style="width:100px;"><div style="font-size:10pt; font-weight:bold; margin-top:5px;">{item['lot']}</div><div style="font-size:8pt;">{item['cust']} | {item['prod']}</div>"""
             else: content = ""
             rows_html += f'<td class="qr-cell">{content}</td>'
         rows_html += "</tr>"
     
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
     
-    # 3. 레이아웃 조립 (좌측: 정보 테이블 / 우측: 대표 QR)
+    # 3. 전체 레이아웃 (테이블 구조로 좌/우 분할)
     return f"""
 <div class="printable-area">
     <div style="position:absolute; top:5mm; right:5mm; font-size:9pt; color:#555;">출력일시: {now_str}</div>
@@ -140,7 +145,7 @@ def create_a4_html(header, items):
     
     <table style="width:100%; border:none; margin-bottom:10px;">
         <tr>
-            <td style="width: 75%; vertical-align: top; padding-right: 15px;">
+            <td style="width: 75%; vertical-align: top; padding-right: 15px; border:none !important;">
                 <table class="info-table">
                     <tr><th>고객사</th><td>{header['cust']}</td><th>제품 종류</th><td>{header['prod']}</td></tr>
                     <tr><th>출고 요청일</th><td>{header['date']}</td><th>원단 정보</th><td>{header['fabric']}</td></tr>
@@ -148,7 +153,7 @@ def create_a4_html(header, items):
                     <tr><th>비고</th><td colspan="3" style="height:50px;">{header['note']}</td></tr>
                 </table>
             </td>
-            <td style="width: 25%; vertical-align: top;">
+            <td style="width: 25%; vertical-align: top; border:none !important;">
                 {master_qr_html}
             </td>
         </tr>
@@ -169,15 +174,20 @@ def create_label_html(items):
             idx = r * 4 + c
             item = cells_data[idx]
             if item:
-                img = image_to_base64(item['img'])
-                content = f"""<div style="font-size:16pt; font-weight:bold; margin-bottom:2px;">{item['w']}x{item['h']}</div><div style="font-size:12pt; margin-bottom:5px;">[{item['elec']}]</div><img src="data:image/png;base64,{img}" style="width:110px;"><div style="font-size:9pt; font-weight:bold; margin-top:2px;">{item['lot']}</div>"""
+                img_b64 = image_to_base64(item['img'])
+                content = f"""<div style="font-size:16pt; font-weight:bold; margin-bottom:2px;">{item['w']}x{item['h']}</div><div style="font-size:12pt; margin-bottom:5px;">[{item['elec']}]</div><img src="data:image/png;base64,{img_b64}" style="width:110px;"><div style="font-size:9pt; font-weight:bold; margin-top:2px;">{item['lot']}</div>"""
             else: content = ""
             rows_html += f'<td class="qr-cell" style="vertical-align:middle;">{content}</td>'
         rows_html += "</tr>"
     return f"""<div class="printable-area"><div style="font-size:18px; font-weight:bold; margin-bottom:10px; text-align:center;">🏷️ QR 라벨 출력</div><table class="qr-table" style="border: 2px solid black;">{rows_html}</table></div>"""
 
 def create_access_qr_html(url, mode="big"):
-    qr = qrcode.QRCode(box_size=10, border=1); qr.add_data(url); qr.make(fit=True); img = qr.make_image(fill_color="black", back_color="white"); img_b64 = image_to_base64(img)
+    qr = qrcode.QRCode(box_size=10, border=1)
+    qr.add_data(url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    img_b64 = image_to_base64(img)
+    
     if mode == "big":
         return f"""<div class="printable-area"><div style="margin-top: 30mm;"></div><div class="access-qr-box"><div style="font-size: 40px; font-weight: 900; margin-bottom: 20px;">🏭 생산관리 시스템 접속</div><div style="font-size: 20px; margin-bottom: 20px;">휴대폰 카메라를 켜고 아래 QR코드를 스캔하세요.</div><img src="data:image/png;base64,{img_b64}" style="width: 400px; height: 400px;"><div style="font-size: 14px; color: #333; margin-top: 10px; font-family: monospace;">{url}</div></div></div>"""
     else:
@@ -319,15 +329,27 @@ with tab7:
     if b: r=supabase.table("work_orders").select("*").eq("lot_no",l).execute(); st.write(r.data)
 with tab8: res=supabase.table("defects").select("*").execute(); st.dataframe(pd.DataFrame(res.data))
 
-# [접속 QR 탭 유지]
+# [접속 QR 탭 (수정됨)]
 with tab9:
     st.header("📱 현장 접속 QR 인쇄")
     qr_mode = st.radio("인쇄 스타일을 선택하세요", ["벽 부착용 (대형 1개)", "배포용 (소형 8개)"], horizontal=True)
-    qr = qrcode.QRCode(box_size=10, border=1); qr.add_data(APP_URL); qr.make(fit=True); img = qr.make_image(fill_color="black", back_color="white")
+    
+    # QR 생성 (PIL 객체)
+    qr = qrcode.QRCode(box_size=10, border=1)
+    qr.add_data(APP_URL)
+    qr.make(fit=True)
+    img_pil = qr.make_image(fill_color="black", back_color="white") # PIL Image
+    
     c1, c2 = st.columns([1, 3])
-    with c1: st.image(image_to_base64(img), output_format="PNG", width=200, caption="접속 URL QR")
+    with c1:
+        # [수정] st.image에는 PIL 객체를 직접 전달해야 안전함
+        st.image(img_pil, width=200, caption="접속 URL QR")
     with c2:
         st.success(f"접속 주소: {APP_URL}")
+        
+        # HTML 생성에는 Base64 문자열 사용
         mode_key = "big" if "대형" in qr_mode else "small"
         st.markdown(create_access_qr_html(APP_URL, mode_key), unsafe_allow_html=True)
-        if st.button("🖨️ QR 인쇄하기", type="primary", use_container_width=True): components.html("<script>parent.window.print()</script>", height=0, width=0)
+        
+        if st.button("🖨️ QR 인쇄하기", type="primary", use_container_width=True):
+            components.html("<script>parent.window.print()</script>", height=0, width=0)
