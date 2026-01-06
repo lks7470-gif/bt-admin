@@ -97,6 +97,13 @@ st.markdown("""
         box-shadow: 0 0 10px #00e5ff;
         animation: load-bar 5s linear infinite; /* 5초 동안 채워짐 */
     }
+    
+    /* 로고가 없을 때 표시할 박스 스타일 */
+    .logo-placeholder {
+        width: 100%; height: 60px; background: #111; border: 2px dashed #333;
+        display: flex; align-items: center; justify-content: center;
+        color: #555; font-weight: bold; border-radius: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -135,13 +142,26 @@ if not df.empty:
 else:
     cnt_ready=cnt_cut=cnt_elec=cnt_lam=cnt_out=0; df_view=pd.DataFrame(); total_pages=1
 
-# 레이아웃
+# ==========================================
+# 🖼️ 레이아웃 구성 (로고 복구됨!)
+# ==========================================
 c1, c2, c3 = st.columns([2, 6, 2])
 with c1:
-    st.markdown("### 🏭 BESTROOM", unsafe_allow_html=True)
+    # 로고 파일 찾기 로직 복구
+    logo_path = None
+    if os.path.exists("pages/company_logo.png"): logo_path = "pages/company_logo.png"
+    elif os.path.exists("company_logo.png"): logo_path = "company_logo.png"
+    
+    if logo_path:
+        st.image(logo_path, width=300)
+    else:
+        # 이미지가 없으면 텍스트로 대체
+        st.markdown("### 🏭 BESTROOM", unsafe_allow_html=True)
+
 with c2:
     now_time = get_korea_time().strftime("%H:%M:%S")
     st.markdown(f"<h1 style='font-size:36px;'>MONITOR <span style='color:#ffd700;'>{now_time}</span></h1>", unsafe_allow_html=True)
+
 with c3:
     col_t1, col_t2 = st.columns(2)
     with col_t1: is_cust_secure = st.toggle("🔒 고객사", value=True)
@@ -214,14 +234,13 @@ else:
 # ==========================================
 # 🔄 부드러운 하단 타이머 바 (HTML/CSS 애니메이션)
 # ==========================================
-# 기존의 투박한 progress bar 코드를 제거하고 CSS 애니메이션 바를 삽입합니다.
 st.markdown("""
 <div class="timer-bar-container">
     <div class="timer-bar-fill"></div>
 </div>
 """, unsafe_allow_html=True)
 
-# 5초 대기 후 페이지 넘김 (파이썬 코드는 대기만 하면 됨)
+# 5초 대기
 time.sleep(5)
 
 # 페이지 인덱스 증가
