@@ -1,5 +1,5 @@
 import streamlit as st
-import streamlit.components.v1 as components
+import streamlit.components.v1 as components  # [필수] 인쇄 기능용
 import pandas as pd
 import qrcode
 import io
@@ -59,24 +59,25 @@ st.markdown("""
         
         /* 지시서 정보 테이블 (좌측) */
         .info-table { width: 100%; border-collapse: collapse; border: 1px solid black !important; font-size: 11pt; }
-        .info-table th { background: #f0f0f0 !important; font-weight: bold; width: 20%; border: 1px solid black !important; padding: 5px; }
+        .info-table th { background: #f0f0f0 !important; font-weight: bold; width: 22%; border: 1px solid black !important; padding: 5px; }
         .info-table td { text-align: left; border: 1px solid black !important; padding: 5px; }
 
         /* 하단 QR 그리드 */
         .qr-table { width: 100%; border-collapse: collapse; table-layout: fixed; border: 1px solid black !important; margin-top: 10px; }
         .qr-cell { width: 25%; height: 60mm; border: 1px solid black !important; text-align: center; vertical-align: middle; padding: 5px; }
 
-        /* 대표 QR 박스 (우측 상단) */
+        /* 대표 QR 박스 (우측 상단) - 디자인 개선 */
         .master-qr-box {
-            border: 2px solid black;
+            border: 2px solid #333;
             padding: 5px;
             text-align: center;
-            height: 140px;
+            height: 100%;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             border-radius: 8px;
+            background-color: #fff;
         }
 
         /* [대형] 벽 부착용 스타일 */
@@ -95,27 +96,27 @@ def get_dimension_html(w, h, elec):
     return f"<span style='font-size:16pt;'>{w}</span> x <span style='font-size:16pt; font-weight:bold;'>{h}</span>"
 
 def image_to_base64(img):
-    """PIL 이미지를 HTML용 Base64 문자열로 변환"""
+    """PIL 이미지를 HTML용 Base64 문자열로 변환 (에러 방지)"""
     buffered = io.BytesIO()
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
 # ----------------------------------------------------
-# 📄 [핵심] 작업 지시서 HTML (우측 상단 QR 배치)
+# 📄 [핵심] 작업 지시서 HTML (우측 상단에 대표 QR 배치)
 # ----------------------------------------------------
 def create_a4_html(header, items):
-    # 1. 대표 QR 이미지 (첫 번째 아이템 기준)
+    # 1. 대표 QR 이미지 준비 (첫 번째 아이템의 QR 사용)
     master_qr_html = ""
     if items:
-        # 인쇄용 HTML에는 Base64 문자열이 필요함
+        # items[0]['img']는 PIL Image 객체입니다. 이를 문자열로 변환합니다.
         master_img_b64 = image_to_base64(items[0]['img'])
         master_lot = items[0]['lot']
         
         master_qr_html = f"""
         <div class="master-qr-box">
-            <div style="font-weight:bold; font-size:11pt; margin-bottom:2px;">Scan for Details</div>
-            <img src="data:image/png;base64,{master_img_b64}" style="width: 100px; height: 100px;">
-            <div style="font-size:8pt; font-weight:bold; margin-top:2px;">{master_lot}</div>
+            <div style="font-weight:bold; font-size:11pt; margin-bottom:5px;">대표 QR (Scan Me)</div>
+            <img src="data:image/png;base64,{master_img_b64}" style="width: 110px; height: 110px;">
+            <div style="font-size:9pt; font-weight:bold; margin-top:5px;">{master_lot}</div>
         </div>
         """
 
@@ -136,7 +137,7 @@ def create_a4_html(header, items):
     
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
     
-    # 3. 전체 레이아웃 (테이블 구조로 좌/우 분할)
+    # 3. 전체 레이아웃 구성 (테이블 활용하여 좌우 분할)
     return f"""
 <div class="printable-area">
     <div style="position:absolute; top:5mm; right:5mm; font-size:9pt; color:#555;">출력일시: {now_str}</div>
@@ -329,29 +330,32 @@ with tab7:
     if b: r=supabase.table("work_orders").select("*").eq("lot_no",l).execute(); st.write(r.data)
 with tab8: res=supabase.table("defects").select("*").execute(); st.dataframe(pd.DataFrame(res.data))
 
-# [접속 QR 탭 (수정됨)]
+# [접속 QR 탭 (에러 방지: PIL Image 직접 사용)]
 with tab9:
     st.header("📱 현장 접속 QR 인쇄")
     qr_mode = st.radio("인쇄 스타일을 선택하세요", ["벽 부착용 (대형 1개)", "배포용 (소형 8개)"], horizontal=True)
     
-    # QR 생성
+    # QR 이미지 생성 (PIL)
     qr = qrcode.QRCode(box_size=10, border=1)
     qr.add_data(APP_URL)
     qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
+    img_pil = qr.make_image(fill_color="black", back_color="white")
     
-    # [핵심 수정] st.image 에 표시할 때는 바이트 버퍼를 사용 (안정성 확보)
-    img_buffer = io.BytesIO()
-    img.save(img_buffer, format="PNG")
-    
+    # PIL 이미지를 바이트로 변환 (화면 표시용)
+    buf = io.BytesIO()
+    img_pil.save(buf, format="PNG")
+    byte_im = buf.getvalue()
+
     c1, c2 = st.columns([1, 3])
     with c1:
-        # 여기에 img 객체 대신 버퍼를 넣어서 에러 방지
-        st.image(img_buffer, width=200, caption="접속 URL QR")
+        # 여기에 변환된 바이트 데이터를 넣습니다
+        st.image(byte_im, width=200, caption="접속 URL QR")
     with c2:
         st.success(f"접속 주소: {APP_URL}")
         
+        # HTML 생성 함수 호출
         mode_key = "big" if "대형" in qr_mode else "small"
         st.markdown(create_access_qr_html(APP_URL, mode_key), unsafe_allow_html=True)
+        
         if st.button("🖨️ QR 인쇄하기", type="primary", use_container_width=True):
             components.html("<script>parent.window.print()</script>", height=0, width=0)
