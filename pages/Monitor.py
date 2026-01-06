@@ -74,7 +74,6 @@ if 'page_index' not in st.session_state: st.session_state.page_index = 0
 
 def load_data():
     try:
-        # connection.py가 실패해서 supabase가 None이면 에러 발생 -> except로 이동
         res_orders = supabase.table("work_orders").select("*").order("created_at", desc=True).limit(50).execute()
         df = pd.DataFrame(res_orders.data)
         res_logs = supabase.table("production_logs").select("*").order("created_at", desc=True).limit(100).execute()
@@ -182,7 +181,23 @@ if not df_view.empty:
 else:
     st.info("현재 표시할 작업 지시가 없습니다.")
 
-# 5초마다 자동 새로고침
+# ==========================================
+# 🔄 자동 페이지 넘김 (시각적 효과 추가)
+# ==========================================
+st.divider()
+st.caption(f"🔄 다음 페이지로 이동 중... (현재: {st.session_state.page_index + 1}/{total_pages} 페이지)")
+
+# 진행상황 바 (5초 동안 차오름)
+my_bar = st.progress(0)
+for percent_complete in range(100):
+    time.sleep(0.05) # 0.05초 * 100회 = 5초 대기
+    my_bar.progress(percent_complete + 1)
+
+# 페이지 인덱스 증가
 st.session_state.page_index = (st.session_state.page_index + 1) % total_pages
-time.sleep(5) 
-st.rerun()
+
+# 안전한 새로고침 (버전 호환성 해결)
+try:
+    st.rerun()
+except AttributeError:
+    st.experimental_rerun()
