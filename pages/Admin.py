@@ -59,7 +59,7 @@ st.markdown("""
         
         /* 지시서 정보 테이블 (좌측) */
         .info-table { width: 100%; border-collapse: collapse; border: 1px solid black !important; font-size: 11pt; }
-        .info-table th { background: #f0f0f0 !important; font-weight: bold; width: 25%; border: 1px solid black !important; padding: 5px; }
+        .info-table th { background: #f0f0f0 !important; font-weight: bold; width: 20%; border: 1px solid black !important; padding: 5px; }
         .info-table td { text-align: left; border: 1px solid black !important; padding: 5px; }
 
         /* 하단 QR 그리드 */
@@ -71,7 +71,7 @@ st.markdown("""
             border: 2px solid black;
             padding: 5px;
             text-align: center;
-            height: 140px; /* 높이 고정 */
+            height: 140px;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -95,6 +95,7 @@ def get_dimension_html(w, h, elec):
     return f"<span style='font-size:16pt;'>{w}</span> x <span style='font-size:16pt; font-weight:bold;'>{h}</span>"
 
 def image_to_base64(img):
+    """PIL 이미지를 HTML용 Base64 문자열로 변환"""
     buffered = io.BytesIO()
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
@@ -106,8 +107,7 @@ def create_a4_html(header, items):
     # 1. 대표 QR 이미지 (첫 번째 아이템 기준)
     master_qr_html = ""
     if items:
-        # 첫 번째 QR 이미지를 가져와서 Base64 변환
-        # (주의: items['img']는 이미 PIL Image 객체여야 함)
+        # 인쇄용 HTML에는 Base64 문자열이 필요함
         master_img_b64 = image_to_base64(items[0]['img'])
         master_lot = items[0]['lot']
         
@@ -334,22 +334,24 @@ with tab9:
     st.header("📱 현장 접속 QR 인쇄")
     qr_mode = st.radio("인쇄 스타일을 선택하세요", ["벽 부착용 (대형 1개)", "배포용 (소형 8개)"], horizontal=True)
     
-    # QR 생성 (PIL 객체)
+    # QR 생성
     qr = qrcode.QRCode(box_size=10, border=1)
     qr.add_data(APP_URL)
     qr.make(fit=True)
-    img_pil = qr.make_image(fill_color="black", back_color="white") # PIL Image
+    img = qr.make_image(fill_color="black", back_color="white")
+    
+    # [핵심 수정] st.image 에 표시할 때는 바이트 버퍼를 사용 (안정성 확보)
+    img_buffer = io.BytesIO()
+    img.save(img_buffer, format="PNG")
     
     c1, c2 = st.columns([1, 3])
     with c1:
-        # [수정] st.image에는 PIL 객체를 직접 전달해야 안전함
-        st.image(img_pil, width=200, caption="접속 URL QR")
+        # 여기에 img 객체 대신 버퍼를 넣어서 에러 방지
+        st.image(img_buffer, width=200, caption="접속 URL QR")
     with c2:
         st.success(f"접속 주소: {APP_URL}")
         
-        # HTML 생성에는 Base64 문자열 사용
         mode_key = "big" if "대형" in qr_mode else "small"
         st.markdown(create_access_qr_html(APP_URL, mode_key), unsafe_allow_html=True)
-        
         if st.button("🖨️ QR 인쇄하기", type="primary", use_container_width=True):
             components.html("<script>parent.window.print()</script>", height=0, width=0)
