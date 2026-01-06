@@ -23,18 +23,22 @@ st.set_page_config(page_title="BESTROOM 모니터링", page_icon="🖥️", layo
 def get_korea_time():
     return datetime.utcnow() + timedelta(hours=9)
 
+# CSS 스타일 정의
 st.markdown("""
 <style>
+    /* 1. 기본 배경 블랙 설정 */
     .stApp, .main, [data-testid="stAppViewContainer"] { background-color: #000000 !important; color: #e0e0e0 !important; }
     [data-testid="stSidebar"], [data-testid="collapsedControl"], header, footer { display: none !important; }
-    .block-container { padding-top: 0.5rem; padding-bottom: 1rem; max-width: 99% !important; }
+    .block-container { padding-top: 1rem; padding-bottom: 3rem; max-width: 99% !important; }
     
+    /* 2. 상단 집계 박스 스타일 */
     .metric-container { display: flex; gap: 15px; margin-bottom: 25px; justify-content: center; }
     .metric-box { background: #111; border: 1px solid #333; border-radius: 12px; width: 18%; padding: 15px; text-align: center; box-shadow: 0 4px 15px rgba(255,255,255,0.05); }
     .metric-title { font-size: 16px; color: #888; margin-bottom: 5px; font-weight: bold; }
     .metric-num { font-size: 48px; font-weight: 900; line-height: 1; }
     .tx-white { color: #fff; } .tx-blue { color: #00e5ff; } .tx-green { color: #00e676; } .tx-orange { color: #ff9100; }
     
+    /* 3. 테이블 스타일 */
     .smart-table { width: 100%; border-collapse: separate; border-spacing: 0 10px; }
     .smart-table th { text-align: left; color: #666; font-size: 15px; padding: 10px 20px; border-bottom: 1px solid #333; font-weight: bold; }
     .smart-row { background-color: #0a0a0a; }
@@ -42,6 +46,7 @@ st.markdown("""
     .smart-row td:first-child { border-left: 1px solid #222; border-top-left-radius: 12px; border-bottom-left-radius: 12px; }
     .smart-row td:last-child { border-right: 1px solid #222; border-top-right-radius: 12px; border-bottom-right-radius: 12px; }
     
+    /* 4. 각종 뱃지 및 폰트 */
     .time-badge { background: #222; color: #aaa; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 14px; border: 1px solid #333; }
     .lot-text { font-size: 15px; color: #4fc3f7; font-weight: bold; }
     .cell-cust { font-size: 22px; font-weight: 900; color: #fff; }
@@ -61,12 +66,37 @@ st.markdown("""
     .badge-orange { background: #ef6c00; color: white; border: 1px solid #f57c00; }
     .badge-red { background: #b71c1c; color: white; border: 1px solid #d32f2f; }
     
+    /* 5. 미니 프로그레스 바 (테이블 내부) */
     .mini-progress-bg { width: 100%; height: 6px; background: #222; border-radius: 3px; overflow: hidden; }
     .mini-progress-fill { height: 100%; border-radius: 3px; transition: width 0.5s; }
     .bg-w { background: #555; } .bg-b { background: linear-gradient(90deg, #00e5ff, #2979ff); } 
     .bg-g { background: linear-gradient(90deg, #00e676, #00c853); } .bg-o { background: linear-gradient(90deg, #ff9100, #ff3d00); } .bg-r { background: linear-gradient(90deg, #ff5252, #d50000); }
     
+    /* 6. 페이지 번호 표시 */
     .page-indicator { position: fixed; top: 20px; right: 20px; background: rgba(20,20,20,0.8); color: #888; padding: 5px 15px; border-radius: 15px; font-weight: bold; font-size: 14px; border: 1px solid #333; }
+
+    /* 🔥 [핵심] 하단 자동실행 타이머 바 (부드러운 애니메이션) */
+    @keyframes load-bar {
+        0% { width: 0%; }
+        100% { width: 100%; }
+    }
+    
+    .timer-bar-container {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 6px;
+        background-color: #111;
+        z-index: 999999;
+    }
+    
+    .timer-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #00e5ff, #2979ff);
+        box-shadow: 0 0 10px #00e5ff;
+        animation: load-bar 5s linear infinite; /* 5초 동안 채워짐 */
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -182,21 +212,22 @@ else:
     st.info("현재 표시할 작업 지시가 없습니다.")
 
 # ==========================================
-# 🔄 자동 페이지 넘김 (시각적 효과 추가)
+# 🔄 부드러운 하단 타이머 바 (HTML/CSS 애니메이션)
 # ==========================================
-st.divider()
-st.caption(f"🔄 다음 페이지로 이동 중... (현재: {st.session_state.page_index + 1}/{total_pages} 페이지)")
+# 기존의 투박한 progress bar 코드를 제거하고 CSS 애니메이션 바를 삽입합니다.
+st.markdown("""
+<div class="timer-bar-container">
+    <div class="timer-bar-fill"></div>
+</div>
+""", unsafe_allow_html=True)
 
-# 진행상황 바 (5초 동안 차오름)
-my_bar = st.progress(0)
-for percent_complete in range(100):
-    time.sleep(0.05) # 0.05초 * 100회 = 5초 대기
-    my_bar.progress(percent_complete + 1)
+# 5초 대기 후 페이지 넘김 (파이썬 코드는 대기만 하면 됨)
+time.sleep(5)
 
 # 페이지 인덱스 증가
 st.session_state.page_index = (st.session_state.page_index + 1) % total_pages
 
-# 안전한 새로고침 (버전 호환성 해결)
+# 안전한 새로고침
 try:
     st.rerun()
 except AttributeError:
