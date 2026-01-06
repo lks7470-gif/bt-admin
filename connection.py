@@ -11,5 +11,5 @@ def get_supabase_client():
         key = st.secrets["supabase"]["eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrZWJ5b2ttbGhrYnhjYnlqaWpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NjY4MTUsImV4cCI6MjA4MjQ0MjgxNX0.SRvsxwIa6oIUoqlAJBl1lDy1sSM27CZiCYEsDzkIyhc"]
         return create_client(url, key)
     except Exception as e:
-        st.error(f"🚨 Supabase 연결 오류: {e}")
+        st.error("❌ Secrets 설정 오류: connection.py가 올바른지 확인하세요.")
         st.stop()
