@@ -40,38 +40,32 @@ if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
 # ==========================================
-# 🔥 [스타일] CSS 정의 (인쇄 완벽 격리)
+# 🔥 [스타일] CSS 정의 (인쇄 완벽 격리 & 폰트 강조)
 # ==========================================
-# 주의: 이 문자열은 들여쓰기를 하지 마세요.
 PRINT_CSS = """
 <style>
+    /* 화면용 기본 스타일 */
     .stApp { background-color: #ffffff !important; color: #000000 !important; }
     
+    /* 🖨️ 인쇄 전용 스타일 */
     @media print {
         /* 1. 종이 설정 */
         @page { size: A4 portrait; margin: 0 !important; }
         
-        /* 2. 화면의 모든 요소를 숨김 (리스트, 사이드바 등) */
+        /* 2. 화면의 모든 요소를 숨김 */
         body, html, .stApp { 
             width: 100%; height: 100%; 
             margin: 0 !important; padding: 0 !important;
             background: white;
         }
         
-        /* 모든 자식 요소 숨김 처리 */
-        body * { 
-            visibility: hidden !important; 
-            height: 0 !important; 
-            overflow: hidden !important; 
-        }
+        body * { visibility: hidden !important; height: 0 !important; overflow: hidden !important; }
         
-        /* 3. 오직 'printable-area'만 보이게 설정 (중요!) */
+        /* 3. 오직 'printable-area'만 보이게 설정 */
         #printable-area {
             position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 210mm !important;
-            height: 297mm !important;
+            top: 0 !important; left: 0 !important;
+            width: 210mm !important; height: 297mm !important;
             background: white !important;
             z-index: 999999 !important;
             padding: 10mm !important;
@@ -82,7 +76,6 @@ PRINT_CSS = """
             overflow: visible !important;
         }
         
-        /* 인쇄 영역 내부 요소들도 보이게 설정 */
         #printable-area * { 
             visibility: visible !important; 
             color: black !important; 
@@ -90,26 +83,22 @@ PRINT_CSS = """
             height: auto !important;
         }
 
-        /* ------------------------------------------------ */
-        /* 내부 디자인 */
-        /* ------------------------------------------------ */
-
-        /* 상단 헤더 */
-        .header-section { border-bottom: 2px solid black; margin-bottom: 2px; padding-bottom: 2px; width: 100%; }
+        /* 헤더 스타일 */
+        .header-section { border-bottom: 2px solid black; margin-bottom: 5px; padding-bottom: 5px; width: 100%; }
         
-        /* 정보 테이블 */
-        .info-table { width: 100%; border-collapse: collapse; border: 2px solid black; font-size: 11pt; margin-bottom: 5px; }
+        /* 테이블 스타일 */
+        .info-table { width: 100%; border-collapse: collapse; border: 2px solid black; font-size: 11pt; margin-bottom: 0px; }
         .info-table th { background: #eee !important; border: 1px solid black; padding: 4px; width: 18%; }
         .info-table td { border: 1px solid black; padding: 4px; text-align: center; }
 
-        /* QR 그리드 (높이 185mm로 고정하여 A4 한 장에 맞춤) */
+        /* QR 그리드 (높이 185mm로 고정) */
         .qr-container { 
             width: 100%; 
             height: 185mm; 
             border: 2px solid black; 
             display: flex; 
             flex-wrap: wrap; 
-            margin-top: 0px; /* 위쪽 줄 없애면서 간격 최소화 */
+            margin-top: 5px; /* 표와 약간의 간격 */
         }
         
         .qr-item { 
@@ -126,14 +115,14 @@ PRINT_CSS = """
         }
         
         .qr-img { width: 140px; height: 140px; margin: 2px 0; }
-        .t-dim { font-size: 20pt; font-weight: 900; margin-bottom: 2px; }
+        .t-dim { font-size: 22pt; font-weight: 900; margin-bottom: 2px; }
         
-        /* 전극 정보 스타일 */
-        .t-elec { font-size: 14pt; font-weight: bold; margin-bottom: 2px; }
-        .t-elec b { font-weight: 900; font-size: 16pt; } /* 숫자 강조 스타일 */
+        /* 전극 정보 스타일 (숫자 강조) */
+        .t-elec { font-size: 15pt; font-weight: bold; margin-bottom: 2px; }
+        .t-elec b { font-weight: 900; font-size: 18pt; } /* 숫자를 더 크고 진하게 */
 
-        .t-lot { font-size: 10pt; font-weight: bold; font-family: monospace; }
-        .t-info { font-size: 9pt; }
+        .t-lot { font-size: 11pt; font-weight: bold; font-family: monospace; }
+        .t-info { font-size: 9pt; font-weight: bold; }
         
         .footer-warning { 
             position: absolute; bottom: 10mm; left: 0; width: 100%; 
@@ -141,7 +130,6 @@ PRINT_CSS = """
         }
     }
     
-    /* 평소 화면에서는 인쇄 영역을 숨김 */
     #printable-area { display: none; }
 </style>
 """
@@ -153,20 +141,19 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # ----------------------------------------------------
-# 📄 HTML 생성 함수 (문자열 연결 방식)
+# 📄 HTML 생성 함수
 # ----------------------------------------------------
 def create_a4_html(header, items):
     LIMIT = 9
     cells_data = items[:LIMIT] + [None] * (LIMIT - len(items[:LIMIT]))
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    # [핵심] CSS 타겟 ID
     html = '<div id="printable-area">'
     
     # Header
     html += '<div class="header-section">'
     html += f'<div style="text-align:right; font-size:9pt;">출력일시: {now_str}</div>'
-    html += '<div style="text-align:center; font-size:26pt; font-weight:900; margin-bottom:5px; text-decoration:underline;">작업 지시서 (Work Order)</div>'
+    html += '<div style="text-align:center; font-size:28pt; font-weight:900; margin-bottom:5px; text-decoration:underline;">작업 지시서 (Work Order)</div>'
     
     # Table
     html += '<table class="info-table">'
@@ -176,7 +163,7 @@ def create_a4_html(header, items):
     html += f'<tr><th>비고</th><td colspan="3" style="height:35px; text-align:left; padding:5px;">{header["note"]}</td></tr>'
     html += '</table>'
     
-    # [수정] "📋 생산 리스트..." 제목 줄 삭제됨 (바로 QR 그리드 시작)
+    # [수정] 중간 제목 줄 삭제됨 (바로 QR 그리드 시작)
     html += '</div>'
     
     # Grid
@@ -185,9 +172,9 @@ def create_a4_html(header, items):
         if item:
             img_b64 = image_to_base64(item['img'])
             
-            # [수정] 전극 정보 내 숫자만 찾아서 확실하게 Bold 처리
+            # [수정] 전극 정보 내 숫자만 찾아서 <b> 태그로 감싸기 (Bold 처리)
             elec_str = str(item["elec"])
-            # 숫자 패턴(\d+)을 찾아서 <b>숫자</b>로 치환
+            # 숫자(\d+)를 찾아서 <b>숫자</b>로 변경
             elec_str_bold = re.sub(r'(\d+)', r'<b>\1</b>', elec_str)
 
             html += '<div class="qr-item">'
