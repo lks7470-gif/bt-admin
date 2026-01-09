@@ -39,7 +39,9 @@ if 'generated_qrs' not in st.session_state: st.session_state.generated_qrs = []
 if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
-# 🔥 [스타일] 인쇄 디자인 (3열 레이아웃 + 간격 확보 + 디자인 개선)
+# ==========================================
+# 🔥 [스타일] CSS 정의
+# ==========================================
 st.markdown("""
 <style>
     .stApp { background-color: #ffffff !important; color: #000000 !important; }
@@ -59,7 +61,7 @@ st.markdown("""
 
         header, footer, .stButton, [data-testid="stHeader"] { display: none !important; }
         
-        /* 상단 정보 테이블 (깔끔한 스타일) */
+        /* 상단 정보 테이블 */
         .info-table { 
             width: 100%; border-collapse: collapse; 
             border: 2px solid #333 !important; 
@@ -73,26 +75,25 @@ st.markdown("""
             text-align: center; border: 1px solid #333 !important; padding: 8px; 
         }
 
-        /* [핵심] QR 그리드 (3열 x 3행) + 간격 띄우기 */
+        /* QR 그리드 */
         .qr-table { 
             width: 100%; 
             border-collapse: separate; 
-            border-spacing: 10px; /* QR 카드 사이 간격 */
+            border-spacing: 10px; 
             table-layout: fixed; 
         }
         
         .qr-cell { 
             width: 33.33%; 
             height: 60mm; 
-            border: 1px solid #333 !important; /* 테두리 두께 조정 */
+            border: 1px solid #333 !important; 
             text-align: center; 
             vertical-align: middle; 
             padding: 10px;
-            border-radius: 8px; /* 모서리 둥글게 */
+            border-radius: 8px; 
             background-color: #fff;
         }
         
-        /* QR 이미지 크기 */
         .qr-img {
             width: 120px; 
             height: 120px;
@@ -100,31 +101,58 @@ st.markdown("""
             display: block;
         }
 
-        .txt-dim { font-size: 15pt; font-weight: 900; margin-bottom: 2px; display: block; }
+        /* 텍스트 스타일 */
+        /* 기본적으로 치수는 보통 굵기로 설정하고, 내부 span에서 굵기 조절 */
+        .txt-dim { font-size: 16pt; font-weight: normal; margin-bottom: 2px; display: block; }
+        
         .txt-elec { font-size: 11pt; font-weight: bold; margin-bottom: 5px; display: block; }
         .txt-lot { font-size: 9pt; font-weight: bold; margin-top: 2px; font-family: monospace; display: block; }
         .txt-info { font-size: 8pt; color: #333; display: block; }
 
-        /* 접속 QR 스타일 */
+        .top-time { position: absolute; top: -5mm; right: 0mm; font-size: 8pt; color: #555; }
+        .footer-warning { position: absolute; bottom: 0mm; left: 0; width: 100%; text-align: center; font-size: 9pt; font-weight: bold; }
+        
+        /* 접속 QR 등 기타 스타일 */
         .access-qr-box { text-align: center; margin-top: 50px; border: 5px solid #000; padding: 30px; border-radius: 20px; }
         .grid-table { width: 100%; height: 95%; border-collapse: collapse; }
         .grid-cell { width: 50%; height: 25%; border: 1px dashed #999; text-align: center; vertical-align: middle; padding: 10px; }
         .mini-card { border: 2px solid black; border-radius: 10px; padding: 10px; display: inline-block; width: 90%; }
-
-        .top-time { position: absolute; top: -5mm; right: 0mm; font-size: 8pt; color: #555; }
-        .footer-warning { position: absolute; bottom: 0mm; left: 0; width: 100%; text-align: center; font-size: 9pt; font-weight: bold; }
     }
     .printable-area { display: none; }
 </style>
 """, unsafe_allow_html=True)
 
-def get_dimension_html(w, h, elec):
-    return f"<span class='txt-dim'>{w} x {h}</span>"
-
 def image_to_base64(img):
     buffered = io.BytesIO()
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
+
+# ----------------------------------------------------
+# 🔍 [핵심 로직] 치수(가로x세로) 강조 함수
+# ----------------------------------------------------
+def get_styled_dimensions(w, h, elec):
+    """
+    전극 방향(elec)에 따라 가로(w) 또는 세로(h) 숫자를 진하게/연하게 처리
+    """
+    # 스타일 정의
+    style_bold = "font-weight: 900; font-size: 1.2em; color: black;" # 진하게, 약간 크게
+    style_light = "font-weight: 400; color: #777;" # 연하게, 회색톤
+
+    w_html = f"<span style='{style_light}'>{w}</span>"
+    h_html = f"<span style='{style_light}'>{h}</span>"
+
+    if "가로" in elec:
+        # 가로 방향 전극 -> 가로(Width) 숫자 강조
+        w_html = f"<span style='{style_bold}'>{w}</span>"
+    elif "세로" in elec:
+        # 세로 방향 전극 -> 세로(Height) 숫자 강조
+        h_html = f"<span style='{style_bold}'>{h}</span>"
+    else:
+        # 방향 정보가 없거나(없음) 모호할 때 -> 둘 다 기본 진하기
+        w_html = f"<span style='font-weight:bold; color:black;'>{w}</span>"
+        h_html = f"<span style='font-weight:bold; color:black;'>{h}</span>"
+
+    return f"<div class='txt-dim'>{w_html} x {h_html}</div>"
 
 # ----------------------------------------------------
 # 📄 작업 지시서 HTML (3열 x 3행 = 9개)
@@ -142,9 +170,17 @@ def create_a4_html(header, items):
             
             if item:
                 img_b64 = image_to_base64(item['img'])
+                
+                # [적용] 전극 방향에 따른 치수 강조 로직 적용
+                dim_html = get_styled_dimensions(item['w'], item['h'], item['elec'])
+                
+                # 전극 텍스트(예: [가로(1면)]) 내 숫자 강조 (선택사항, 일관성을 위해 유지)
+                elec_str = str(item['elec'])
+                elec_html = re.sub(r'(\d+)', r'<span style="font-weight:900; font-size:1.1em;">\1</span>', elec_str)
+
                 content = f"""
-                <div class="txt-dim">{item['w']} x {item['h']}</div>
-                <div class="txt-elec">[{item['elec']}]</div>
+                {dim_html}
+                <div class="txt-elec">[{elec_html}]</div>
                 <img src="data:image/png;base64,{img_b64}" class="qr-img">
                 <div class="txt-lot">{item['lot']}</div>
                 <div class="txt-info">{item['cust']} | {item['prod']}</div>
@@ -185,7 +221,17 @@ def create_label_html(items):
             item = cells_data[idx]
             if item:
                 img_b64 = image_to_base64(item['img'])
-                content = f"""<div style="font-size:16pt; font-weight:bold; margin-bottom:2px;">{item['w']}x{item['h']}</div><div style="font-size:12pt; margin-bottom:5px;">[{item['elec']}]</div><img src="data:image/png;base64,{img_b64}" style="width:110px;"><div style="font-size:9pt; font-weight:bold; margin-top:2px;">{item['lot']}</div>"""
+                
+                # 라벨용 간소화된 치수 강조 (크기만 조절)
+                w, h, elec = item['w'], item['h'], item['elec']
+                if "가로" in elec:
+                    dim_str = f"<span style='font-weight:900;'>{w}</span>x{h}"
+                elif "세로" in elec:
+                    dim_str = f"{w}x<span style='font-weight:900;'>{h}</span>"
+                else:
+                    dim_str = f"{w}x{h}"
+
+                content = f"""<div style="font-size:16pt; margin-bottom:2px;">{dim_str}</div><div style="font-size:12pt; margin-bottom:5px;">[{item['elec']}]</div><img src="data:image/png;base64,{img_b64}" style="width:110px;"><div style="font-size:9pt; font-weight:bold; margin-top:2px;">{item['lot']}</div>"""
             else: content = ""
             rows_html += f'<td class="qr-cell" style="vertical-align:middle;">{content}</td>'
         rows_html += "</tr>"
@@ -301,53 +347,55 @@ with tab2:
         else:
             st.info("⚠️ 현재 발행된 작업이 없습니다. [작업 입력] 탭에서 '최종 발행'을 먼저 해주세요.")
             
-    # Case 2: 이력 조회 (검색 기능 강화됨)
+    # Case 2: 이력 조회 (검색 기능 강화됨 - 날짜 기간)
     else:
         with st.form("history_search"):
-            # [검색 필터 UI]
-            st.caption("🔍 검색 조건을 입력하고 '조회' 버튼을 누르세요. (빈칸은 전체 검색)")
-            c1, c2, c3, c4 = st.columns([2, 2, 2, 1])
+            st.caption("🔍 날짜 기간을 설정하여 이력을 조회하세요.")
+            col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
             
-            s_date = c1.date_input("날짜", value=datetime.now())
-            s_cust = c2.text_input("고객사 (포함)")
-            s_lot = c3.text_input("LOT 번호 (포함)")
+            # [수정] 날짜 범위 선택 기능 (기간 검색)
+            d_range = col1.date_input("조회 기간", value=(datetime.now() - timedelta(days=7), datetime.now()), key="hist_date")
+            s_cust = col2.text_input("고객사 (포함)")
+            s_lot = col3.text_input("LOT 번호 (포함)")
+            do_search = col4.form_submit_button("🔍 조회", type="primary")
             
-            search_btn = c4.form_submit_button("🔍 조회")
-            
-            if search_btn:
-                # 1. 기본 쿼리 (날짜 기준)
-                start = s_date.strftime("%Y-%m-%d 00:00:00")
-                end = s_date.strftime("%Y-%m-%d 23:59:59")
-                query = supabase.table("work_orders").select("*").gte("created_at", start).lte("created_at", end)
+            if do_search:
+                # [수정] 날짜 기간 처리 로직
+                if isinstance(d_range, tuple):
+                    if len(d_range) == 2:
+                        start_date, end_date = d_range
+                    elif len(d_range) == 1:
+                        start_date = end_date = d_range[0]
+                    else:
+                        start_date = end_date = datetime.now()
+                else:
+                    start_date = end_date = d_range
+
+                start_ts = start_date.strftime("%Y-%m-%d 00:00:00")
+                end_ts = end_date.strftime("%Y-%m-%d 23:59:59")
                 
-                # 2. 조건 추가 (ilike 사용)
-                if s_cust:
-                    query = query.ilike("customer", f"%{s_cust}%")
-                if s_lot:
-                    query = query.ilike("lot_no", f"%{s_lot}%")
+                query = supabase.table("work_orders").select("*").gte("created_at", start_ts).lte("created_at", end_ts)
+                if s_cust: query = query.ilike("customer", f"%{s_cust}%")
+                if s_lot: query = query.ilike("lot_no", f"%{s_lot}%")
                 
                 try:
                     res = query.execute()
                     st.session_state.history_data = res.data
                 except Exception as e:
-                    st.error(f"조회 실패: {e}")
-                    st.session_state.history_data = []
+                    st.error(f"조회 실패: {e}"); st.session_state.history_data = []
         
         if st.session_state.history_data:
-            # 선택 UI
             edited_hist = st.data_editor(
                 pd.DataFrame(st.session_state.history_data).assign(선택=False), 
-                hide_index=True, 
-                use_container_width=True,
+                hide_index=True, use_container_width=True,
                 column_config={"선택": st.column_config.CheckboxColumn(width="small")}
             )
             
-            # 선택된 항목 감지
             selected_rows = edited_hist[edited_hist["선택"]]
             
             if not selected_rows.empty:
                 st.divider()
-                st.success(f"✅ {len(selected_rows)}개 항목이 선택되었습니다. 아래 버튼을 눌러 인쇄하세요.")
+                st.success(f"✅ {len(selected_rows)}개 항목 선택됨")
                 
                 print_items = []
                 first_row = selected_rows.iloc[0]
@@ -362,10 +410,14 @@ with tab2:
 
                 for _, row in selected_rows.iterrows():
                     dim_str = row['dimension']
-                    w, h, elec = "0", "0", "Unknown"
+                    
+                    # 치수 파싱
+                    w, h, elec = "규격", "확인", dim_str
                     try:
-                        match = re.search(r'(\d+)x(\d+)\s*\[(.*?)\]', dim_str)
-                        if match: w, h, elec = match.group(1), match.group(2), match.group(3)
+                        match = re.search(r'(\d+)x(\d+)\s*\[(.*?)\]', dim_str) 
+                        if match: 
+                            w, h = match.group(1), match.group(2)
+                            elec = match.group(3)
                         else:
                             parts = dim_str.split('[')
                             if len(parts) > 1:
@@ -375,18 +427,17 @@ with tab2:
                     qr = qrcode.QRCode(box_size=5, border=2)
                     qr.add_data(row['lot_no'])
                     qr.make(fit=True)
-                    img = qr.make_image(fill_color="black", back_color="white") # PIL Image
+                    img = qr.make_image(fill_color="black", back_color="white")
 
                     print_items.append({"lot": row['lot_no'], "w": w, "h": h, "elec": elec, "prod": row['product'], "cust": row['customer'], "img": img})
                 
-                # HTML 생성 및 표시
                 html_content = create_a4_html(header_info, print_items)
                 st.markdown(html_content, unsafe_allow_html=True)
                 
                 if st.button("🖨️ 선택 항목 인쇄하기", type="primary"):
                     components.html("<script>parent.window.print()</script>", height=0, width=0)
             else:
-                st.info("👆 목록에서 인쇄할 항목을 체크(v) 해주세요.")
+                st.info("👆 인쇄할 항목을 체크(v) 하세요.")
         else:
             st.write("조회된 데이터가 없습니다.")
 
