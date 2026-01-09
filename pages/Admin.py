@@ -52,26 +52,23 @@ PRINT_CSS = """
         /* 1. 페이지 설정: A4, 여백 0 */
         @page { size: A4 portrait; margin: 0 !important; }
         
-        /* 2. 화면의 모든 요소를 일단 숨김 (리스트, 사이드바, 헤더 포함) */
+        /* 2. 화면의 모든 요소를 일단 숨김 */
         body, html, .stApp { 
             width: 100%; height: 100%; 
             margin: 0 !important; padding: 0 !important;
             background: white;
         }
         
-        body * { 
-            visibility: hidden !important; 
-        }
+        body * { visibility: hidden !important; }
         
         /* 3. 오직 'printable-area'와 그 자식들만 보이게 설정 */
         #printable-area, #printable-area * {
             visibility: visible !important;
             color: black !important;
-            -webkit-print-color-adjust: exact; /* 배경색/선명도 유지 */
+            -webkit-print-color-adjust: exact;
         }
 
-        /* 4. 인쇄 영역을 화면 최상단으로 강제 이동 (Position Fixed) */
-        /* 이것 때문에 옆에 있는 리스트가 인쇄되지 않습니다 */
+        /* 4. 인쇄 영역을 화면 최상단으로 강제 이동 (Overlay) */
         #printable-area {
             position: fixed !important;
             left: 0 !important;
@@ -79,31 +76,32 @@ PRINT_CSS = """
             width: 210mm !important;
             height: 297mm !important;
             background: white !important;
-            z-index: 999999 !important; /* 다른 요소보다 무조건 위에 */
-            padding: 10mm !important;   /* 내부 여백 */
+            z-index: 999999 !important;
+            padding: 10mm !important;
             box-sizing: border-box !important;
             display: block !important;
         }
 
         /* ------------------------------------------------ */
-        /* 여기서부터는 내부 디자인 (건드리지 않음) */
+        /* 내부 디자인 */
         /* ------------------------------------------------ */
 
-        /* 헤더 스타일 */
-        .header-section { border-bottom: 2px solid black; margin-bottom: 5px; padding-bottom: 5px; width: 100%; }
+        /* 헤더 스타일 (여백 최소화) */
+        .header-section { border-bottom: 2px solid black; margin-bottom: 2px; padding-bottom: 2px; width: 100%; }
         
-        /* 테이블 스타일 */
-        .info-table { width: 100%; border-collapse: collapse; border: 2px solid black; font-size: 11pt; margin-bottom: 10px; }
+        /* 테이블 스타일 (하단 여백 제거) */
+        .info-table { width: 100%; border-collapse: collapse; border: 2px solid black; font-size: 11pt; margin-bottom: 0px; }
         .info-table th { background: #eee !important; border: 1px solid black; padding: 4px; width: 18%; }
         .info-table td { border: 1px solid black; padding: 4px; text-align: center; }
 
-        /* QR 그리드 스타일 (높이 안전하게 180mm) */
+        /* QR 그리드 스타일 (높이 안전하게 180mm, 상단 여백 약간 추가) */
         .qr-container { 
             width: 100%; 
             height: 180mm; 
             border: 2px solid black; 
             display: flex; 
-            flex-wrap: wrap; 
+            flex-wrap: wrap;
+            margin-top: 5px; 
         }
         
         .qr-item { 
@@ -121,7 +119,11 @@ PRINT_CSS = """
         
         .qr-img { width: 140px; height: 140px; margin: 2px 0; }
         .t-dim { font-size: 20pt; font-weight: 900; margin-bottom: 2px; }
+        
+        /* [수정] 전극 정보 스타일 & 숫자 볼드 처리 */
         .t-elec { font-size: 14pt; font-weight: bold; margin-bottom: 2px; }
+        .t-elec b { font-weight: 900; } /* 전극 내 숫자 강조 */
+
         .t-lot { font-size: 10pt; font-weight: bold; font-family: monospace; }
         .t-info { font-size: 9pt; }
         
@@ -131,7 +133,6 @@ PRINT_CSS = """
         }
     }
     
-    /* 화면에서는 인쇄 영역을 숨김 (작업할 때 방해되지 않게) */
     #printable-area { display: none; }
 </style>
 """
@@ -150,13 +151,12 @@ def create_a4_html(header, items):
     cells_data = items[:LIMIT] + [None] * (LIMIT - len(items[:LIMIT]))
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    # [핵심] id="printable-area"가 CSS의 타겟이 됩니다.
     html = '<div id="printable-area">'
     
     # Header
     html += '<div class="header-section">'
     html += f'<div style="text-align:right; font-size:9pt;">출력일시: {now_str}</div>'
-    html += '<div style="text-align:center; font-size:26pt; font-weight:900; margin-bottom:10px; text-decoration:underline;">작업 지시서 (Work Order)</div>'
+    html += '<div style="text-align:center; font-size:26pt; font-weight:900; margin-bottom:5px; text-decoration:underline;">작업 지시서 (Work Order)</div>'
     
     # Table
     html += '<table class="info-table">'
@@ -165,7 +165,7 @@ def create_a4_html(header, items):
     html += f'<tr><th>작업 가이드</th><td colspan="3" style="text-align:left; padding:5px; font-weight:bold;">{header["guide"]}</td></tr>'
     html += f'<tr><th>비고</th><td colspan="3" style="height:35px; text-align:left; padding:5px;">{header["note"]}</td></tr>'
     html += '</table>'
-    html += f'<div style="font-size:14pt; font-weight:bold; margin-bottom:5px;">📋 생산 리스트 (총 {len(items)}개)</div>'
+    # [수정] "📋 생산 리스트..." 제목 줄 제거함
     html += '</div>'
     
     # Grid
@@ -173,9 +173,14 @@ def create_a4_html(header, items):
     for item in cells_data:
         if item:
             img_b64 = image_to_base64(item['img'])
+            
+            # [수정] 전극 정보 내 숫자만 찾아서 볼드(<b>) 처리
+            elec_str = item["elec"]
+            elec_str_bold = re.sub(r'(\d+)', r'<b>\1</b>', elec_str)
+
             html += '<div class="qr-item">'
             html += f'<div class="t-dim">{item["w"]} x {item["h"]}</div>'
-            html += f'<div class="t-elec">[{item["elec"]}]</div>'
+            html += f'<div class="t-elec">[{elec_str_bold}]</div>' # 수정된 문자열 적용
             html += f'<img src="data:image/png;base64,{img_b64}" class="qr-img">'
             html += f'<div class="t-lot">{item["lot"]}</div>'
             html += f'<div class="t-info">{item["cust"]} | {item["prod"]}</div>'
@@ -201,8 +206,12 @@ def create_label_html(items):
         html += f'<div style="{style}">'
         if item:
             img_b64 = image_to_base64(item['img'])
+            # 라벨에서도 전극 숫자 볼드 처리
+            elec_str = item["elec"]
+            elec_str_bold = re.sub(r'(\d+)', r'<b>\1</b>', elec_str)
+
             html += f'<div style="font-size:16pt; font-weight:bold;">{item["w"]}x{item["h"]}</div>'
-            html += f'<div style="font-size:12pt;">[{item["elec"]}]</div>'
+            html += f'<div style="font-size:12pt;">[{elec_str_bold}]</div>'
             html += f'<img src="data:image/png;base64,{img_b64}" style="width:100px;">'
             html += f'<div style="font-size:9pt; font-weight:bold;">{item["lot"]}</div>'
         html += '</div>'
@@ -379,13 +388,17 @@ with tab2:
 
                 for _, row in selected_rows.iterrows():
                     dim_str = row['dimension']
+                    
+                    # [수정] 0x0 오류 방지: 파싱 실패 시 원본 문자열 표시
                     w, h, elec = "규격", "확인", dim_str
                     try:
                         size_match = re.search(r'(\d+)\s*[xX*]\s*(\d+)', dim_str) 
-                        if size_match: w, h = size_match.group(1), size_match.group(2)
+                        if size_match: 
+                            w, h = size_match.group(1), size_match.group(2)
                         
                         elec_match = re.search(r'\[(.*?)\]', dim_str)
-                        if elec_match: elec = elec_match.group(1)
+                        if elec_match: 
+                            elec = elec_match.group(1)
                         else:
                             remains = re.sub(r'(\d+)\s*[xX*]\s*(\d+)', '', dim_str).strip()
                             if remains: elec = remains
