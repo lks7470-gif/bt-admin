@@ -40,124 +40,107 @@ if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
 # ==========================================
-# 🔥 [스타일] CSS 정의 (최종 수정 반영: 선 제거 및 유연한 레이아웃)
+# 🔥 [스타일] CSS 정의 (A4 꽉 찬 인쇄 최적화)
 # ==========================================
-PRINT_CSS = """
+st.markdown("""
 <style>
-    /* 화면용 기본 스타일 */
     .stApp { background-color: #ffffff !important; color: #000000 !important; }
     
-    /* 🖨️ 인쇄 전용 스타일 */
     @media print {
-
-        /* ✅ 1) 종이 설정: 여백 8mm로 안전하게 */
-        @page { size: A4 portrait; margin: 8mm !important; }
+        /* 1. 페이지 설정: A4 사이즈, 여백 최소화 */
+        @page { size: A4 portrait; margin: 5mm; }
         
-        /* ✅ 2) 기본 바탕 */
-        body, html, .stApp { 
-            width: 100%; height: 100%; 
-            margin: 0 !important; padding: 0 !important;
-            background: white !important;
-        }
+        /* 2. 화면의 다른 요소 숨김 */
+        body * { visibility: hidden; }
         
-        /* ✅ 3) 인쇄 영역 외 숨김 */
-        body * { visibility: hidden !important; }
-        
-        /* ✅ 4) 인쇄 영역(전체 레이아웃) : flex 레이아웃으로 변경 */
-        #printable-area {
-            position: relative !important; /* fixed 대신 relative 사용 */
-            width: 100% !important;
-            min-height: 100% !important;
-            background: white !important;
-            z-index: 999999 !important;
-            display: flex !important;           /* Flexbox 적용 */
-            flex-direction: column !important;  /* 세로 방향 배치 */
-            padding: 0mm !important;
+        /* 3. 인쇄 영역만 표시 */
+        .printable-area, .printable-area * {
             visibility: visible !important;
+            color: black !important;
         }
         
-        #printable-area * { 
-            visibility: visible !important; 
-            color: black !important; 
-            -webkit-print-color-adjust: exact;
-            height: auto !important;
+        /* 4. 인쇄 영역 위치 고정 및 크기 설정 */
+        .printable-area {
+            position: fixed !important;
+            left: 0; top: 0;
+            width: 200mm; /* A4 너비(210) - 여백 */
+            height: 287mm; /* A4 높이(297) - 여백 */
+            background-color: white !important;
+            z-index: 999999;
+            padding: 5mm;
+            display: block !important;
         }
 
-        /* ✅ 헤더 섹션: 아래 보더 제거 (가로선 겹침 방지) */
-        .header-section { 
-            border-bottom: none !important; 
-            margin-bottom: 2mm !important; 
-            padding-bottom: 0 !important; 
-            width: 100%; 
-            flex: 0 0 auto !important; /* 높이 고정 */
-        }
+        /* 스트림릿 UI 요소 숨김 */
+        header, footer, .stButton, [data-testid="stHeader"], .stSidebar { display: none !important; }
         
-        /* ✅ 상단 정보 테이블 */
+        /* --- 작업지시서 내부 스타일 --- */
+
+        /* 상단 정보 테이블 */
         .info-table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            border: 2px solid black; 
-            font-size: 11pt; 
-            margin-bottom: 0 !important; 
+            width: 100%; border-collapse: collapse; 
+            border: 2px solid black !important; 
+            margin-bottom: 10px; font-size: 11pt; 
         }
-        .info-table th { background: #eee !important; border: 1px solid black; padding: 4px; width: 18%; }
-        .info-table td { border: 1px solid black; padding: 4px; text-align: center; }
+        .info-table th { 
+            background: #eee !important; font-weight: bold; width: 18%; 
+            border: 1px solid black !important; padding: 6px; 
+        }
+        .info-table td { 
+            text-align: center; border: 1px solid black !important; padding: 6px; 
+        }
 
-        /* ✅ QR 그리드: 남는 공간만큼 사용 (flex-grow) */
-        .qr-container { 
+        /* [핵심] QR 그리드 (3열 x 3행) */
+        .qr-table { 
             width: 100%; 
-            flex: 1 1 auto !important; /* 남는 공간 차지 */
-            height: auto !important;
-            border: 2px solid black; 
-            border-top: none !important; /* 상단 선 제거 (테이블과 연결) */
-            display: flex; 
-            flex-wrap: wrap; 
-            margin-top: 0 !important; 
+            border-collapse: separate; 
+            border-spacing: 5px; /* 셀 간격 */
+            table-layout: fixed; 
         }
         
-        /* ✅ QR 칸 */
-        .qr-item { 
+        .qr-cell { 
             width: 33.33%; 
-            height: 33.33%; 
-            border: 1px solid black; 
-            box-sizing: border-box;
-            display: flex; flex-direction: column; justify-content: center; align-items: center; 
-            overflow: hidden; padding: 2px;
+            /* 🔥 높이를 키워서 A4 하단까지 꽉 차게 조정 (기존 60mm -> 68mm) */
+            height: 68mm; 
+            border: 2px solid black !important; 
+            text-align: center; 
+            vertical-align: middle; 
+            padding: 5px;
+            border-radius: 8px;
+            background-color: #fff;
+        }
+        
+        /* QR 이미지 */
+        .qr-img {
+            width: 140px; 
+            height: 140px;
+            margin: 5px auto;
+            display: block;
         }
 
-        /* ✅ (가로선 문제 해결) 첫 번째 행 3칸의 윗선 제거 */
-        .qr-item:nth-child(-n+3) {
-            border-top: none !important;
-        }
-        
-        .qr-img { 
-            width: 135px; height: 135px; 
-            max-width: 40mm; max-height: 40mm;
-            margin: 2px 0; 
-        }
-        
-        .t-dim { font-size: 22pt; font-weight: 900; margin-bottom: 2px; }
-        .t-elec { font-size: 15pt; font-weight: bold; margin-bottom: 2px; }
-        
-        /* 숫자 강조용 클래스 */
-        .num-bold { font-size: 18pt; font-weight: 900; } 
+        .txt-dim { font-size: 18pt; font-weight: 900; margin-bottom: 5px; display: block; }
+        .txt-elec { font-size: 14pt; font-weight: bold; margin-bottom: 5px; display: block; }
+        .txt-lot { font-size: 10pt; font-weight: bold; margin-top: 5px; font-family: monospace; display: block; }
+        .txt-info { font-size: 9pt; color: black; display: block; }
 
-        .t-lot { font-size: 11pt; font-weight: 900; font-family: monospace; }
-        .t-info { font-size: 9pt; font-weight: bold; }
-        
-        /* ✅ 하단 경고: 항상 아래쪽에 안전하게 */
+        /* 기타 요소 */
+        .top-time { position: absolute; top: 0mm; right: 5mm; font-size: 9pt; color: #000; }
         .footer-warning { 
-            width: 100%; 
+            position: absolute; bottom: 0mm; left: 0; width: 100%; 
             text-align: center; font-size: 10pt; font-weight: bold; 
-            margin-top: 2mm !important;
-            flex: 0 0 auto !important; /* 높이 고정 */
         }
+        
+        /* 라벨용 스타일 */
+        .access-qr-box { text-align: center; margin-top: 50px; border: 5px solid #000; padding: 30px; border-radius: 20px; }
+        .grid-table { width: 100%; height: 95%; border-collapse: collapse; }
+        .grid-cell { width: 50%; height: 25%; border: 1px dashed #999; text-align: center; vertical-align: middle; padding: 10px; }
+        .mini-card { border: 2px solid black; border-radius: 10px; padding: 10px; display: inline-block; width: 90%; }
     }
     
-    #printable-area { display: none; }
+    /* 평소 화면에서는 인쇄 영역 숨김 */
+    .printable-area { display: none; }
 </style>
-"""
-st.markdown(PRINT_CSS, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 def image_to_base64(img):
     buffered = io.BytesIO()
@@ -165,77 +148,74 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # ----------------------------------------------------
-# 📄 HTML 생성 함수
+# 📄 작업 지시서 HTML 생성 (A4 꽉 차게)
 # ----------------------------------------------------
 def create_a4_html(header, items):
+    # 항상 9개를 채워서 레이아웃 유지 (빈칸은 공백으로)
     LIMIT = 9
     cells_data = items[:LIMIT] + [None] * (LIMIT - len(items[:LIMIT]))
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-
-    html = '<div id="printable-area">'
     
-    # Header
-    html += '<div class="header-section">'
-    html += f'<div style="text-align:right; font-size:9pt;">출력일시: {now_str}</div>'
-    html += '<div style="text-align:center; font-size:28pt; font-weight:900; margin-bottom:5px; text-decoration:underline;">작업 지시서 (Work Order)</div>'
-    html += '</div>' 
-    
-    # Table
-    html += '<table class="info-table">'
-    html += f'<tr><th>고객사</th><td>{header["cust"]}</td><th>제품 종류</th><td>{header["prod"]}</td></tr>'
-    html += f'<tr><th>출고 요청일</th><td>{header["date"]}</td><th>원단 정보</th><td>{header["fabric"]}</td></tr>'
-    html += f'<tr><th>작업 가이드</th><td colspan="3" style="text-align:left; padding:5px; font-weight:bold;">{header["guide"]}</td></tr>'
-    html += f'<tr><th>비고</th><td colspan="3" style="height:35px; text-align:left; padding:5px;">{header["note"]}</td></tr>'
-    html += '</table>'
-    
-    # Grid
-    html += '<div class="qr-container">'
-    for item in cells_data:
-        if item:
-            img_b64 = image_to_base64(item['img'])
+    rows_html = ""
+    for r in range(3):
+        rows_html += "<tr>"
+        for c in range(3):
+            idx = r * 3 + c
+            item = cells_data[idx]
             
-            # 전극 정보 내 숫자만 찾아서 <b> 태그로 감싸기 (Bold 처리)
-            elec_str = str(item["elec"])
-            elec_str_bold = re.sub(r'(\d+)', r'<span class="num-bold">\1</span>', elec_str)
+            if item:
+                img_b64 = image_to_base64(item['img'])
+                content = f"""
+                <div class="txt-dim">{item['w']} x {item['h']}</div>
+                <div class="txt-elec">[{item['elec']}]</div>
+                <img src="data:image/png;base64,{img_b64}" class="qr-img">
+                <div class="txt-lot">{item['lot']}</div>
+                <div class="txt-info">{item['cust']} | {item['prod']}</div>
+                """
+            else:
+                content = ""
+            
+            rows_html += f"<td class='qr-cell'>{content}</td>"
+        rows_html += "</tr>"
 
-            html += '<div class="qr-item">'
-            html += f'<div class="t-dim">{item["w"]} x {item["h"]}</div>'
-            html += f'<div class="t-elec">[{elec_str_bold}]</div>' 
-            html += f'<img src="data:image/png;base64,{img_b64}" class="qr-img">'
-            html += f'<div class="t-lot">{item["lot"]}</div>'
-            html += f'<div class="t-info">{item["cust"]} | {item["prod"]}</div>'
-            html += '</div>'
-        else:
-            html += '<div class="qr-item"></div>'
-    html += '</div>'
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
     
-    # Footer
-    html += '<div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>'
-    html += '</div>'
-    
-    return html
+    return f"""
+    <div class="printable-area">
+        <div class="top-time">출력일시: {now_str}</div>
+        <div style="text-align:center; font-size:28pt; font-weight:900; margin-bottom:10px; text-decoration:underline;">작업 지시서 (Work Order)</div>
+        
+        <table class="info-table">
+            <tr><th>고객사</th><td>{header['cust']}</td><th>제품 종류</th><td>{header['prod']}</td></tr>
+            <tr><th>출고 요청일</th><td>{header['date']}</td><th>원단 정보</th><td>{header['fabric']}</td></tr>
+            <tr><th>작업 가이드</th><td colspan="3" style="text-align:left; padding-left:10px; font-weight:bold;">{header['guide']}</td></tr>
+            <tr><th>비고</th><td colspan="3" style="height:40px; text-align:left; padding-left:10px;">{header['note']}</td></tr>
+        </table>
+        
+        <div style="font-size:14pt; font-weight:bold; margin-bottom:5px;">📋 생산 리스트 (총 {len(items)}개)</div>
+        
+        <table class="qr-table">
+            {rows_html}
+        </table>
+        
+        <div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>
+    </div>
+    """
 
 def create_label_html(items):
     cells_data = items[:12] + [None] * (12 - len(items[:12]))
-    html = '<div id="printable-area"><div style="text-align:center; font-size:20pt; font-weight:bold; margin-bottom:20px;">🏷️ QR 라벨 출력</div>'
-    html += '<div class="qr-container" style="height:auto; border:none;">'
-    
-    style = 'width:25%; height:60mm; border:1px solid black; display:flex; flex-direction:column; align-items:center; justify-content:center; box-sizing:border-box;'
-    
-    for item in cells_data:
-        html += f'<div style="{style}">'
-        if item:
-            img_b64 = image_to_base64(item['img'])
-            elec_str = str(item["elec"])
-            elec_str_bold = re.sub(r'(\d+)', r'<span class="num-bold">\1</span>', elec_str)
-
-            html += f'<div style="font-size:16pt; font-weight:bold;">{item["w"]}x{item["h"]}</div>'
-            html += f'<div style="font-size:12pt;">[{elec_str_bold}]</div>'
-            html += f'<img src="data:image/png;base64,{img_b64}" style="width:100px;">'
-            html += f'<div style="font-size:9pt; font-weight:900;">{item["lot"]}</div>'
-        html += '</div>'
-    html += '</div></div>'
-    return html
+    rows_html = ""
+    for r in range(3):
+        rows_html += "<tr>"
+        for c in range(4):
+            idx = r * 4 + c
+            item = cells_data[idx]
+            if item:
+                img_b64 = image_to_base64(item['img'])
+                content = f"""<div style="font-size:16pt; font-weight:bold; margin-bottom:2px;">{item['w']}x{item['h']}</div><div style="font-size:12pt; margin-bottom:5px;">[{item['elec']}]</div><img src="data:image/png;base64,{img_b64}" style="width:110px;"><div style="font-size:9pt; font-weight:bold; margin-top:2px;">{item['lot']}</div>"""
+            else: content = ""
+            rows_html += f'<td class="qr-cell" style="vertical-align:middle; height:60mm;">{content}</td>'
+        rows_html += "</tr>"
+    return f"""<div class="printable-area"><div style="font-size:18px; font-weight:bold; margin-bottom:10px; text-align:center;">🏷️ QR 라벨 출력</div><table class="qr-table" style="border: 2px solid black;">{rows_html}</table></div>"""
 
 def create_access_qr_html(url, mode="big"):
     qr = qrcode.QRCode(box_size=10, border=1)
@@ -245,22 +225,14 @@ def create_access_qr_html(url, mode="big"):
     img_b64 = image_to_base64(img)
     
     if mode == "big":
-        html = f"""<div id="printable-area" style="text-align:center; padding-top:50mm;">
-            <div style="border:5px solid black; padding:50px; display:inline-block; border-radius:30px;">
-                <div style="font-size:40pt; font-weight:900; margin-bottom:30px;">🏭 접속 QR</div>
-                <img src="data:image/png;base64,{img_b64}" style="width:400px; height:400px;">
-                <div style="font-size:15pt; margin-top:20px; font-family:monospace;">{url}</div>
-            </div></div>"""
+        return f"""<div class="printable-area"><div style="margin-top: 30mm;"></div><div class="access-qr-box"><div style="font-size: 40px; font-weight: 900; margin-bottom: 20px;">🏭 생산관리 시스템 접속</div><div style="font-size: 20px; margin-bottom: 20px;">휴대폰 카메라를 켜고 아래 QR코드를 스캔하세요.</div><img src="data:image/png;base64,{img_b64}" style="width: 400px; height: 400px;"><div style="font-size: 14px; color: #333; margin-top: 10px; font-family: monospace;">{url}</div></div></div>"""
     else:
-        html = '<div id="printable-area"><div style="display:flex; flex-wrap:wrap;">'
-        for _ in range(8):
-            html += f"""<div style="width:50%; height:25%; border:1px dashed gray; display:flex; justify-content:center; align-items:center;">
-                <div style="border:2px solid black; padding:10px; border-radius:10px; text-align:center;">
-                    <div style="font-size:15pt; font-weight:bold;">접속 QR</div>
-                    <img src="data:image/png;base64,{img_b64}" style="width:100px;">
-                </div></div>"""
-        html += "</div></div>"
-    return html
+        rows = ""; 
+        for r in range(4):
+            rows += "<tr>"
+            for c in range(2): rows += f"""<td class="grid-cell"><div class="mini-card"><div style="font-weight:bold; font-size:16pt; margin-bottom:5px;">🏭 시스템 접속</div><img src="data:image/png;base64,{img_b64}" style="width: 120px;"><div style="font-size:10px; margin-top:5px;">(주)베스트룸 생산관리</div></div></td>"""
+            rows += "</tr>"
+        return f"""<div class="printable-area"><div style="text-align:center; font-weight:bold; padding:10px;">✂️ 점선을 따라 잘라서 사용하세요</div><table class="grid-table">{rows}</table></div>"""
 
 def fetch_fabric_stock():
     try:
@@ -341,60 +313,67 @@ with tab2:
     st.header("📄 작업 지시서 인쇄")
     print_mode = st.radio("출력 대상", ["🆕 방금 발행", "📅 이력 조회"], horizontal=True)
     
+    # Case 1: 방금 발행
     if print_mode == "🆕 방금 발행":
         if st.session_state.generated_qrs:
             qrs = st.session_state.generated_qrs
             header_info = {'cust': qrs[0]['cust'], 'prod': qrs[0]['prod'], 'date': delivery_date.strftime('%Y-%m-%d'), 'fabric': fabric_lot, 'guide': guide_full_text, 'note': admin_notes}
+            
             html_content = create_a4_html(header_info, qrs)
             st.markdown(html_content, unsafe_allow_html=True)
+            
             if st.button("🖨️ 인쇄창 열기 (Print)", type="primary"):
                 components.html("<script>parent.window.print()</script>", height=0, width=0)
         else:
-            st.info("⚠️ 현재 발행된 작업이 없습니다.")
+            st.info("⚠️ 현재 발행된 작업이 없습니다. [작업 입력] 탭에서 '최종 발행'을 먼저 해주세요.")
             
+    # Case 2: 이력 조회 (날짜 선택 + 체크박스 방식)
     else:
-        st.caption("🔍 조회 기간을 설정하세요 (시작일 ~ 종료일)")
-        
-        col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
-        d_range = col1.date_input("조회 기간", value=(datetime.now() - timedelta(days=7), datetime.now()), key="hist_date")
-        s_cust = col2.text_input("고객사", key="hist_cust")
-        s_lot = col3.text_input("LOT 번호", key="hist_lot")
-        do_search = col4.button("🔍 조회", type="primary", key="hist_btn")
-        
-        if do_search:
-            if isinstance(d_range, tuple):
-                if len(d_range) == 2: start_date, end_date = d_range
-                elif len(d_range) == 1: start_date = end_date = d_range[0]
-                else: start_date = end_date = datetime.now()
-            else: start_date = end_date = d_range
-
-            start_ts = start_date.strftime("%Y-%m-%d 00:00:00")
-            end_ts = end_date.strftime("%Y-%m-%d 23:59:59")
+        with st.form("history_search"):
+            st.caption("🔍 날짜를 선택하여 과거 발행 이력을 조회하고 재인쇄합니다.")
+            c1, c2, c3, c4 = st.columns([2, 2, 2, 1])
             
-            query = supabase.table("work_orders").select("*").gte("created_at", start_ts).lte("created_at", end_ts)
-            if s_cust: query = query.ilike("customer", f"%{s_cust}%")
-            if s_lot: query = query.ilike("lot_no", f"%{s_lot}%")
+            s_date = c1.date_input("조회 날짜", value=datetime.now())
+            s_cust = c2.text_input("고객사 (선택)")
+            s_lot = c3.text_input("LOT 번호 (선택)")
             
-            try:
-                res = query.execute()
-                st.session_state.history_data = res.data
-            except Exception as e:
-                st.error(f"조회 실패: {e}"); st.session_state.history_data = []
+            search_btn = c4.form_submit_button("🔍 조회")
+            
+            if search_btn:
+                # 선택한 날짜의 00:00:00 ~ 23:59:59 조회
+                start = s_date.strftime("%Y-%m-%d 00:00:00")
+                end = s_date.strftime("%Y-%m-%d 23:59:59")
+                query = supabase.table("work_orders").select("*").gte("created_at", start).lte("created_at", end)
+                
+                if s_cust: query = query.ilike("customer", f"%{s_cust}%")
+                if s_lot: query = query.ilike("lot_no", f"%{s_lot}%")
+                
+                try:
+                    res = query.execute()
+                    st.session_state.history_data = res.data
+                except Exception as e:
+                    st.error(f"조회 실패: {e}")
+                    st.session_state.history_data = []
         
         if st.session_state.history_data:
+            # 체크박스 선택 UI
             edited_hist = st.data_editor(
                 pd.DataFrame(st.session_state.history_data).assign(선택=False), 
-                hide_index=True, use_container_width=True,
+                hide_index=True, 
+                use_container_width=True,
                 column_config={"선택": st.column_config.CheckboxColumn(width="small")}
             )
             
+            # 선택된 행 추출
             selected_rows = edited_hist[edited_hist["선택"]]
             
             if not selected_rows.empty:
                 st.divider()
-                st.success(f"✅ {len(selected_rows)}개 항목 선택됨")
+                st.success(f"✅ {len(selected_rows)}개 항목이 선택되었습니다. 아래 버튼을 눌러 인쇄하세요.")
                 
+                # 선택된 항목을 인쇄용 리스트로 변환
                 print_items = []
+                # 헤더 정보는 선택된 첫 번째 행 기준으로 작성 (보통 같은 날짜/고객사 묶음이므로)
                 first_row = selected_rows.iloc[0]
                 header_info = {
                     'cust': first_row['customer'], 
@@ -407,32 +386,40 @@ with tab2:
 
                 for _, row in selected_rows.iterrows():
                     dim_str = row['dimension']
-                    w, h, elec = "규격", "확인", dim_str
+                    w, h, elec = "0", "0", "Unknown"
+                    # 규격 파싱 로직
                     try:
-                        size_match = re.search(r'(\d+)\s*[xX*]\s*(\d+)', dim_str) 
-                        if size_match: w, h = size_match.group(1), size_match.group(2)
-                        
-                        elec_match = re.search(r'\[(.*?)\]', dim_str)
-                        if elec_match: elec = elec_match.group(1)
+                        match = re.search(r'(\d+)x(\d+)\s*\[(.*?)\]', dim_str)
+                        if match: 
+                            w, h, elec = match.group(1), match.group(2), match.group(3)
                         else:
-                            remains = re.sub(r'(\d+)\s*[xX*]\s*(\d+)', '', dim_str).strip()
-                            if remains: elec = remains
+                            # 다른 포맷 시도 (예: 1000x2000 [전극])
+                            parts = dim_str.split('[')
+                            if len(parts) > 1:
+                                wh = parts[0].split('x')
+                                w, h = wh[0].strip(), wh[1].strip()
+                                elec = parts[1].replace(']', '').strip()
                     except: pass
 
+                    # QR 이미지 생성
                     qr = qrcode.QRCode(box_size=5, border=2)
                     qr.add_data(row['lot_no'])
                     qr.make(fit=True)
                     img = qr.make_image(fill_color="black", back_color="white")
 
-                    print_items.append({"lot": row['lot_no'], "w": w, "h": h, "elec": elec, "prod": row['product'], "cust": row['customer'], "img": img})
+                    print_items.append({
+                        "lot": row['lot_no'], "w": w, "h": h, "elec": elec, 
+                        "prod": row['product'], "cust": row['customer'], "img": img
+                    })
                 
+                # HTML 생성 (방금 발행과 동일한 함수 사용)
                 html_content = create_a4_html(header_info, print_items)
                 st.markdown(html_content, unsafe_allow_html=True)
                 
                 if st.button("🖨️ 선택 항목 인쇄하기", type="primary"):
                     components.html("<script>parent.window.print()</script>", height=0, width=0)
             else:
-                st.info("👆 인쇄할 항목을 체크(v) 하세요.")
+                st.info("👆 인쇄할 항목을 목록에서 체크(v) 해주세요.")
         else:
             st.write("조회된 데이터가 없습니다.")
 
