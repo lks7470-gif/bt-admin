@@ -39,85 +39,103 @@ if 'generated_qrs' not in st.session_state: st.session_state.generated_qrs = []
 if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
-# 🔥 [스타일] 인쇄 디자인 (A4 꽉 채우기 & 글자 확대)
+# 🔥 [스타일] 인쇄 디자인 (A4 강제 고정 - 강력한 버전)
 st.markdown("""
 <style>
     .stApp { background-color: #ffffff !important; color: #000000 !important; }
     
     @media print {
-        @page { size: A4 portrait; margin: 0mm; } /* 브라우저 여백 제거 */
-        body * { visibility: hidden; }
-        
-        .printable-area, .printable-area * {
-            visibility: visible !important;
-            color: black !important;
+        /* 1. 페이지 여백 완전 제거 (브라우저 헤더/푸터 삭제) */
+        @page { 
+            size: A4 portrait; 
+            margin: 0 !important; 
         }
         
-        /* A4 전체 영역 잡기 */
+        /* 2. 스트림릿 UI 숨기기 */
+        body, header, footer, .stApp { 
+            background: white !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        .stHeader, .stSidebar, .stToolbar, button { 
+            display: none !important; 
+        }
+
+        /* 3. 인쇄 영역 강제 지정 (절대 좌표) */
         .printable-area {
-            position: fixed !important; 
-            left: 0; top: 0; 
-            width: 210mm; height: 296mm; /* A4 규격 */
-            background-color: white !important; 
-            z-index: 999999; 
-            padding: 10mm; /* 내부 여백 */
             display: block !important;
+            position: fixed !important;
+            top: 0;
+            left: 0;
+            width: 210mm;    /* A4 너비 */
+            height: 297mm;   /* A4 높이 */
+            background: white;
+            z-index: 999999;
+            padding: 10mm;   /* 내부 여백 1cm */
             box-sizing: border-box;
         }
-
-        header, footer, .stButton, [data-testid="stHeader"] { display: none !important; }
         
-        /* 상단 정보 테이블 */
+        /* 4. 상단 정보 테이블 */
         .info-table { 
-            width: 100%; border-collapse: collapse; 
+            width: 100%; 
+            border-collapse: collapse; 
             border: 2px solid #000 !important; 
-            margin-bottom: 5mm; font-size: 11pt; 
+            margin-bottom: 5mm; 
+            font-size: 12pt; 
         }
         .info-table th { 
-            background: #eee !important; font-weight: bold; width: 18%; 
-            border: 1px solid #000 !important; padding: 5px; 
+            background: #eee !important; 
+            font-weight: bold; 
+            width: 18%; 
+            border: 1px solid #000 !important; 
+            padding: 5px; 
+            color: #000 !important;
         }
         .info-table td { 
-            text-align: center; border: 1px solid #000 !important; padding: 5px; 
+            text-align: center; 
+            border: 1px solid #000 !important; 
+            padding: 5px; 
+            color: #000 !important;
         }
 
-        /* [핵심] QR 그리드 높이 강제 확장 */
+        /* 5. QR 그리드 테이블 (높이 강제 지정) */
         .qr-table { 
             width: 100%; 
-            border-collapse: separate; 
-            border-spacing: 2mm; 
-            table-layout: fixed; 
+            height: 235mm !important; /* 남은 공간 꽉 채우기 (헤더 제외) */
+            border-collapse: collapse; 
+            table-layout: fixed;
             margin-top: 5mm;
+            border: 2px solid #000 !important;
         }
         
-        /* 셀 높이 75mm로 강제 지정 (3행 * 75 = 225mm + 헤더영역 = A4 꽉참) */
+        /* 6. 셀 높이 3등분 강제 */
         .qr-cell { 
             width: 33.33%; 
-            height: 75mm !important; 
-            border: 2px solid #000 !important; 
+            height: 33.33% !important; /* 3행이므로 정확히 3등분 */
+            border: 1px solid #000 !important; 
             text-align: center; 
             vertical-align: middle; 
             padding: 5px;
-            border-radius: 5px;
+            overflow: hidden; /* 내용 넘침 방지 */
         }
         
-        /* QR 이미지 크기 확대 */
+        /* 7. 내용물 크기 조절 */
         .qr-img {
-            width: 140px !important; 
-            height: 140px !important;
-            margin: 5px auto;
+            width: 160px !important;  /* QR 더 크게 */
+            height: 160px !important;
+            margin: 10px auto;
             display: block;
         }
-
-        /* 폰트 사이즈 대폭 확대 */
-        .txt-dim { font-size: 22pt !important; font-weight: 900; margin-bottom: 5px; display: block; }
-        .txt-elec { font-size: 16pt !important; font-weight: bold; margin-bottom: 5px; display: block; }
-        .txt-lot { font-size: 10pt !important; font-weight: bold; margin-top: 5px; font-family: monospace; display: block; }
-        .txt-info { font-size: 10pt !important; color: #333; display: block; }
+        .txt-dim { font-size: 24pt !important; font-weight: 900; margin-bottom: 5px; display: block; color: #000; }
+        .txt-elec { font-size: 16pt !important; font-weight: bold; margin-bottom: 5px; display: block; color: #000; }
+        .txt-lot { font-size: 11pt !important; font-weight: bold; margin-top: 5px; font-family: monospace; display: block; color: #000; }
+        .txt-info { font-size: 10pt !important; color: #000; display: block; }
 
         .top-time { position: absolute; top: 5mm; right: 10mm; font-size: 9pt; color: #555; }
-        .footer-warning { position: absolute; bottom: 5mm; left: 0; width: 100%; text-align: center; font-size: 10pt; font-weight: bold; }
+        .footer-warning { position: absolute; bottom: 5mm; left: 0; width: 100%; text-align: center; font-size: 10pt; font-weight: bold; color: red !important; }
     }
+    
+    /* 화면에서는 안보이게 */
     .printable-area { display: none; }
 </style>
 """, unsafe_allow_html=True)
@@ -128,7 +146,7 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # ----------------------------------------------------
-# 📄 작업 지시서 HTML (3x3 구조 + 사이즈 확대)
+# 📄 작업 지시서 HTML 생성 함수
 # ----------------------------------------------------
 def create_a4_html(header, items):
     LIMIT = 9
@@ -160,19 +178,23 @@ def create_a4_html(header, items):
     
     return f"""
 <div class="printable-area">
-<div class="top-time">출력일시: {now_str}</div>
-<div style="text-align:center; font-size:28pt; font-weight:900; margin-bottom:15px; margin-top:10px; text-decoration:underline;">작업 지시서 (Work Order)</div>
-<table class="info-table">
-<tr><th>고객사</th><td>{header['cust']}</td><th>제품 종류</th><td>{header['prod']}</td></tr>
-<tr><th>출고 요청일</th><td>{header['date']}</td><th>원단 정보</th><td>{header['fabric']}</td></tr>
-<tr><th>작업 가이드</th><td colspan="3" style="text-align:left; padding-left:10px; font-weight:bold;">{header['guide']}</td></tr>
-<tr><th>비고</th><td colspan="3" style="height:40px; text-align:left; padding-left:10px;">{header['note']}</td></tr>
-</table>
-<div style="font-size:16pt; font-weight:bold; margin-bottom:5px;">📋 생산 리스트 (총 {len(items)}개)</div>
-<table class="qr-table">
-{rows_html}
-</table>
-<div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>
+    <div class="top-time">출력일시: {now_str}</div>
+    <div style="text-align:center; font-size:28pt; font-weight:900; margin-bottom:15px; margin-top:0px; text-decoration:underline; color:black;">작업 지시서 (Work Order)</div>
+    
+    <table class="info-table">
+        <tr><th>고객사</th><td>{header['cust']}</td><th>제품 종류</th><td>{header['prod']}</td></tr>
+        <tr><th>출고 요청일</th><td>{header['date']}</td><th>원단 정보</th><td>{header['fabric']}</td></tr>
+        <tr><th>작업 가이드</th><td colspan="3" style="text-align:left; padding-left:10px; font-weight:bold;">{header['guide']}</td></tr>
+        <tr><th>비고</th><td colspan="3" style="height:40px; text-align:left; padding-left:10px;">{header['note']}</td></tr>
+    </table>
+    
+    <div style="font-size:16pt; font-weight:bold; margin-bottom:5px; color:black;">📋 생산 리스트 (총 {len(items)}개)</div>
+    
+    <table class="qr-table">
+        {rows_html}
+    </table>
+    
+    <div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>
 </div>
 """
 
@@ -301,17 +323,16 @@ with tab2:
             
     else:
         with st.form("history_search"):
-            st.caption("🔍 검색 조건을 입력하고 '조회' 버튼을 누르세요.")
+            st.caption("🔍 조회 기간을 설정하세요 (시작일 ~ 종료일)")
             c1, c2, c3, c4 = st.columns([2, 2, 2, 1])
             
-            # [수정] 기간 조회 기능 적용 (Start ~ End)
+            # [유지] 기간 조회 기능
             d_range = c1.date_input("조회 기간", value=(datetime.now() - timedelta(days=7), datetime.now()))
             
             s_cust = c2.text_input("고객사")
             s_lot = c3.text_input("LOT 번호")
             
             if c4.form_submit_button("🔍 조회"):
-                # 날짜 범위 처리
                 if isinstance(d_range, tuple):
                     if len(d_range) == 2:
                         start_date, end_date = d_range
