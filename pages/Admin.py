@@ -39,7 +39,7 @@ if 'generated_qrs' not in st.session_state: st.session_state.generated_qrs = []
 if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
-# 🔥 [스타일] 인쇄 디자인 (기존 유지)
+# 🔥 [스타일] 인쇄 디자인 (숫자 강조 & 선 제거)
 st.markdown("""
 <style>
     .stApp { background-color: #ffffff !important; color: #000000 !important; }
@@ -59,10 +59,12 @@ st.markdown("""
 
         header, footer, .stButton, [data-testid="stHeader"] { display: none !important; }
         
+        /* 상단 정보 테이블 */
         .info-table { 
             width: 100%; border-collapse: collapse; 
             border: 2px solid #333 !important; 
-            margin-bottom: 20px; font-size: 11pt; 
+            margin-bottom: 0px !important; /* 아래 여백 제거 */
+            font-size: 11pt; 
         }
         .info-table th { 
             background: #eee !important; font-weight: bold; width: 18%; 
@@ -72,24 +74,30 @@ st.markdown("""
             text-align: center; border: 1px solid #333 !important; padding: 8px; 
         }
 
+        /* QR 그리드 (상단 선 제거) */
         .qr-table { 
             width: 100%; 
             border-collapse: separate; 
-            border-spacing: 10px;
+            border-spacing: 10px; 
             table-layout: fixed; 
+            margin-top: 0px !important; /* 위쪽 여백 제거 */
+            border-top: none !important; /* 위쪽 선 제거 */
         }
         
         .qr-cell { 
             width: 33.33%; 
             height: 60mm; 
-            border: 1px solid #333 !important;
+            border: 1px solid #333 !important; 
             text-align: center; 
             vertical-align: middle; 
             padding: 10px;
-            border-radius: 8px;
+            border-radius: 8px; 
             background-color: #fff;
         }
         
+        /* 첫 번째 줄(1~3번) 윗선 제거 -> 정보테이블과 연결됨 */
+        /* .qr-table tr:first-child .qr-cell { border-top: none !important; } */ /* (선택사항: 필요시 주석 해제) */
+
         .qr-img {
             width: 120px; 
             height: 120px;
@@ -97,15 +105,15 @@ st.markdown("""
             display: block;
         }
 
-        .txt-dim { font-size: 15pt; font-weight: 900; margin-bottom: 2px; display: block; }
+        .txt-dim { font-size: 18pt; font-weight: 900; margin-bottom: 2px; display: block; }
         
-        /* [수정] 전극 텍스트 스타일: 기본은 보통 굵기 */
-        .txt-elec { font-size: 11pt; font-weight: normal; margin-bottom: 5px; display: block; }
+        /* [수정] 전극 텍스트: 기본은 보통 굵기 */
+        .txt-elec { font-size: 14pt; font-weight: normal; margin-bottom: 5px; display: block; }
         
-        /* [추가] 숫자 강조용 클래스 */
-        .num-bold { font-size: 14pt; font-weight: 900; color: #000; }
+        /* [수정] 숫자 강조용 클래스: 아주 굵게 */
+        .num-bold { font-size: 18pt; font-weight: 900; }
 
-        .txt-lot { font-size: 9pt; font-weight: bold; margin-top: 2px; font-family: monospace; display: block; }
+        .txt-lot { font-size: 10pt; font-weight: 900; margin-top: 2px; font-family: monospace; display: block; } /* LOT 진하게 */
         .txt-info { font-size: 8pt; color: #333; display: block; }
 
         .access-qr-box { text-align: center; margin-top: 50px; border: 5px solid #000; padding: 30px; border-radius: 20px; }
@@ -145,9 +153,9 @@ def create_a4_html(header, items):
             if item:
                 img_b64 = image_to_base64(item['img'])
                 
-                # [기능 추가] 전극 정보 내 숫자만 찾아서 강조 (Bold)
+                # [핵심] 전극 정보 내 숫자만 찾아서 강조 (Bold)
                 elec_str = str(item["elec"])
-                # 숫자(\d+)를 찾아서 <span class="num-bold">숫자</span>로 변경하여 강조
+                # 숫자(\d+)를 찾아서 <span class="num-bold">숫자</span>로 변경
                 elec_str_bold = re.sub(r'(\d+)', r'<span class="num-bold">\1</span>', elec_str)
 
                 content = f"""
@@ -175,7 +183,6 @@ def create_a4_html(header, items):
 <tr><th>작업 가이드</th><td colspan="3" style="text-align:left; padding-left:10px; font-weight:bold;">{header['guide']}</td></tr>
 <tr><th>비고</th><td colspan="3" style="height:50px; text-align:left; padding-left:10px;">{header['note']}</td></tr>
 </table>
-<div style="font-size:14pt; font-weight:bold; margin-bottom:5px;">📋 생산 리스트 (총 {len(items)}개)</div>
 <table class="qr-table">
 {rows_html}
 </table>
@@ -193,12 +200,11 @@ def create_label_html(items):
             item = cells_data[idx]
             if item:
                 img_b64 = image_to_base64(item['img'])
-                
-                # [기능 추가] 라벨에서도 전극 숫자 강조
+                # 라벨에서도 숫자 볼드 처리
                 elec_str = str(item["elec"])
                 elec_str_bold = re.sub(r'(\d+)', r'<span class="num-bold">\1</span>', elec_str)
 
-                content = f"""<div style="font-size:16pt; font-weight:bold; margin-bottom:2px;">{item['w']}x{item['h']}</div><div style="font-size:12pt; margin-bottom:5px;">[{elec_str_bold}]</div><img src="data:image/png;base64,{img_b64}" style="width:110px;"><div style="font-size:9pt; font-weight:bold; margin-top:2px;">{item['lot']}</div>"""
+                content = f"""<div style="font-size:16pt; font-weight:bold; margin-bottom:2px;">{item['w']}x{item['h']}</div><div style="font-size:12pt; margin-bottom:5px;">[{elec_str_bold}]</div><img src="data:image/png;base64,{img_b64}" style="width:110px;"><div style="font-size:9pt; font-weight:900; margin-top:2px;">{item['lot']}</div>"""
             else: content = ""
             rows_html += f'<td class="qr-cell" style="vertical-align:middle;">{content}</td>'
         rows_html += "</tr>"
@@ -300,35 +306,30 @@ with tab2:
     st.header("📄 작업 지시서 인쇄")
     print_mode = st.radio("출력 대상", ["🆕 방금 발행", "📅 이력 조회"], horizontal=True)
     
-    # Case 1: 방금 발행
     if print_mode == "🆕 방금 발행":
         if st.session_state.generated_qrs:
             qrs = st.session_state.generated_qrs
             header_info = {'cust': qrs[0]['cust'], 'prod': qrs[0]['prod'], 'date': delivery_date.strftime('%Y-%m-%d'), 'fabric': fabric_lot, 'guide': guide_full_text, 'note': admin_notes}
-            
             html_content = create_a4_html(header_info, qrs)
             st.markdown(html_content, unsafe_allow_html=True)
-            
             if st.button("🖨️ 인쇄창 열기 (Print)", type="primary"):
                 components.html("<script>parent.window.print()</script>", height=0, width=0)
         else:
-            st.info("⚠️ 현재 발행된 작업이 없습니다. [작업 입력] 탭에서 '최종 발행'을 먼저 해주세요.")
+            st.info("⚠️ 현재 발행된 작업이 없습니다.")
             
-    # Case 2: 이력 조회 (날짜 선택 + 체크박스 방식)
     else:
         with st.form("history_search"):
-            st.caption("🔍 날짜를 선택하여 과거 발행 이력을 조회하고 재인쇄합니다.")
-            c1, c2, c3, c4 = st.columns([2, 2, 2, 1])
+            st.caption("🔍 날짜 기간을 설정하여 이력을 조회하세요.")
+            col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
             
-            # [기능 변경] 날짜 범위 입력 (tuple 반환)
-            d_range = c1.date_input("조회 기간", value=(datetime.now() - timedelta(days=7), datetime.now()), key="hist_date")
-            s_cust = c2.text_input("고객사 (포함)")
-            s_lot = c3.text_input("LOT 번호 (포함)")
+            # [수정] 날짜 범위 선택 기능 (기간 검색)
+            d_range = col1.date_input("조회 기간", value=(datetime.now() - timedelta(days=7), datetime.now()), key="hist_date")
+            s_cust = col2.text_input("고객사 (포함)")
+            s_lot = col3.text_input("LOT 번호 (포함)")
+            do_search = col4.form_submit_button("🔍 조회", type="primary")
             
-            search_btn = c4.form_submit_button("🔍 조회")
-            
-            if search_btn:
-                # [기능 변경] 범위 처리 로직
+            if do_search:
+                # [수정] 날짜 기간 처리 로직
                 if isinstance(d_range, tuple):
                     if len(d_range) == 2:
                         start_date, end_date = d_range
@@ -343,7 +344,6 @@ with tab2:
                 end_ts = end_date.strftime("%Y-%m-%d 23:59:59")
                 
                 query = supabase.table("work_orders").select("*").gte("created_at", start_ts).lte("created_at", end_ts)
-                
                 if s_cust: query = query.ilike("customer", f"%{s_cust}%")
                 if s_lot: query = query.ilike("lot_no", f"%{s_lot}%")
                 
@@ -351,26 +351,21 @@ with tab2:
                     res = query.execute()
                     st.session_state.history_data = res.data
                 except Exception as e:
-                    st.error(f"조회 실패: {e}")
-                    st.session_state.history_data = []
+                    st.error(f"조회 실패: {e}"); st.session_state.history_data = []
         
         if st.session_state.history_data:
-            # 체크박스 선택 UI
             edited_hist = st.data_editor(
                 pd.DataFrame(st.session_state.history_data).assign(선택=False), 
-                hide_index=True, 
-                use_container_width=True,
+                hide_index=True, use_container_width=True,
                 column_config={"선택": st.column_config.CheckboxColumn(width="small")}
             )
             
-            # 선택된 행 추출
             selected_rows = edited_hist[edited_hist["선택"]]
             
             if not selected_rows.empty:
                 st.divider()
-                st.success(f"✅ {len(selected_rows)}개 항목이 선택되었습니다. 아래 버튼을 눌러 인쇄하세요.")
+                st.success(f"✅ {len(selected_rows)}개 항목 선택됨")
                 
-                # 선택된 항목을 인쇄용 리스트로 변환
                 print_items = []
                 first_row = selected_rows.iloc[0]
                 header_info = {
@@ -384,14 +379,13 @@ with tab2:
 
                 for _, row in selected_rows.iterrows():
                     dim_str = row['dimension']
-                    w, h, elec = "0", "0", "Unknown"
-                    # 규격 파싱 로직
+                    w, h, elec = "규격", "확인", dim_str
                     try:
                         match = re.search(r'(\d+)x(\d+)\s*\[(.*?)\]', dim_str) 
                         if match: 
-                            w, h, elec = match.group(1), match.group(2), match.group(3)
+                            w, h = match.group(1), match.group(2)
+                            elec = match.group(3)
                         else:
-                            # 다른 포맷 시도
                             parts = dim_str.split('[')
                             if len(parts) > 1:
                                 wh = parts[0].split('x'); w, h = wh[0].strip(), wh[1].strip(); elec = parts[1].replace(']', '').strip()
@@ -402,19 +396,15 @@ with tab2:
                     qr.make(fit=True)
                     img = qr.make_image(fill_color="black", back_color="white")
 
-                    print_items.append({
-                        "lot": row['lot_no'], "w": w, "h": h, "elec": elec, 
-                        "prod": row['product'], "cust": row['customer'], "img": img
-                    })
+                    print_items.append({"lot": row['lot_no'], "w": w, "h": h, "elec": elec, "prod": row['product'], "cust": row['customer'], "img": img})
                 
-                # HTML 생성 및 표시
                 html_content = create_a4_html(header_info, print_items)
                 st.markdown(html_content, unsafe_allow_html=True)
                 
                 if st.button("🖨️ 선택 항목 인쇄하기", type="primary"):
                     components.html("<script>parent.window.print()</script>", height=0, width=0)
             else:
-                st.info("👆 인쇄할 항목을 목록에서 체크(v) 해주세요.")
+                st.info("👆 인쇄할 항목을 체크(v) 하세요.")
         else:
             st.write("조회된 데이터가 없습니다.")
 
