@@ -40,86 +40,109 @@ if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
 # ==========================================
-# 🔥 [스타일] CSS 정의 (A4 꽉 채우기 + 코드노출 방지)
+# 🔥 [스타일] CSS 정의 (최종: 선 제거 + A4 꽉 채움)
 # ==========================================
-# 주의: 아래 CSS 문자열은 들여쓰기를 하지 마세요.
 PRINT_CSS = """
 <style>
     .stApp { background-color: #ffffff !important; color: #000000 !important; }
     
     @media print {
-        @page { size: A4 portrait; margin: 5mm; }
-        body, html, .stApp { width: 100%; height: 100%; margin: 0 !important; padding: 0 !important; }
-        body * { visibility: hidden !important; height: 0 !important; overflow: hidden !important; }
+        /* 1. 페이지 설정: 여백 8mm */
+        @page { size: A4 portrait; margin: 8mm !important; }
         
+        /* 2. 화면의 다른 요소 숨김 */
+        body * { visibility: hidden !important; }
+        
+        /* 3. 인쇄 영역만 표시 (Flexbox로 세로 배치) */
         #printable-area {
-            position: fixed !important;
-            top: 0 !important; left: 0 !important;
-            width: 200mm !important; /* A4 너비 - 여백 */
-            height: 287mm !important; /* A4 높이 - 여백 */
+            position: relative !important;
+            width: 100% !important;
+            min-height: 100% !important;
             background: white !important;
             z-index: 999999 !important;
-            display: block !important;
+            display: flex !important;
+            flex-direction: column !important;
+            padding: 0mm !important;
             visibility: visible !important;
-            height: auto !important;
-            overflow: visible !important;
         }
         
-        #printable-area * { visibility: visible !important; color: black !important; -webkit-print-color-adjust: exact; }
+        #printable-area * { 
+            visibility: visible !important; 
+            color: black !important; 
+            -webkit-print-color-adjust: exact;
+            height: auto !important;
+        }
 
-        /* 헤더 섹션 */
-        .header-section { width: 100%; margin-bottom: 5px; }
+        /* [수정] 헤더 섹션: 아래 보더 제거 */
+        .header-section { 
+            border-bottom: none !important; 
+            margin-bottom: 2mm !important; 
+            padding-bottom: 0 !important; 
+            width: 100%; 
+            flex: 0 0 auto !important; 
+        }
         
-        /* 정보 테이블 */
+        /* [수정] 상단 정보 테이블: 아래 여백 제거 */
         .info-table { 
             width: 100%; 
             border-collapse: collapse; 
-            border: 2px solid black; 
+            border: 2px solid black !important; 
             font-size: 11pt; 
-            margin-bottom: 0px !important; /* 아래 여백 제거 */
+            margin-bottom: 0 !important; 
         }
-        .info-table th { background: #eee !important; border: 1px solid black; padding: 5px; width: 18%; }
-        .info-table td { border: 1px solid black; padding: 5px; text-align: center; }
+        .info-table th { background: #eee !important; border: 1px solid black; padding: 4px; width: 18%; }
+        .info-table td { border: 1px solid black; padding: 4px; text-align: center; }
 
-        /* QR 그리드 (A4 꽉 차게 높이 설정) */
+        /* [핵심] QR 그리드: 상단 선 제거 + 남는 공간 채움 */
         .qr-container { 
             width: 100%; 
-            height: 210mm; /* 높이를 키워서 종이 하단까지 채움 */
-            border: 2px solid black; 
+            flex: 1 1 auto !important; /* 남는 높이만큼 늘어남 */
+            border: 2px solid black !important;
             border-top: none !important; /* 위쪽 선 제거 */
             display: flex; 
             flex-wrap: wrap; 
-            margin-top: 0px !important; 
+            margin-top: 0 !important; 
         }
         
+        /* QR 칸 */
         .qr-item { 
             width: 33.33%; 
-            height: 33.33%; /* 3등분 */
-            border: 1px solid black; 
+            height: 33.33%; /* 3x3 균등 분할 */
+            border: 1px solid black !important; 
             box-sizing: border-box;
             display: flex; flex-direction: column; justify-content: center; align-items: center; 
-            overflow: hidden; 
-            padding: 5px;
+            overflow: hidden; padding: 2px;
+        }
+
+        /* [핵심] 첫 번째 줄(1~3번) 윗선 제거 -> 정보테이블과 연결됨 */
+        .qr-item:nth-child(-n+3) {
+            border-top: none !important;
         }
         
-        /* 첫 줄 윗선 제거 */
-        .qr-item:nth-child(-n+3) { border-top: none !important; }
-
-        .qr-img { width: 150px; height: 150px; margin: 5px 0; }
-        .t-dim { font-size: 20pt; font-weight: 900; margin-bottom: 5px; }
+        .qr-img { 
+            width: 135px; height: 135px; 
+            max-width: 40mm; max-height: 40mm;
+            margin: 2px 0; 
+        }
         
-        /* 전극 숫자 강조 */
-        .t-elec { font-size: 15pt; font-weight: bold; margin-bottom: 5px; }
-        .num-bold { font-size: 19pt; font-weight: 900; } 
-
-        .t-lot { font-size: 11pt; font-weight: 900; font-family: monospace; }
-        .t-info { font-size: 10pt; font-weight: bold; }
+        .t-dim { font-size: 22pt; font-weight: 900; margin-bottom: 2px; }
+        .t-elec { font-size: 15pt; font-weight: bold; margin-bottom: 2px; }
         
+        /* 숫자 강조용 클래스 */
+        .num-bold { font-size: 20pt; font-weight: 900; } 
+
+        .t-lot { font-size: 11pt; font-weight: 900; font-family: monospace; } /* LOT 진하게 */
+        .t-info { font-size: 9pt; font-weight: bold; }
+        
+        /* 하단 경고: 맨 아래에 붙임 */
         .footer-warning { 
-            position: absolute; bottom: 0; left: 0; width: 100%; 
+            width: 100%; 
             text-align: center; font-size: 10pt; font-weight: bold; 
+            margin-top: 2mm !important;
+            flex: 0 0 auto !important; 
         }
     }
+    
     #printable-area { display: none; }
 </style>
 """
@@ -131,39 +154,36 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # ----------------------------------------------------
-# 📄 HTML 생성 함수 (문자열 연결 방식 - 코드 노출 방지)
+# 📄 HTML 생성 함수
 # ----------------------------------------------------
 def create_a4_html(header, items):
     LIMIT = 9
     cells_data = items[:LIMIT] + [None] * (LIMIT - len(items[:LIMIT]))
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    # [중요] 문자열을 + 연산자로 연결합니다. (f-string 들여쓰기 버그 방지)
     html = '<div id="printable-area">'
     
-    # 1. 헤더
+    # Header
     html += '<div class="header-section">'
     html += f'<div style="text-align:right; font-size:9pt;">출력일시: {now_str}</div>'
-    html += '<div style="text-align:center; font-size:30pt; font-weight:900; margin-bottom:10px; text-decoration:underline;">작업 지시서 (Work Order)</div>'
-    html += '</div>'
+    html += '<div style="text-align:center; font-size:28pt; font-weight:900; margin-bottom:5px; text-decoration:underline;">작업 지시서 (Work Order)</div>'
+    html += '</div>' 
     
-    # 2. 정보 테이블
+    # Table
     html += '<table class="info-table">'
     html += f'<tr><th>고객사</th><td>{header["cust"]}</td><th>제품 종류</th><td>{header["prod"]}</td></tr>'
     html += f'<tr><th>출고 요청일</th><td>{header["date"]}</td><th>원단 정보</th><td>{header["fabric"]}</td></tr>'
     html += f'<tr><th>작업 가이드</th><td colspan="3" style="text-align:left; padding:5px; font-weight:bold;">{header["guide"]}</td></tr>'
-    html += f'<tr><th>비고</th><td colspan="3" style="height:40px; text-align:left; padding:5px;">{header["note"]}</td></tr>'
+    html += f'<tr><th>비고</th><td colspan="3" style="height:35px; text-align:left; padding:5px;">{header["note"]}</td></tr>'
     html += '</table>'
     
-    # (중간 제목 줄 제거됨)
-
-    # 3. QR 그리드
+    # Grid (상단 선 제거됨)
     html += '<div class="qr-container">'
     for item in cells_data:
         if item:
             img_b64 = image_to_base64(item['img'])
             
-            # 전극 정보 내 숫자만 찾아서 강조 (정규식)
+            # 전극 정보 내 숫자만 찾아서 강조 (Bold & Size Up)
             elec_str = str(item["elec"])
             elec_str_bold = re.sub(r'(\d+)', r'<span class="num-bold">\1</span>', elec_str)
 
@@ -178,7 +198,7 @@ def create_a4_html(header, items):
             html += '<div class="qr-item"></div>'
     html += '</div>'
     
-    # 4. 푸터
+    # Footer
     html += '<div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>'
     html += '</div>'
     
@@ -314,17 +334,16 @@ with tab2:
         if st.session_state.generated_qrs:
             qrs = st.session_state.generated_qrs
             header_info = {'cust': qrs[0]['cust'], 'prod': qrs[0]['prod'], 'date': delivery_date.strftime('%Y-%m-%d'), 'fabric': fabric_lot, 'guide': guide_full_text, 'note': admin_notes}
-            
             html_content = create_a4_html(header_info, qrs)
             st.markdown(html_content, unsafe_allow_html=True)
-            
             if st.button("🖨️ 인쇄창 열기 (Print)", type="primary"):
                 components.html("<script>parent.window.print()</script>", height=0, width=0)
         else:
             st.info("⚠️ 현재 발행된 작업이 없습니다.")
             
     else:
-        st.caption("🔍 조회 기간을 설정하세요")
+        st.caption("🔍 조회 기간을 설정하세요 (시작일 ~ 종료일)")
+        
         col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
         d_range = col1.date_input("조회 기간", value=(datetime.now() - timedelta(days=7), datetime.now()), key="hist_date")
         s_cust = col2.text_input("고객사", key="hist_cust")
@@ -402,7 +421,7 @@ with tab2:
                 if st.button("🖨️ 선택 항목 인쇄하기", type="primary"):
                     components.html("<script>parent.window.print()</script>", height=0, width=0)
             else:
-                st.info("👆 목록에서 인쇄할 항목을 선택하세요.")
+                st.info("👆 인쇄할 항목을 체크(v) 하세요.")
         else:
             st.write("조회된 데이터가 없습니다.")
 
