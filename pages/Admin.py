@@ -42,6 +42,7 @@ if 'history_data' not in st.session_state: st.session_state.history_data = []
 # ==========================================
 # 🔥 [스타일] CSS 정의 (인쇄 완벽 격리 & 레이아웃 안정화)
 # ==========================================
+# 이 부분은 수정하지 마세요. (f-string 아님)
 PRINT_CSS = """
 <style>
     /* 화면용 기본 스타일 */
@@ -61,7 +62,7 @@ PRINT_CSS = """
         
         body * { visibility: hidden !important; height: 0 !important; overflow: hidden !important; }
         
-        /* 3. 오직 'printable-area'만 보이게 설정 */
+        /* 3. 오직 'printable-area'만 보이게 설정 (화면 덮어씌우기) */
         #printable-area {
             position: fixed !important;
             top: 0 !important; left: 0 !important;
@@ -91,7 +92,7 @@ PRINT_CSS = """
         .info-table th { background: #eee !important; border: 1px solid black; padding: 4px; width: 18%; }
         .info-table td { border: 1px solid black; padding: 4px; text-align: center; }
 
-        /* QR 그리드 (높이 175mm로 축소하여 하단 여백 확보) */
+        /* QR 그리드 (높이 175mm로 축소하여 하단 여백 확보 -> 다음장 넘어감 방지) */
         .qr-container { 
             width: 100%; 
             height: 175mm; /* 높이 조절됨 */
@@ -146,21 +147,22 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # ----------------------------------------------------
-# 📄 HTML 생성 함수
+# 📄 HTML 생성 함수 (들여쓰기 문제 원천 차단)
 # ----------------------------------------------------
 def create_a4_html(header, items):
     LIMIT = 9
     cells_data = items[:LIMIT] + [None] * (LIMIT - len(items[:LIMIT]))
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
 
+    # [핵심] 문자열을 한 줄씩 더하는 방식으로 작성 (들여쓰기 버그 방지)
     html = '<div id="printable-area">'
     
-    # Header
+    # 1. 헤더 섹션
     html += '<div class="header-section">'
     html += f'<div style="text-align:right; font-size:9pt;">출력일시: {now_str}</div>'
     html += '<div style="text-align:center; font-size:28pt; font-weight:900; margin-bottom:5px; text-decoration:underline;">작업 지시서 (Work Order)</div>'
     
-    # Table
+    # 2. 정보 테이블
     html += '<table class="info-table">'
     html += f'<tr><th>고객사</th><td>{header["cust"]}</td><th>제품 종류</th><td>{header["prod"]}</td></tr>'
     html += f'<tr><th>출고 요청일</th><td>{header["date"]}</td><th>원단 정보</th><td>{header["fabric"]}</td></tr>'
@@ -168,15 +170,16 @@ def create_a4_html(header, items):
     html += f'<tr><th>비고</th><td colspan="3" style="height:35px; text-align:left; padding:5px;">{header["note"]}</td></tr>'
     html += '</table>'
     
+    # [요청반영] "생산 리스트 (총 X개)" 줄 삭제 -> 바로 </div> 닫음
     html += '</div>'
     
-    # Grid
+    # 3. QR 그리드
     html += '<div class="qr-container">'
     for item in cells_data:
         if item:
             img_b64 = image_to_base64(item['img'])
             
-            # 전극 정보 내 숫자만 찾아서 <b> 태그로 감싸기 (Bold 처리)
+            # [요청반영] 전극 정보 내 숫자만 찾아서 <b> 태그로 감싸기 (Bold 처리)
             elec_str = str(item["elec"])
             elec_str_bold = re.sub(r'(\d+)', r'<b>\1</b>', elec_str)
 
@@ -191,7 +194,7 @@ def create_a4_html(header, items):
             html += '<div class="qr-item"></div>'
     html += '</div>'
     
-    # Footer (위치 자동 조정)
+    # 4. 푸터 (위치 자동 조정)
     html += '<div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>'
     html += '</div>'
     
