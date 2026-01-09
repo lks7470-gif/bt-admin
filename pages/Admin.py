@@ -338,6 +338,7 @@ with tab2:
     st.header("📄 작업 지시서 인쇄")
     print_mode = st.radio("출력 대상", ["🆕 방금 발행", "📅 이력 조회"], horizontal=True)
     
+    # Case 1: 방금 발행
     if print_mode == "🆕 방금 발행":
         if st.session_state.generated_qrs:
             qrs = st.session_state.generated_qrs
@@ -349,19 +350,20 @@ with tab2:
         else:
             st.info("⚠️ 현재 발행된 작업이 없습니다.")
             
+    # Case 2: 이력 조회 (기간 검색)
     else:
         with st.form("history_search"):
             st.caption("🔍 날짜 기간을 설정하여 이력을 조회하세요.")
             col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
             
-            # [수정] 날짜 범위 선택 기능
+            # [수정] 날짜 범위 선택 기능 (기간 검색)
             d_range = col1.date_input("조회 기간", value=(datetime.now() - timedelta(days=7), datetime.now()), key="hist_date")
             s_cust = col2.text_input("고객사 (포함)")
             s_lot = col3.text_input("LOT 번호 (포함)")
             do_search = col4.form_submit_button("🔍 조회", type="primary")
             
             if do_search:
-                # 날짜 기간 처리 로직
+                # [수정] 날짜 기간 처리 로직
                 if isinstance(d_range, tuple):
                     if len(d_range) == 2:
                         start_date, end_date = d_range
