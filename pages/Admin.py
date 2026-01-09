@@ -40,14 +40,14 @@ if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
 # ==========================================
-# 🔥 [스타일] CSS 정의 (텍스트/숫자 부분 강조)
+# 🔥 [스타일] CSS 정의 (숫자만 진하게 & 인쇄 최적화)
 # ==========================================
 PRINT_CSS = """
 <style>
     .stApp { background-color: #ffffff !important; color: #000000 !important; }
     
     @media print {
-        @page { size: A4 portrait; margin: 8mm !important; }
+        @page { size: A4 portrait; margin: 10mm; }
         body * { visibility: hidden !important; }
         
         #printable-area {
@@ -123,15 +123,11 @@ PRINT_CSS = """
             margin-bottom: 2px; 
         }
         
-        /* [추가] 텍스트(가로/세로 등) 강조 */
-        .text-bold {
-            font-weight: 900 !important;
-        }
-
         /* [추가] 숫자 강조 (더 크고 진하게) */
         .num-bold { 
-            font-size: 18pt !important; 
+            font-size: 20pt !important; 
             font-weight: 900 !important; 
+            color: black !important;
         } 
 
         .t-lot { font-size: 11pt; font-weight: 900; font-family: monospace; }
@@ -160,18 +156,11 @@ def image_to_base64(img):
 # ----------------------------------------------------
 def format_electrode_text(text):
     """
-    1. 방향 텍스트(가로, 세로, 양쪽, 없음 등)를 찾아 진하게 처리
-    2. 숫자(\d+)를 찾아 진하게 처리
-    나머지(괄호, 면 등)는 기본(연하게) 유지
+    숫자(\d+)만 찾아 진하게 처리
     """
     if not text: return ""
-    
-    # 1. 방향 텍스트 강조 (가로, 세로, 양쪽, 상하, 좌우, 없음)
-    text = re.sub(r'(가로|세로|양쪽|상하|좌우|없음)', r'<span class="text-bold">\1</span>', text)
-    
-    # 2. 숫자 강조
+    # 숫자 강조
     text = re.sub(r'(\d+)', r'<span class="num-bold">\1</span>', text)
-    
     return text
 
 # ----------------------------------------------------
@@ -201,7 +190,7 @@ def create_a4_html(header, items):
         if item:
             img_b64 = image_to_base64(item['img'])
             
-            # [적용] 방향 텍스트와 숫자만 진하게 처리
+            # [적용] 숫자만 진하게 처리
             elec_str = str(item["elec"])
             formatted_elec = format_electrode_text(elec_str)
 
@@ -349,7 +338,6 @@ with tab2:
     st.header("📄 작업 지시서 인쇄")
     print_mode = st.radio("출력 대상", ["🆕 방금 발행", "📅 이력 조회"], horizontal=True)
     
-    # Case 1: 방금 발행
     if print_mode == "🆕 방금 발행":
         if st.session_state.generated_qrs:
             qrs = st.session_state.generated_qrs
@@ -361,19 +349,19 @@ with tab2:
         else:
             st.info("⚠️ 현재 발행된 작업이 없습니다.")
             
-    # Case 2: 이력 조회 (기간 검색)
     else:
         with st.form("history_search"):
             st.caption("🔍 날짜 기간을 설정하여 이력을 조회하세요.")
             col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
             
-            # 날짜 범위 선택 기능
+            # [수정] 날짜 범위 선택 기능
             d_range = col1.date_input("조회 기간", value=(datetime.now() - timedelta(days=7), datetime.now()), key="hist_date")
             s_cust = col2.text_input("고객사 (포함)")
             s_lot = col3.text_input("LOT 번호 (포함)")
             do_search = col4.form_submit_button("🔍 조회", type="primary")
             
             if do_search:
+                # 날짜 기간 처리 로직
                 if isinstance(d_range, tuple):
                     if len(d_range) == 2:
                         start_date, end_date = d_range
