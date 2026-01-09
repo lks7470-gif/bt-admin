@@ -40,7 +40,7 @@ if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
 # ==========================================
-# 🔥 [스타일] CSS 정의 (인쇄 완벽 격리 & 폰트 강조)
+# 🔥 [스타일] CSS 정의 (인쇄 완벽 격리 & 레이아웃 안정화)
 # ==========================================
 PRINT_CSS = """
 <style>
@@ -91,14 +91,15 @@ PRINT_CSS = """
         .info-table th { background: #eee !important; border: 1px solid black; padding: 4px; width: 18%; }
         .info-table td { border: 1px solid black; padding: 4px; text-align: center; }
 
-        /* QR 그리드 (높이 185mm로 고정) */
+        /* QR 그리드 (높이 175mm로 축소하여 하단 여백 확보) */
         .qr-container { 
             width: 100%; 
-            height: 185mm; 
+            height: 175mm; /* 높이 조절됨 */
             border: 2px solid black; 
             display: flex; 
             flex-wrap: wrap; 
-            margin-top: 5px; /* 표와 약간의 간격 */
+            margin-top: 5px; 
+            margin-bottom: 10px; /* 하단 여백 추가 */
         }
         
         .qr-item { 
@@ -124,9 +125,13 @@ PRINT_CSS = """
         .t-lot { font-size: 11pt; font-weight: bold; font-family: monospace; }
         .t-info { font-size: 9pt; font-weight: bold; }
         
+        /* 하단 경고 문구 (겹침 방지: position absolute 제거) */
         .footer-warning { 
-            position: absolute; bottom: 10mm; left: 0; width: 100%; 
-            text-align: center; font-size: 10pt; font-weight: bold; 
+            width: 100%; 
+            text-align: center; 
+            font-size: 10pt; 
+            font-weight: bold; 
+            margin-top: 5px;
         }
     }
     
@@ -163,7 +168,6 @@ def create_a4_html(header, items):
     html += f'<tr><th>비고</th><td colspan="3" style="height:35px; text-align:left; padding:5px;">{header["note"]}</td></tr>'
     html += '</table>'
     
-    # [수정] 중간 제목 줄 삭제됨 (바로 QR 그리드 시작)
     html += '</div>'
     
     # Grid
@@ -172,9 +176,8 @@ def create_a4_html(header, items):
         if item:
             img_b64 = image_to_base64(item['img'])
             
-            # [수정] 전극 정보 내 숫자만 찾아서 <b> 태그로 감싸기 (Bold 처리)
+            # 전극 정보 내 숫자만 찾아서 <b> 태그로 감싸기 (Bold 처리)
             elec_str = str(item["elec"])
-            # 숫자(\d+)를 찾아서 <b>숫자</b>로 변경
             elec_str_bold = re.sub(r'(\d+)', r'<b>\1</b>', elec_str)
 
             html += '<div class="qr-item">'
@@ -188,7 +191,7 @@ def create_a4_html(header, items):
             html += '<div class="qr-item"></div>'
     html += '</div>'
     
-    # Footer
+    # Footer (위치 자동 조정)
     html += '<div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>'
     html += '</div>'
     
