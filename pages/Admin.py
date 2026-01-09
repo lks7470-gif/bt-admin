@@ -40,7 +40,7 @@ if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
 # ==========================================
-# 🔥 [스타일] CSS 정의 (사용자 요청 반영: 선 겹침 제거 및 레이아웃 최적화)
+# 🔥 [스타일] CSS 정의 (최종 수정 반영: 선 제거 및 유연한 레이아웃)
 # ==========================================
 PRINT_CSS = """
 <style>
@@ -49,31 +49,31 @@ PRINT_CSS = """
     
     /* 🖨️ 인쇄 전용 스타일 */
     @media print {
-        /* 1. 종이 설정 */
-        @page { size: A4 portrait; margin: 0 !important; }
+
+        /* ✅ 1) 종이 설정: 여백 8mm로 안전하게 */
+        @page { size: A4 portrait; margin: 8mm !important; }
         
-        /* 2. 화면의 모든 요소를 숨김 */
+        /* ✅ 2) 기본 바탕 */
         body, html, .stApp { 
             width: 100%; height: 100%; 
             margin: 0 !important; padding: 0 !important;
-            background: white;
+            background: white !important;
         }
         
-        body * { visibility: hidden !important; height: 0 !important; overflow: hidden !important; }
+        /* ✅ 3) 인쇄 영역 외 숨김 */
+        body * { visibility: hidden !important; }
         
-        /* 3. 오직 'printable-area'만 보이게 설정 */
+        /* ✅ 4) 인쇄 영역(전체 레이아웃) : flex 레이아웃으로 변경 */
         #printable-area {
-            position: fixed !important;
-            top: 0 !important; left: 0 !important;
-            width: 210mm !important; height: 297mm !important;
+            position: relative !important; /* fixed 대신 relative 사용 */
+            width: 100% !important;
+            min-height: 100% !important;
             background: white !important;
             z-index: 999999 !important;
-            padding: 10mm !important;
-            box-sizing: border-box !important;
-            display: block !important;
+            display: flex !important;           /* Flexbox 적용 */
+            flex-direction: column !important;  /* 세로 방향 배치 */
+            padding: 0mm !important;
             visibility: visible !important;
-            height: auto !important;
-            overflow: visible !important;
         }
         
         #printable-area * { 
@@ -83,72 +83,74 @@ PRINT_CSS = """
             height: auto !important;
         }
 
-        /* [수정] 헤더 섹션: 불필요한 하단 여백 및 선 제거 */
+        /* ✅ 헤더 섹션: 아래 보더 제거 (가로선 겹침 방지) */
         .header-section { 
             border-bottom: none !important; 
-            margin-bottom: 0 !important; 
+            margin-bottom: 2mm !important; 
             padding-bottom: 0 !important; 
             width: 100%; 
+            flex: 0 0 auto !important; /* 높이 고정 */
         }
         
-        /* [수정] 정보 테이블: 하단 여백 제거하여 QR 그리드와 밀착 */
+        /* ✅ 상단 정보 테이블 */
         .info-table { 
             width: 100%; 
             border-collapse: collapse; 
             border: 2px solid black; 
             font-size: 11pt; 
-            margin-bottom: 0px !important; 
+            margin-bottom: 0 !important; 
         }
         .info-table th { background: #eee !important; border: 1px solid black; padding: 4px; width: 18%; }
         .info-table td { border: 1px solid black; padding: 4px; text-align: center; }
 
-        /* [수정] QR 그리드 컨테이너: 상단 테두리 제거 (정보 테이블과 연결) */
+        /* ✅ QR 그리드: 남는 공간만큼 사용 (flex-grow) */
         .qr-container { 
             width: 100%; 
-            height: 175mm; 
-            border: 2px solid black;
-            border-top: none !important; /* 상단 선 제거 */
+            flex: 1 1 auto !important; /* 남는 공간 차지 */
+            height: auto !important;
+            border: 2px solid black; 
+            border-top: none !important; /* 상단 선 제거 (테이블과 연결) */
             display: flex; 
             flex-wrap: wrap; 
-            margin-top: 0px !important; 
-            margin-bottom: 10px; 
+            margin-top: 0 !important; 
         }
         
+        /* ✅ QR 칸 */
         .qr-item { 
             width: 33.33%; 
             height: 33.33%; 
             border: 1px solid black; 
             box-sizing: border-box;
-            display: flex; 
-            flex-direction: column; 
-            justify-content: center; 
-            align-items: center; 
-            overflow: hidden;
-            padding: 2px;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            overflow: hidden; padding: 2px;
         }
 
-        /* [추가] 첫 번째 행(1~3번)의 윗선 제거 (정보 테이블과 겹침 방지) */
+        /* ✅ (가로선 문제 해결) 첫 번째 행 3칸의 윗선 제거 */
         .qr-item:nth-child(-n+3) {
             border-top: none !important;
         }
         
-        .qr-img { width: 140px; height: 140px; margin: 2px 0; }
-        .t-dim { font-size: 22pt; font-weight: 900; margin-bottom: 2px; }
+        .qr-img { 
+            width: 135px; height: 135px; 
+            max-width: 40mm; max-height: 40mm;
+            margin: 2px 0; 
+        }
         
-        /* 전극 정보 스타일 (숫자 강조) */
+        .t-dim { font-size: 22pt; font-weight: 900; margin-bottom: 2px; }
         .t-elec { font-size: 15pt; font-weight: bold; margin-bottom: 2px; }
-        .t-elec b { font-weight: 900; font-size: 18pt; } 
+        
+        /* 숫자 강조용 클래스 */
+        .num-bold { font-size: 18pt; font-weight: 900; } 
 
-        .t-lot { font-size: 11pt; font-weight: bold; font-family: monospace; }
+        .t-lot { font-size: 11pt; font-weight: 900; font-family: monospace; }
         .t-info { font-size: 9pt; font-weight: bold; }
         
+        /* ✅ 하단 경고: 항상 아래쪽에 안전하게 */
         .footer-warning { 
             width: 100%; 
-            text-align: center; 
-            font-size: 10pt; 
-            font-weight: bold; 
-            margin-top: 5px;
-            position: static !important;
+            text-align: center; font-size: 10pt; font-weight: bold; 
+            margin-top: 2mm !important;
+            flex: 0 0 auto !important; /* 높이 고정 */
         }
     }
     
@@ -176,10 +178,9 @@ def create_a4_html(header, items):
     html += '<div class="header-section">'
     html += f'<div style="text-align:right; font-size:9pt;">출력일시: {now_str}</div>'
     html += '<div style="text-align:center; font-size:28pt; font-weight:900; margin-bottom:5px; text-decoration:underline;">작업 지시서 (Work Order)</div>'
-    # .header-section 닫힘
     html += '</div>' 
     
-    # Table (헤더 섹션 밖으로 빼서 레이아웃 정리)
+    # Table
     html += '<table class="info-table">'
     html += f'<tr><th>고객사</th><td>{header["cust"]}</td><th>제품 종류</th><td>{header["prod"]}</td></tr>'
     html += f'<tr><th>출고 요청일</th><td>{header["date"]}</td><th>원단 정보</th><td>{header["fabric"]}</td></tr>'
@@ -195,7 +196,7 @@ def create_a4_html(header, items):
             
             # 전극 정보 내 숫자만 찾아서 <b> 태그로 감싸기 (Bold 처리)
             elec_str = str(item["elec"])
-            elec_str_bold = re.sub(r'(\d+)', r'<b>\1</b>', elec_str)
+            elec_str_bold = re.sub(r'(\d+)', r'<span class="num-bold">\1</span>', elec_str)
 
             html += '<div class="qr-item">'
             html += f'<div class="t-dim">{item["w"]} x {item["h"]}</div>'
@@ -226,12 +227,12 @@ def create_label_html(items):
         if item:
             img_b64 = image_to_base64(item['img'])
             elec_str = str(item["elec"])
-            elec_str_bold = re.sub(r'(\d+)', r'<b>\1</b>', elec_str)
+            elec_str_bold = re.sub(r'(\d+)', r'<span class="num-bold">\1</span>', elec_str)
 
             html += f'<div style="font-size:16pt; font-weight:bold;">{item["w"]}x{item["h"]}</div>'
             html += f'<div style="font-size:12pt;">[{elec_str_bold}]</div>'
             html += f'<img src="data:image/png;base64,{img_b64}" style="width:100px;">'
-            html += f'<div style="font-size:9pt; font-weight:bold;">{item["lot"]}</div>'
+            html += f'<div style="font-size:9pt; font-weight:900;">{item["lot"]}</div>'
         html += '</div>'
     html += '</div></div>'
     return html
