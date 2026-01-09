@@ -1,4 +1,4 @@
-import streamlit as st (마지막 회차)
+import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
 import qrcode
@@ -160,7 +160,6 @@ def create_a4_html(header, items):
     return f"""
 <div class="printable-area">
 <div class="top-time">출력일시: {now_str}</div>
-<div style="text-align:center; font-size:10pt; margin-top:5mm;">(주)베스트룸</div>
 <div style="text-align:center; font-size:26pt; font-weight:900; margin-bottom:15px; text-decoration:underline;">작업 지시서 (Work Order)</div>
 <table class="info-table">
 <tr><th>고객사</th><td>{header['cust']}</td><th>제품 종류</th><td>{header['prod']}</td></tr>
