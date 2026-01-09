@@ -40,9 +40,9 @@ if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
 # ==========================================
-# 🔥 [스타일] CSS 정의 (여백 제거 & 강제 A4)
+# 🔥 [스타일] CSS 정의 (여백 제거 & 강제 A4 & 높이 안전 확보)
 # ==========================================
-# 주의: 아래 문자열의 들여쓰기를 변경하지 마세요.
+# 주의: 이 문자열은 들여쓰기를 하지 마세요.
 PRINT_CSS = """
 <style>
     .stApp { background-color: #ffffff !important; color: #000000 !important; }
@@ -76,7 +76,7 @@ PRINT_CSS = """
         .info-table th { background: #eee !important; border: 1px solid black; padding: 4px; width: 18%; }
         .info-table td { border: 1px solid black; padding: 4px; text-align: center; }
 
-        /* QR 그리드 (높이 안정화: 180mm) */
+        /* QR 그리드 (높이를 180mm로 줄여서 페이지 넘김 방지) */
         .qr-container { 
             width: 100%; 
             height: 180mm; 
@@ -119,7 +119,7 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # ----------------------------------------------------
-# 📄 HTML 생성 (들여쓰기 완전 제거)
+# 📄 HTML 생성 (문자열 연결 방식 - 코드 노출 방지)
 # ----------------------------------------------------
 def create_a4_html(header, items):
     LIMIT = 9
@@ -130,7 +130,7 @@ def create_a4_html(header, items):
     html = '<div id="printable-area">'
     
     # Header
-    html += f'<div class="header-section">'
+    html += '<div class="header-section">'
     html += f'<div style="text-align:right; font-size:9pt;">출력일시: {now_str}</div>'
     html += '<div style="text-align:center; font-size:26pt; font-weight:900; margin-bottom:10px; text-decoration:underline;">작업 지시서 (Work Order)</div>'
     
