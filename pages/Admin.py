@@ -40,20 +40,31 @@ if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
 # ==========================================
-# 🔥 [스타일] CSS 정의 (폰트 대폭 확대 & 꽉 채우기)
+# 🔥 [스타일] CSS 정의 (A4 강제 고정 & 표 높이 확보)
 # ==========================================
 PRINT_CSS = """
 <style>
+    /* 화면용 기본 스타일 */
     .stApp { background-color: #ffffff !important; color: #000000 !important; }
     
+    /* 인쇄 전용 스타일 */
     @media print {
-        @page { size: A4 portrait; margin: 0; }
-        body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; }
+        @page { 
+            size: A4 portrait; 
+            margin: 0; 
+        }
+        
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background: white;
+            -webkit-print-color-adjust: exact; 
+        }
         
         /* UI 숨김 */
         header, footer, .stButton, .stHeader, .stSidebar, .stToolbar, .stApp > header { display: none !important; }
         
-        /* 인쇄 영역 */
+        /* 인쇄 영역 (A4 사이즈 고정) */
         #printable-area {
             position: fixed;
             top: 0; left: 0;
@@ -67,51 +78,53 @@ PRINT_CSS = """
         
         #printable-area * { visibility: visible !important; color: black !important; }
 
-        /* 상단 헤더 */
-        .header-section { border-bottom: 2px solid black; margin-bottom: 5px; padding-bottom: 5px; }
+        /* 상단 헤더 섹션 */
+        .header-section { width: 100%; margin-bottom: 5px; }
         
-        /* 정보 테이블 */
-        .info-table { width: 100%; border-collapse: collapse; border: 2px solid black; font-size: 11pt; margin-bottom: 5px; }
+        /* 정보 테이블 (상단) */
+        .info-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            border: 2px solid black; 
+            font-size: 11pt; 
+            margin-bottom: 5px; 
+        }
         .info-table th { background: #eee !important; border: 1px solid black; padding: 4px; width: 18%; font-weight: bold; }
         .info-table td { border: 1px solid black; padding: 4px; text-align: center; }
 
-        /* QR 그리드 (높이 185mm - A4 한장에 딱 맞게 최대 확보) */
-        .qr-container { 
+        /* QR 그리드 테이블 (하단) - 높이 220mm 고정 */
+        .qr-table { 
             width: 100%; 
-            height: 185mm; 
-            border: 2px solid black; 
-            display: flex; 
-            flex-wrap: wrap; 
+            height: 220mm; /* A4 높이에서 헤더 빼고 꽉 채움 */
+            border-collapse: collapse; 
+            border: 2px solid black;
+            table-layout: fixed; /* 칸 크기 고정 */
         }
         
-        /* 셀 스타일 */
-        .qr-item { 
+        .qr-cell { 
             width: 33.33%; 
-            height: 33.33%; 
+            height: 33.33%; /* 3등분 */
             border: 1px solid black; 
-            box-sizing: border-box;
-            display: flex; 
-            flex-direction: column; 
-            justify-content: center; 
-            align-items: center; 
+            text-align: center; 
+            vertical-align: middle; 
+            padding: 5px;
             overflow: hidden;
-            padding: 5px; /* 내부 여백 */
         }
         
-        /* [수정] QR 이미지 확대 */
-        .qr-img { width: 150px; height: 150px; margin: 5px 0; }
-        
-        /* [수정] 글자 크기 대폭 확대 (가독성 확보) */
-        .t-dim { font-size: 24pt; font-weight: 900; margin-bottom: 5px; line-height: 1.1; } /* 규격 */
-        .t-elec { font-size: 16pt; font-weight: bold; margin-bottom: 5px; } /* 전극 */
-        .t-lot { font-size: 13pt; font-weight: bold; font-family: monospace; margin-top: 5px; } /* LOT 번호 */
-        .t-info { font-size: 11pt; font-weight: bold; } /* 고객사 정보 */
+        /* 이미지와 텍스트 스타일 */
+        .qr-img { width: 140px; height: 140px; margin: 5px auto; display: block; }
+        .t-dim { font-size: 20pt; font-weight: 900; margin-bottom: 5px; display: block; }
+        .t-elec { font-size: 14pt; font-weight: bold; margin-bottom: 5px; display: block; }
+        .t-lot { font-size: 10pt; font-weight: bold; font-family: monospace; margin-top: 5px; display: block; }
+        .t-info { font-size: 9pt; display: block; }
         
         .footer-warning { 
-            position: absolute; bottom: 8mm; left: 0; width: 100%; 
-            text-align: center; font-size: 11pt; font-weight: bold; 
+            position: absolute; bottom: 5mm; left: 0; width: 100%; 
+            text-align: center; font-size: 10pt; font-weight: bold; 
         }
     }
+    
+    /* 화면에서는 안보이게 */
     #printable-area { display: none; }
 </style>
 """
@@ -123,48 +136,51 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # ----------------------------------------------------
-# 📄 HTML 생성 (글자 확대 적용)
+# 📄 HTML 생성 (안전한 문자열 합치기 방식)
 # ----------------------------------------------------
 def create_a4_html(header, items):
     LIMIT = 9
     cells_data = items[:LIMIT] + [None] * (LIMIT - len(items[:LIMIT]))
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
 
+    # [1] 시작
     html = '<div id="printable-area">'
     
-    # Header
+    # [2] 헤더 및 정보 테이블
     html += '<div class="header-section">'
     html += f'<div style="text-align:right; font-size:9pt;">출력일시: {now_str}</div>'
     html += '<div style="text-align:center; font-size:28pt; font-weight:900; margin-bottom:10px; text-decoration:underline;">작업 지시서 (Work Order)</div>'
-    
-    # Table
     html += '<table class="info-table">'
     html += f'<tr><th>고객사</th><td>{header["cust"]}</td><th>제품 종류</th><td>{header["prod"]}</td></tr>'
     html += f'<tr><th>출고 요청일</th><td>{header["date"]}</td><th>원단 정보</th><td>{header["fabric"]}</td></tr>'
     html += f'<tr><th>작업 가이드</th><td colspan="3" style="text-align:left; padding:5px; font-weight:bold;">{header["guide"]}</td></tr>'
     html += f'<tr><th>비고</th><td colspan="3" style="height:35px; text-align:left; padding:5px;">{header["note"]}</td></tr>'
     html += '</table>'
-    html += f'<div style="font-size:16pt; font-weight:bold; margin-bottom:5px;">📋 생산 리스트 (총 {len(items)}개)</div>'
+    html += f'<div style="font-size:14pt; font-weight:bold; margin-bottom:5px;">📋 생산 리스트 (총 {len(items)}개)</div>'
     html += '</div>'
     
-    # Grid
-    html += '<div class="qr-container">'
-    for item in cells_data:
-        if item:
-            img_b64 = image_to_base64(item['img'])
-            html += '<div class="qr-item">'
-            # 글자 크기를 CSS 클래스로 제어 (.t-dim, .t-lot 등 확인)
-            html += f'<div class="t-dim">{item["w"]} x {item["h"]}</div>'
-            html += f'<div class="t-elec">[{item["elec"]}]</div>'
-            html += f'<img src="data:image/png;base64,{img_b64}" class="qr-img">'
-            html += f'<div class="t-lot">{item["lot"]}</div>'
-            html += f'<div class="t-info">{item["cust"]} | {item["prod"]}</div>'
-            html += '</div>'
-        else:
-            html += '<div class="qr-item"></div>'
-    html += '</div>'
+    # [3] QR 그리드 (Table 방식 사용 - 틀 유지)
+    html += '<table class="qr-table">'
+    for r in range(3):
+        html += '<tr>'
+        for c in range(3):
+            idx = r * 3 + c
+            item = cells_data[idx]
+            content = ""
+            if item:
+                img_b64 = image_to_base64(item['img'])
+                content = f"""
+                <div class="t-dim">{item['w']} x {item['h']}</div>
+                <div class="t-elec">[{item['elec']}]</div>
+                <img src="data:image/png;base64,{img_b64}" class="qr-img">
+                <div class="t-lot">{item['lot']}</div>
+                <div class="t-info">{item['cust']} | {item['prod']}</div>
+                """
+            html += f'<td class="qr-cell">{content}</td>'
+        html += '</tr>'
+    html += '</table>'
     
-    # Footer
+    # [4] 푸터
     html += '<div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>'
     html += '</div>'
     
@@ -172,22 +188,25 @@ def create_a4_html(header, items):
 
 def create_label_html(items):
     cells_data = items[:12] + [None] * (12 - len(items[:12]))
-    html = '<div id="printable-area"><div style="text-align:center; font-size:24pt; font-weight:bold; margin-bottom:20px;">🏷️ QR 라벨 출력</div>'
-    html += '<div class="qr-container" style="height:auto; border:none;">'
-    
-    # 라벨용 스타일도 확대
-    style = 'width:25%; height:65mm; border:1px solid black; display:flex; flex-direction:column; align-items:center; justify-content:center; box-sizing:border-box;'
-    
-    for item in cells_data:
-        html += f'<div style="{style}">'
-        if item:
-            img_b64 = image_to_base64(item['img'])
-            html += f'<div style="font-size:20pt; font-weight:900;">{item["w"]}x{item["h"]}</div>'
-            html += f'<div style="font-size:14pt; font-weight:bold;">[{item["elec"]}]</div>'
-            html += f'<img src="data:image/png;base64,{img_b64}" style="width:120px;">'
-            html += f'<div style="font-size:11pt; font-weight:bold;">{item["lot"]}</div>'
-        html += '</div>'
-    html += '</div></div>'
+    html = '<div id="printable-area"><div style="text-align:center; font-size:20pt; font-weight:bold; margin-bottom:20px;">🏷️ QR 라벨 출력</div>'
+    html += '<table style="width:100%; border-collapse:collapse;">'
+    for r in range(3):
+        html += '<tr>'
+        for c in range(4):
+            idx = r * 4 + c
+            item = cells_data[idx]
+            content = ""
+            if item:
+                img_b64 = image_to_base64(item['img'])
+                content = f"""
+                <div style="font-size:16pt; font-weight:bold;">{item['w']}x{item['h']}</div>
+                <div style="font-size:12pt;">[{item['elec']}]</div>
+                <img src="data:image/png;base64,{img_b64}" style="width:100px;">
+                <div style="font-size:9pt; font-weight:bold;">{item['lot']}</div>
+                """
+            html += f'<td style="border:1px solid black; width:25%; height:60mm; text-align:center;">{content}</td>'
+        html += '</tr>'
+    html += '</table></div>'
     return html
 
 def create_access_qr_html(url, mode="big"):
@@ -200,19 +219,22 @@ def create_access_qr_html(url, mode="big"):
     if mode == "big":
         html = f"""<div id="printable-area" style="text-align:center; padding-top:50mm;">
             <div style="border:5px solid black; padding:50px; display:inline-block; border-radius:30px;">
-                <div style="font-size:45pt; font-weight:900; margin-bottom:30px;">🏭 접속 QR</div>
-                <img src="data:image/png;base64,{img_b64}" style="width:450px; height:450px;">
-                <div style="font-size:18pt; margin-top:20px; font-family:monospace;">{url}</div>
+                <div style="font-size:40pt; font-weight:900; margin-bottom:30px;">🏭 접속 QR</div>
+                <img src="data:image/png;base64,{img_b64}" style="width:400px; height:400px;">
+                <div style="font-size:15pt; margin-top:20px; font-family:monospace;">{url}</div>
             </div></div>"""
     else:
-        html = '<div id="printable-area"><div style="display:flex; flex-wrap:wrap;">'
-        for _ in range(8):
-            html += f"""<div style="width:50%; height:25%; border:1px dashed gray; display:flex; justify-content:center; align-items:center;">
-                <div style="border:2px solid black; padding:15px; border-radius:10px; text-align:center;">
-                    <div style="font-size:20pt; font-weight:bold;">접속 QR</div>
-                    <img src="data:image/png;base64,{img_b64}" style="width:130px;">
-                </div></div>"""
-        html += "</div></div>"
+        html = '<div id="printable-area"><table style="width:100%; height:95%; border-collapse:collapse;">'
+        for r in range(4):
+            html += '<tr>'
+            for c in range(2):
+                html += f"""<td style="border:1px dashed gray; text-align:center; width:50%; height:25%;">
+                    <div style="border:2px solid black; padding:10px; display:inline-block; border-radius:10px;">
+                        <div style="font-size:15pt; font-weight:bold;">접속 QR</div>
+                        <img src="data:image/png;base64,{img_b64}" style="width:100px;">
+                    </div></td>"""
+            html += '</tr>'
+        html += '</table></div>'
     return html
 
 def fetch_fabric_stock():
