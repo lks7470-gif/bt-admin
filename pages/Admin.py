@@ -40,7 +40,7 @@ if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
 # ==========================================
-# 🔥 [스타일] CSS 정의 (선 제거 및 폰트 강조)
+# 🔥 [스타일] CSS 정의 (사용자 요청 반영: 선 겹침 제거 및 레이아웃 최적화)
 # ==========================================
 PRINT_CSS = """
 <style>
@@ -52,7 +52,7 @@ PRINT_CSS = """
         /* 1. 종이 설정 */
         @page { size: A4 portrait; margin: 0 !important; }
         
-        /* 2. 화면 요소 숨김 */
+        /* 2. 화면의 모든 요소를 숨김 */
         body, html, .stApp { 
             width: 100%; height: 100%; 
             margin: 0 !important; padding: 0 !important;
@@ -61,7 +61,7 @@ PRINT_CSS = """
         
         body * { visibility: hidden !important; height: 0 !important; overflow: hidden !important; }
         
-        /* 3. 인쇄 영역 설정 */
+        /* 3. 오직 'printable-area'만 보이게 설정 */
         #printable-area {
             position: fixed !important;
             top: 0 !important; left: 0 !important;
@@ -83,59 +83,72 @@ PRINT_CSS = """
             height: auto !important;
         }
 
-        /* 헤더 섹션 */
+        /* [수정] 헤더 섹션: 불필요한 하단 여백 및 선 제거 */
         .header-section { 
-            border-bottom: 2px solid black; 
-            margin-bottom: 5px; 
-            padding-bottom: 5px; 
+            border-bottom: none !important; 
+            margin-bottom: 0 !important; 
+            padding-bottom: 0 !important; 
             width: 100%; 
         }
         
-        /* 상단 정보 테이블 (아래 여백 0) */
+        /* [수정] 정보 테이블: 하단 여백 제거하여 QR 그리드와 밀착 */
         .info-table { 
             width: 100%; 
             border-collapse: collapse; 
             border: 2px solid black; 
             font-size: 11pt; 
-            margin-bottom: 0px !important; /* 아래 여백 제거 */
+            margin-bottom: 0px !important; 
         }
         .info-table th { background: #eee !important; border: 1px solid black; padding: 4px; width: 18%; }
         .info-table td { border: 1px solid black; padding: 4px; text-align: center; }
 
-        /* QR 그리드 (위쪽 테두리 제거 -> 상단 테이블과 연결됨) */
+        /* [수정] QR 그리드 컨테이너: 상단 테두리 제거 (정보 테이블과 연결) */
         .qr-container { 
             width: 100%; 
-            height: 175mm;
-            border: 2px solid black; 
-            border-top: none !important; /* [수정] 위쪽 선 제거 */
+            height: 175mm; 
+            border: 2px solid black;
+            border-top: none !important; /* 상단 선 제거 */
             display: flex; 
             flex-wrap: wrap; 
-            margin-top: 0px !important; /* [수정] 위쪽 간격 제거 */
+            margin-top: 0px !important; 
+            margin-bottom: 10px; 
         }
         
         .qr-item { 
-            width: 33.33%; height: 33.33%; 
+            width: 33.33%; 
+            height: 33.33%; 
             border: 1px solid black; 
             box-sizing: border-box;
-            display: flex; flex-direction: column; justify-content: center; align-items: center; 
-            overflow: hidden; padding: 2px;
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+            align-items: center; 
+            overflow: hidden;
+            padding: 2px;
+        }
+
+        /* [추가] 첫 번째 행(1~3번)의 윗선 제거 (정보 테이블과 겹침 방지) */
+        .qr-item:nth-child(-n+3) {
+            border-top: none !important;
         }
         
         .qr-img { width: 140px; height: 140px; margin: 2px 0; }
         .t-dim { font-size: 22pt; font-weight: 900; margin-bottom: 2px; }
         
-        /* 전극 정보 스타일 */
+        /* 전극 정보 스타일 (숫자 강조) */
         .t-elec { font-size: 15pt; font-weight: bold; margin-bottom: 2px; }
-        
-        /* [수정] 숫자 강조용 클래스 */
-        .num-bold { font-size: 18pt; font-weight: 900; } 
+        .t-elec b { font-weight: 900; font-size: 18pt; } 
 
-        /* [수정] LOT 번호 진하게 */
-        .t-lot { font-size: 11pt; font-weight: 900; font-family: monospace; }
+        .t-lot { font-size: 11pt; font-weight: bold; font-family: monospace; }
         .t-info { font-size: 9pt; font-weight: bold; }
         
         .footer-warning { 
-            width: 100%; text-align: center; font-size: 10pt; font-weight: bold; margin-top: 5px; 
+            width: 100%; 
+            text-align: center; 
+            font-size: 10pt; 
+            font-weight: bold; 
+            margin-top: 5px;
+            position: static !important;
         }
     }
     
@@ -158,26 +171,31 @@ def create_a4_html(header, items):
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     html = '<div id="printable-area">'
+    
+    # Header
     html += '<div class="header-section">'
     html += f'<div style="text-align:right; font-size:9pt;">출력일시: {now_str}</div>'
     html += '<div style="text-align:center; font-size:28pt; font-weight:900; margin-bottom:5px; text-decoration:underline;">작업 지시서 (Work Order)</div>'
+    # .header-section 닫힘
+    html += '</div>' 
     
+    # Table (헤더 섹션 밖으로 빼서 레이아웃 정리)
     html += '<table class="info-table">'
     html += f'<tr><th>고객사</th><td>{header["cust"]}</td><th>제품 종류</th><td>{header["prod"]}</td></tr>'
     html += f'<tr><th>출고 요청일</th><td>{header["date"]}</td><th>원단 정보</th><td>{header["fabric"]}</td></tr>'
     html += f'<tr><th>작업 가이드</th><td colspan="3" style="text-align:left; padding:5px; font-weight:bold;">{header["guide"]}</td></tr>'
     html += f'<tr><th>비고</th><td colspan="3" style="height:35px; text-align:left; padding:5px;">{header["note"]}</td></tr>'
     html += '</table>'
-    html += '</div>'
     
+    # Grid
     html += '<div class="qr-container">'
     for item in cells_data:
         if item:
             img_b64 = image_to_base64(item['img'])
             
-            # [수정] 전극 정보 내 숫자만 찾아서 강조 (Bold & Size Up)
+            # 전극 정보 내 숫자만 찾아서 <b> 태그로 감싸기 (Bold 처리)
             elec_str = str(item["elec"])
-            elec_str_bold = re.sub(r'(\d+)', r'<span class="num-bold">\1</span>', elec_str)
+            elec_str_bold = re.sub(r'(\d+)', r'<b>\1</b>', elec_str)
 
             html += '<div class="qr-item">'
             html += f'<div class="t-dim">{item["w"]} x {item["h"]}</div>'
@@ -190,8 +208,10 @@ def create_a4_html(header, items):
             html += '<div class="qr-item"></div>'
     html += '</div>'
     
+    # Footer
     html += '<div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>'
     html += '</div>'
+    
     return html
 
 def create_label_html(items):
@@ -205,14 +225,13 @@ def create_label_html(items):
         html += f'<div style="{style}">'
         if item:
             img_b64 = image_to_base64(item['img'])
-            # 라벨에서도 숫자 볼드 처리
             elec_str = str(item["elec"])
-            elec_str_bold = re.sub(r'(\d+)', r'<span class="num-bold">\1</span>', elec_str)
+            elec_str_bold = re.sub(r'(\d+)', r'<b>\1</b>', elec_str)
 
             html += f'<div style="font-size:16pt; font-weight:bold;">{item["w"]}x{item["h"]}</div>'
             html += f'<div style="font-size:12pt;">[{elec_str_bold}]</div>'
             html += f'<img src="data:image/png;base64,{img_b64}" style="width:100px;">'
-            html += f'<div style="font-size:9pt; font-weight:900;">{item["lot"]}</div>'
+            html += f'<div style="font-size:9pt; font-weight:bold;">{item["lot"]}</div>'
         html += '</div>'
     html += '</div></div>'
     return html
