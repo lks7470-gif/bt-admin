@@ -40,7 +40,7 @@ if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
 # ==========================================
-# 🔥 [스타일] CSS 정의 (강력한 인쇄 격리)
+# 🔥 [스타일] CSS 정의 (완벽 격리 및 A4 고정)
 # ==========================================
 PRINT_CSS = """
 <style>
@@ -52,37 +52,45 @@ PRINT_CSS = """
         /* 1. 페이지 설정: A4, 여백 0 */
         @page { size: A4 portrait; margin: 0 !important; }
         
-        /* 2. 화면의 모든 요소를 숨김 (리스트, 사이드바 포함) */
-        body * { 
-            visibility: hidden !important; 
-            height: 0 !important; 
-            overflow: hidden !important; 
+        /* 2. 화면의 모든 요소를 일단 숨김 (리스트, 사이드바, 헤더 포함) */
+        body, html, .stApp { 
+            width: 100%; height: 100%; 
+            margin: 0 !important; padding: 0 !important;
+            background: white;
         }
         
-        /* 3. 오직 'printable-area'만 보이게 설정 */
+        body * { 
+            visibility: hidden !important; 
+        }
+        
+        /* 3. 오직 'printable-area'와 그 자식들만 보이게 설정 */
         #printable-area, #printable-area * {
             visibility: visible !important;
-            height: auto !important;
-            overflow: visible !important;
             color: black !important;
+            -webkit-print-color-adjust: exact; /* 배경색/선명도 유지 */
         }
 
-        /* 4. 인쇄 영역을 종이 위에 강제로 덮어씌움 (Overlay) */
+        /* 4. 인쇄 영역을 화면 최상단으로 강제 이동 (Position Fixed) */
+        /* 이것 때문에 옆에 있는 리스트가 인쇄되지 않습니다 */
         #printable-area {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 210mm;
-            height: 297mm;
-            background: white;
-            z-index: 999999; /* 제일 위로 올림 */
-            padding: 10mm;   /* 내부 여백 */
-            box-sizing: border-box;
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 210mm !important;
+            height: 297mm !important;
+            background: white !important;
+            z-index: 999999 !important; /* 다른 요소보다 무조건 위에 */
+            padding: 10mm !important;   /* 내부 여백 */
+            box-sizing: border-box !important;
             display: block !important;
         }
 
+        /* ------------------------------------------------ */
+        /* 여기서부터는 내부 디자인 (건드리지 않음) */
+        /* ------------------------------------------------ */
+
         /* 헤더 스타일 */
-        .header-section { border-bottom: 2px solid black; margin-bottom: 5px; padding-bottom: 5px; }
+        .header-section { border-bottom: 2px solid black; margin-bottom: 5px; padding-bottom: 5px; width: 100%; }
         
         /* 테이블 스타일 */
         .info-table { width: 100%; border-collapse: collapse; border: 2px solid black; font-size: 11pt; margin-bottom: 10px; }
@@ -108,9 +116,10 @@ PRINT_CSS = """
             justify-content: center; 
             align-items: center; 
             overflow: hidden;
+            padding: 2px;
         }
         
-        .qr-img { width: 130px; height: 130px; margin: 5px 0; }
+        .qr-img { width: 140px; height: 140px; margin: 2px 0; }
         .t-dim { font-size: 20pt; font-weight: 900; margin-bottom: 2px; }
         .t-elec { font-size: 14pt; font-weight: bold; margin-bottom: 2px; }
         .t-lot { font-size: 10pt; font-weight: bold; font-family: monospace; }
@@ -122,7 +131,7 @@ PRINT_CSS = """
         }
     }
     
-    /* 평소 화면에서는 인쇄 영역을 숨김 */
+    /* 화면에서는 인쇄 영역을 숨김 (작업할 때 방해되지 않게) */
     #printable-area { display: none; }
 </style>
 """
@@ -370,16 +379,13 @@ with tab2:
 
                 for _, row in selected_rows.iterrows():
                     dim_str = row['dimension']
-                    
                     w, h, elec = "규격", "확인", dim_str
                     try:
                         size_match = re.search(r'(\d+)\s*[xX*]\s*(\d+)', dim_str) 
-                        if size_match: 
-                            w, h = size_match.group(1), size_match.group(2)
+                        if size_match: w, h = size_match.group(1), size_match.group(2)
                         
                         elec_match = re.search(r'\[(.*?)\]', dim_str)
-                        if elec_match: 
-                            elec = elec_match.group(1)
+                        if elec_match: elec = elec_match.group(1)
                         else:
                             remains = re.sub(r'(\d+)\s*[xX*]\s*(\d+)', '', dim_str).strip()
                             if remains: elec = remains
