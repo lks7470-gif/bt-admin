@@ -40,9 +40,9 @@ if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
 # ==========================================
-# 🔥 [스타일] CSS 정의 (여백 제거 & 강제 A4 & 높이 안전 확보)
+# 🔥 [스타일] CSS 정의 (SyntaxError 방지용 분리)
 # ==========================================
-# 주의: 이 문자열은 들여쓰기를 하지 마세요.
+# 이 부분은 f-string을 쓰지 않아서 오류가 나지 않습니다.
 PRINT_CSS = """
 <style>
     .stApp { background-color: #ffffff !important; color: #000000 !important; }
@@ -51,10 +51,10 @@ PRINT_CSS = """
         @page { size: A4; margin: 0; }
         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; }
         
-        /* UI 숨김 */
+        /* UI 요소 숨김 */
         header, footer, .stButton, .stHeader, .stSidebar, .stToolbar, .stApp > header { display: none !important; }
         
-        /* 인쇄 영역 */
+        /* 인쇄 영역 설정 */
         #printable-area {
             position: fixed;
             top: 0; left: 0;
@@ -68,7 +68,7 @@ PRINT_CSS = """
         
         #printable-area * { visibility: visible !important; color: black !important; }
 
-        /* 상단 헤더 */
+        /* 헤더 */
         .header-section { border-bottom: 2px solid black; margin-bottom: 5px; padding-bottom: 5px; }
         
         /* 테이블 */
@@ -76,7 +76,7 @@ PRINT_CSS = """
         .info-table th { background: #eee !important; border: 1px solid black; padding: 4px; width: 18%; }
         .info-table td { border: 1px solid black; padding: 4px; text-align: center; }
 
-        /* QR 그리드 (높이를 180mm로 줄여서 페이지 넘김 방지) */
+        /* QR 그리드 (높이를 180mm로 설정해 안전하게 한 페이지 유지) */
         .qr-container { 
             width: 100%; 
             height: 180mm; 
@@ -97,7 +97,7 @@ PRINT_CSS = """
             overflow: hidden;
         }
         
-        .qr-img { width: 120px; height: 120px; margin: 5px 0; }
+        .qr-img { width: 130px; height: 130px; margin: 5px 0; }
         .t-dim { font-size: 18pt; font-weight: 900; margin-bottom: 2px; }
         .t-elec { font-size: 12pt; font-weight: bold; margin-bottom: 2px; }
         .t-lot { font-size: 9pt; font-weight: bold; font-family: monospace; }
@@ -119,14 +119,14 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # ----------------------------------------------------
-# 📄 HTML 생성 (문자열 연결 방식 - 코드 노출 방지)
+# 📄 HTML 생성 (들여쓰기 문제 없는 안전한 방식)
 # ----------------------------------------------------
 def create_a4_html(header, items):
     LIMIT = 9
     cells_data = items[:LIMIT] + [None] * (LIMIT - len(items[:LIMIT]))
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    # 문자열 연결 방식으로 HTML 생성 (들여쓰기 문제 원천 봉쇄)
+    # 문자열을 한 줄씩 더하는 방식 (들여쓰기 버그 원천 차단)
     html = '<div id="printable-area">'
     
     # Header
@@ -301,10 +301,9 @@ with tab2:
             st.info("⚠️ 현재 발행된 작업이 없습니다.")
             
     else:
-        # [수정] NameError 방지를 위해 st.form 구조 단순화 및 변수명 명확화
+        # [수정] NameError 방지를 위해 st.form 구조 단순화
         st.caption("🔍 조회 기간을 설정하세요 (시작일 ~ 종료일)")
         
-        # 폼 사용하지 않고 바로 입력받음 (즉시 반응형)
         col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
         d_range = col1.date_input("조회 기간", value=(datetime.now() - timedelta(days=7), datetime.now()), key="hist_date")
         s_cust = col2.text_input("고객사", key="hist_cust")
@@ -358,20 +357,17 @@ with tab2:
                 for _, row in selected_rows.iterrows():
                     dim_str = row['dimension']
                     
-                    # [수정] 파싱 로직 강화 & 실패 시 원본 표시
+                    # [수정] 0x0 오류 방지: 파싱 실패 시 원본 문자열 표시
                     w, h, elec = "규격", "확인", dim_str
                     try:
-                        # 1. 숫자 x 숫자
                         size_match = re.search(r'(\d+)\s*[xX*]\s*(\d+)', dim_str) 
                         if size_match: 
                             w, h = size_match.group(1), size_match.group(2)
                         
-                        # 2. 전극 정보 추출 (대괄호 안 or 나머지 텍스트)
                         elec_match = re.search(r'\[(.*?)\]', dim_str)
                         if elec_match: 
                             elec = elec_match.group(1)
                         else:
-                            # 숫자x숫자 패턴 제거한 나머지를 전극정보로 간주
                             remains = re.sub(r'(\d+)\s*[xX*]\s*(\d+)', '', dim_str).strip()
                             if remains: elec = remains
                     except: pass
