@@ -39,97 +39,116 @@ if 'generated_qrs' not in st.session_state: st.session_state.generated_qrs = []
 if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
-# 🔥 [스타일] 인쇄 디자인 (숫자 강조 & 선 제거)
-st.markdown("""
+# ==========================================
+# 🔥 [스타일] CSS 정의 (텍스트/숫자 부분 강조)
+# ==========================================
+PRINT_CSS = """
 <style>
     .stApp { background-color: #ffffff !important; color: #000000 !important; }
     
     @media print {
-        @page { size: A4 portrait; margin: 10mm; }
-        body * { visibility: hidden; }
+        @page { size: A4 portrait; margin: 8mm !important; }
+        body * { visibility: hidden !important; }
         
-        .printable-area, .printable-area * {
+        #printable-area {
+            position: relative !important;
+            width: 100% !important;
+            min-height: 100% !important;
+            background: white !important;
+            z-index: 999999 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            padding: 0mm !important;
             visibility: visible !important;
-            color: black !important;
         }
-        .printable-area {
-            position: fixed !important; left: 0; top: 0; width: 190mm; height: 277mm;
-            background-color: white !important; z-index: 999999; padding: 0mm; display: block !important;
-        }
-
-        header, footer, .stButton, [data-testid="stHeader"] { display: none !important; }
         
-        /* 상단 정보 테이블 */
-        .info-table { 
-            width: 100%; border-collapse: collapse; 
-            border: 2px solid #333 !important; 
-            margin-bottom: 0px !important; /* 아래 여백 제거 */
-            font-size: 11pt; 
-        }
-        .info-table th { 
-            background: #eee !important; font-weight: bold; width: 18%; 
-            border: 1px solid #333 !important; padding: 8px; 
-        }
-        .info-table td { 
-            text-align: center; border: 1px solid #333 !important; padding: 8px; 
+        #printable-area * { 
+            visibility: visible !important; 
+            color: black !important; 
+            -webkit-print-color-adjust: exact;
+            height: auto !important;
         }
 
-        /* QR 그리드 (상단 선 제거) */
-        .qr-table { 
+        .header-section { 
+            border-bottom: none !important; 
+            margin-bottom: 2mm !important; 
+            padding-bottom: 0 !important; 
             width: 100%; 
-            border-collapse: separate; 
-            border-spacing: 10px; 
-            table-layout: fixed; 
-            margin-top: 0px !important; /* 위쪽 여백 제거 */
-            border-top: none !important; /* 위쪽 선 제거 */
+            flex: 0 0 auto !important; 
         }
         
-        .qr-cell { 
+        .info-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            border: 2px solid black !important; 
+            font-size: 11pt; 
+            margin-bottom: 0 !important; 
+        }
+        .info-table th { background: #eee !important; border: 1px solid black; padding: 4px; width: 18%; }
+        .info-table td { border: 1px solid black; padding: 4px; text-align: center; }
+
+        .qr-container { 
+            width: 100%; 
+            flex: 1 1 auto !important; 
+            border: 2px solid black !important;
+            border-top: none !important; 
+            display: flex; 
+            flex-wrap: wrap; 
+            margin-top: 0 !important; 
+        }
+        
+        .qr-item { 
             width: 33.33%; 
-            height: 60mm; 
-            border: 1px solid #333 !important; 
-            text-align: center; 
-            vertical-align: middle; 
-            padding: 10px;
-            border-radius: 8px; 
-            background-color: #fff;
-        }
-        
-        /* 첫 번째 줄(1~3번) 윗선 제거 -> 정보테이블과 연결됨 */
-        /* .qr-table tr:first-child .qr-cell { border-top: none !important; } */ /* (선택사항: 필요시 주석 해제) */
-
-        .qr-img {
-            width: 120px; 
-            height: 120px;
-            margin: 5px auto;
-            display: block;
+            height: 33.33%; 
+            border: 1px solid black !important; 
+            box-sizing: border-box;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            overflow: hidden; padding: 2px;
         }
 
-        .txt-dim { font-size: 18pt; font-weight: 900; margin-bottom: 2px; display: block; }
+        .qr-item:nth-child(-n+3) { border-top: none !important; }
         
-        /* [수정] 전극 텍스트: 기본은 보통 굵기 */
-        .txt-elec { font-size: 14pt; font-weight: normal; margin-bottom: 5px; display: block; }
+        .qr-img { 
+            width: 135px; height: 135px; 
+            max-width: 40mm; max-height: 40mm;
+            margin: 2px 0; 
+        }
         
-        /* [수정] 숫자 강조용 클래스: 아주 굵게 */
-        .num-bold { font-size: 18pt; font-weight: 900; }
+        .t-dim { font-size: 22pt; font-weight: 900; margin-bottom: 2px; }
+        
+        /* [수정] 전극 텍스트 기본: 연하게(normal) */
+        .t-elec { 
+            font-size: 15pt; 
+            font-weight: normal; 
+            margin-bottom: 2px; 
+        }
+        
+        /* [추가] 텍스트(가로/세로 등) 강조 */
+        .text-bold {
+            font-weight: 900 !important;
+        }
 
-        .txt-lot { font-size: 10pt; font-weight: 900; margin-top: 2px; font-family: monospace; display: block; } /* LOT 진하게 */
-        .txt-info { font-size: 8pt; color: #333; display: block; }
+        /* [추가] 숫자 강조 (더 크고 진하게) */
+        .num-bold { 
+            font-size: 18pt !important; 
+            font-weight: 900 !important; 
+        } 
 
-        .access-qr-box { text-align: center; margin-top: 50px; border: 5px solid #000; padding: 30px; border-radius: 20px; }
-        .grid-table { width: 100%; height: 95%; border-collapse: collapse; }
-        .grid-cell { width: 50%; height: 25%; border: 1px dashed #999; text-align: center; vertical-align: middle; padding: 10px; }
-        .mini-card { border: 2px solid black; border-radius: 10px; padding: 10px; display: inline-block; width: 90%; }
-
-        .top-time { position: absolute; top: -5mm; right: 0mm; font-size: 8pt; color: #555; }
-        .footer-warning { position: absolute; bottom: 0mm; left: 0; width: 100%; text-align: center; font-size: 9pt; font-weight: bold; }
+        .t-lot { font-size: 11pt; font-weight: 900; font-family: monospace; }
+        .t-info { font-size: 9pt; font-weight: bold; }
+        
+        .footer-warning { 
+            width: 100%; 
+            text-align: center; font-size: 10pt; font-weight: bold; 
+            margin-top: 2mm !important;
+            flex: 0 0 auto !important; 
+        }
     }
-    .printable-area { display: none; }
+    
+    #printable-area { display: none; }
 </style>
-""", unsafe_allow_html=True)
-
-def get_dimension_html(w, h, elec):
-    return f"<span class='txt-dim'>{w} x {h}</span>"
+"""
+st.markdown(PRINT_CSS, unsafe_allow_html=True)
 
 def image_to_base64(img):
     buffered = io.BytesIO()
@@ -137,78 +156,94 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # ----------------------------------------------------
-# 📄 작업 지시서 HTML (3열 x 3행 = 9개)
+# 🔍 텍스트 강조 처리 함수 (핵심 로직)
+# ----------------------------------------------------
+def format_electrode_text(text):
+    """
+    1. 방향 텍스트(가로, 세로, 양쪽, 없음 등)를 찾아 진하게 처리
+    2. 숫자(\d+)를 찾아 진하게 처리
+    나머지(괄호, 면 등)는 기본(연하게) 유지
+    """
+    if not text: return ""
+    
+    # 1. 방향 텍스트 강조 (가로, 세로, 양쪽, 상하, 좌우, 없음)
+    text = re.sub(r'(가로|세로|양쪽|상하|좌우|없음)', r'<span class="text-bold">\1</span>', text)
+    
+    # 2. 숫자 강조
+    text = re.sub(r'(\d+)', r'<span class="num-bold">\1</span>', text)
+    
+    return text
+
+# ----------------------------------------------------
+# 📄 HTML 생성 함수
 # ----------------------------------------------------
 def create_a4_html(header, items):
     LIMIT = 9
     cells_data = items[:LIMIT] + [None] * (LIMIT - len(items[:LIMIT]))
-    
-    rows_html = ""
-    for r in range(3):
-        rows_html += "<tr>"
-        for c in range(3):
-            idx = r * 3 + c
-            item = cells_data[idx]
-            
-            if item:
-                img_b64 = image_to_base64(item['img'])
-                
-                # [핵심] 전극 정보 내 숫자만 찾아서 강조 (Bold)
-                elec_str = str(item["elec"])
-                # 숫자(\d+)를 찾아서 <span class="num-bold">숫자</span>로 변경
-                elec_str_bold = re.sub(r'(\d+)', r'<span class="num-bold">\1</span>', elec_str)
-
-                content = f"""
-                <div class="txt-dim">{item['w']} x {item['h']}</div>
-                <div class="txt-elec">[{elec_str_bold}]</div>
-                <img src="data:image/png;base64,{img_b64}" class="qr-img">
-                <div class="txt-lot">{item['lot']}</div>
-                <div class="txt-info">{item['cust']} | {item['prod']}</div>
-                """
-            else:
-                content = ""
-            
-            rows_html += f"<td class='qr-cell'>{content}</td>"
-        rows_html += "</tr>"
-
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    html = '<div id="printable-area">'
     
-    return f"""
-<div class="printable-area">
-<div class="top-time">출력일시: {now_str}</div>
-<div style="text-align:center; font-size:26pt; font-weight:900; margin-bottom:15px; text-decoration:underline;">작업 지시서 (Work Order)</div>
-<table class="info-table">
-<tr><th>고객사</th><td>{header['cust']}</td><th>제품 종류</th><td>{header['prod']}</td></tr>
-<tr><th>출고 요청일</th><td>{header['date']}</td><th>원단 정보</th><td>{header['fabric']}</td></tr>
-<tr><th>작업 가이드</th><td colspan="3" style="text-align:left; padding-left:10px; font-weight:bold;">{header['guide']}</td></tr>
-<tr><th>비고</th><td colspan="3" style="height:50px; text-align:left; padding-left:10px;">{header['note']}</td></tr>
-</table>
-<table class="qr-table">
-{rows_html}
-</table>
-<div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>
-</div>
-"""
+    html += '<div class="header-section">'
+    html += f'<div style="text-align:right; font-size:9pt;">출력일시: {now_str}</div>'
+    html += '<div style="text-align:center; font-size:28pt; font-weight:900; margin-bottom:5px; text-decoration:underline;">작업 지시서 (Work Order)</div>'
+    html += '</div>' 
+    
+    html += '<table class="info-table">'
+    html += f'<tr><th>고객사</th><td>{header["cust"]}</td><th>제품 종류</th><td>{header["prod"]}</td></tr>'
+    html += f'<tr><th>출고 요청일</th><td>{header["date"]}</td><th>원단 정보</th><td>{header["fabric"]}</td></tr>'
+    html += f'<tr><th>작업 가이드</th><td colspan="3" style="text-align:left; padding:5px; font-weight:bold;">{header["guide"]}</td></tr>'
+    html += f'<tr><th>비고</th><td colspan="3" style="height:35px; text-align:left; padding:5px;">{header["note"]}</td></tr>'
+    html += '</table>'
+    
+    html += '<div class="qr-container">'
+    for item in cells_data:
+        if item:
+            img_b64 = image_to_base64(item['img'])
+            
+            # [적용] 방향 텍스트와 숫자만 진하게 처리
+            elec_str = str(item["elec"])
+            formatted_elec = format_electrode_text(elec_str)
+
+            html += '<div class="qr-item">'
+            html += f'<div class="t-dim">{item["w"]} x {item["h"]}</div>'
+            html += f'<div class="t-elec">[{formatted_elec}]</div>' 
+            html += f'<img src="data:image/png;base64,{img_b64}" class="qr-img">'
+            html += f'<div class="t-lot">{item["lot"]}</div>'
+            html += f'<div class="t-info">{item["cust"]} | {item["prod"]}</div>'
+            html += '</div>'
+        else:
+            html += '<div class="qr-item"></div>'
+    html += '</div>'
+    
+    html += '<div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>'
+    html += '</div>'
+    
+    return html
 
 def create_label_html(items):
     cells_data = items[:12] + [None] * (12 - len(items[:12]))
-    rows_html = ""
-    for r in range(3):
-        rows_html += "<tr>"
-        for c in range(4):
-            idx = r * 4 + c
-            item = cells_data[idx]
-            if item:
-                img_b64 = image_to_base64(item['img'])
-                # 라벨에서도 숫자 볼드 처리
-                elec_str = str(item["elec"])
-                elec_str_bold = re.sub(r'(\d+)', r'<span class="num-bold">\1</span>', elec_str)
+    html = '<div id="printable-area"><div style="text-align:center; font-size:20pt; font-weight:bold; margin-bottom:20px;">🏷️ QR 라벨 출력</div>'
+    html += '<div class="qr-container" style="height:auto; border:none;">'
+    
+    style = 'width:25%; height:60mm; border:1px solid black; display:flex; flex-direction:column; align-items:center; justify-content:center; box-sizing:border-box;'
+    
+    for item in cells_data:
+        html += f'<div style="{style}">'
+        if item:
+            img_b64 = image_to_base64(item['img'])
+            
+            # [적용] 라벨에서도 동일하게 적용
+            elec_str = str(item["elec"])
+            formatted_elec = format_electrode_text(elec_str)
 
-                content = f"""<div style="font-size:16pt; font-weight:bold; margin-bottom:2px;">{item['w']}x{item['h']}</div><div style="font-size:12pt; margin-bottom:5px;">[{elec_str_bold}]</div><img src="data:image/png;base64,{img_b64}" style="width:110px;"><div style="font-size:9pt; font-weight:900; margin-top:2px;">{item['lot']}</div>"""
-            else: content = ""
-            rows_html += f'<td class="qr-cell" style="vertical-align:middle;">{content}</td>'
-        rows_html += "</tr>"
-    return f"""<div class="printable-area"><div style="font-size:18px; font-weight:bold; margin-bottom:10px; text-align:center;">🏷️ QR 라벨 출력</div><table class="qr-table" style="border: 2px solid black;">{rows_html}</table></div>"""
+            html += f'<div style="font-size:16pt; font-weight:bold;">{item["w"]}x{item["h"]}</div>'
+            html += f'<div style="font-size:12pt;">[{formatted_elec}]</div>'
+            html += f'<img src="data:image/png;base64,{img_b64}" style="width:100px;">'
+            html += f'<div style="font-size:9pt; font-weight:900;">{item["lot"]}</div>'
+        html += '</div>'
+    html += '</div></div>'
+    return html
 
 def create_access_qr_html(url, mode="big"):
     qr = qrcode.QRCode(box_size=10, border=1)
@@ -218,14 +253,22 @@ def create_access_qr_html(url, mode="big"):
     img_b64 = image_to_base64(img)
     
     if mode == "big":
-        return f"""<div class="printable-area"><div style="margin-top: 30mm;"></div><div class="access-qr-box"><div style="font-size: 40px; font-weight: 900; margin-bottom: 20px;">🏭 생산관리 시스템 접속</div><div style="font-size: 20px; margin-bottom: 20px;">휴대폰 카메라를 켜고 아래 QR코드를 스캔하세요.</div><img src="data:image/png;base64,{img_b64}" style="width: 400px; height: 400px;"><div style="font-size: 14px; color: #333; margin-top: 10px; font-family: monospace;">{url}</div></div></div>"""
+        html = f"""<div id="printable-area" style="text-align:center; padding-top:50mm;">
+            <div style="border:5px solid black; padding:50px; display:inline-block; border-radius:30px;">
+                <div style="font-size:40pt; font-weight:900; margin-bottom:30px;">🏭 접속 QR</div>
+                <img src="data:image/png;base64,{img_b64}" style="width:400px; height:400px;">
+                <div style="font-size:15pt; margin-top:20px; font-family:monospace;">{url}</div>
+            </div></div>"""
     else:
-        rows = ""; 
-        for r in range(4):
-            rows += "<tr>"
-            for c in range(2): rows += f"""<td class="grid-cell"><div class="mini-card"><div style="font-weight:bold; font-size:16pt; margin-bottom:5px;">🏭 시스템 접속</div><img src="data:image/png;base64,{img_b64}" style="width: 120px;"><div style="font-size:10px; margin-top:5px;">(주)베스트룸 생산관리</div></div></td>"""
-            rows += "</tr>"
-        return f"""<div class="printable-area"><div style="text-align:center; font-weight:bold; padding:10px;">✂️ 점선을 따라 잘라서 사용하세요</div><table class="grid-table">{rows}</table></div>"""
+        html = '<div id="printable-area"><div style="display:flex; flex-wrap:wrap;">'
+        for _ in range(8):
+            html += f"""<div style="width:50%; height:25%; border:1px dashed gray; display:flex; justify-content:center; align-items:center;">
+                <div style="border:2px solid black; padding:10px; border-radius:10px; text-align:center;">
+                    <div style="font-size:15pt; font-weight:bold;">접속 QR</div>
+                    <img src="data:image/png;base64,{img_b64}" style="width:100px;">
+                </div></div>"""
+        html += "</div></div>"
+    return html
 
 def fetch_fabric_stock():
     try:
@@ -306,6 +349,7 @@ with tab2:
     st.header("📄 작업 지시서 인쇄")
     print_mode = st.radio("출력 대상", ["🆕 방금 발행", "📅 이력 조회"], horizontal=True)
     
+    # Case 1: 방금 발행
     if print_mode == "🆕 방금 발행":
         if st.session_state.generated_qrs:
             qrs = st.session_state.generated_qrs
@@ -317,19 +361,19 @@ with tab2:
         else:
             st.info("⚠️ 현재 발행된 작업이 없습니다.")
             
+    # Case 2: 이력 조회 (기간 검색)
     else:
         with st.form("history_search"):
             st.caption("🔍 날짜 기간을 설정하여 이력을 조회하세요.")
             col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
             
-            # [수정] 날짜 범위 선택 기능 (기간 검색)
+            # 날짜 범위 선택 기능
             d_range = col1.date_input("조회 기간", value=(datetime.now() - timedelta(days=7), datetime.now()), key="hist_date")
             s_cust = col2.text_input("고객사 (포함)")
             s_lot = col3.text_input("LOT 번호 (포함)")
             do_search = col4.form_submit_button("🔍 조회", type="primary")
             
             if do_search:
-                # [수정] 날짜 기간 처리 로직
                 if isinstance(d_range, tuple):
                     if len(d_range) == 2:
                         start_date, end_date = d_range
