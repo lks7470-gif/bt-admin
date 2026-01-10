@@ -39,9 +39,7 @@ if 'generated_qrs' not in st.session_state: st.session_state.generated_qrs = []
 if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
-# ==========================================
-# 🔥 [스타일] CSS 정의
-# ==========================================
+# 🔥 [스타일] 인쇄 디자인 (사용자 제공 코드 유지)
 st.markdown("""
 <style>
     .stApp { background-color: #ffffff !important; color: #000000 !important; }
@@ -75,7 +73,7 @@ st.markdown("""
             text-align: center; border: 1px solid #333 !important; padding: 8px; 
         }
 
-        /* QR 그리드 */
+        /* QR 그리드 (3열 x 3행) */
         .qr-table { 
             width: 100%; 
             border-collapse: separate; 
@@ -102,21 +100,18 @@ st.markdown("""
         }
 
         /* 텍스트 스타일 */
-        /* 기본적으로 치수는 보통 굵기로 설정하고, 내부 span에서 굵기 조절 */
-        .txt-dim { font-size: 16pt; font-weight: normal; margin-bottom: 2px; display: block; }
-        
+        .txt-dim { font-size: 15pt; margin-bottom: 2px; display: block; } /* 굵기 제어는 개별 span에서 함 */
         .txt-elec { font-size: 11pt; font-weight: bold; margin-bottom: 5px; display: block; }
         .txt-lot { font-size: 9pt; font-weight: bold; margin-top: 2px; font-family: monospace; display: block; }
         .txt-info { font-size: 8pt; color: #333; display: block; }
 
-        .top-time { position: absolute; top: -5mm; right: 0mm; font-size: 8pt; color: #555; }
-        .footer-warning { position: absolute; bottom: 0mm; left: 0; width: 100%; text-align: center; font-size: 9pt; font-weight: bold; }
-        
-        /* 접속 QR 등 기타 스타일 */
         .access-qr-box { text-align: center; margin-top: 50px; border: 5px solid #000; padding: 30px; border-radius: 20px; }
         .grid-table { width: 100%; height: 95%; border-collapse: collapse; }
         .grid-cell { width: 50%; height: 25%; border: 1px dashed #999; text-align: center; vertical-align: middle; padding: 10px; }
         .mini-card { border: 2px solid black; border-radius: 10px; padding: 10px; display: inline-block; width: 90%; }
+
+        .top-time { position: absolute; top: -5mm; right: 0mm; font-size: 8pt; color: #555; }
+        .footer-warning { position: absolute; bottom: 0mm; left: 0; width: 100%; text-align: center; font-size: 9pt; font-weight: bold; }
     }
     .printable-area { display: none; }
 </style>
@@ -128,29 +123,30 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # ----------------------------------------------------
-# 🔍 [핵심 로직] 치수(가로x세로) 강조 함수
+# 🔍 [수정됨] 치수 강조 로직 (가로 vs 세로)
 # ----------------------------------------------------
 def get_styled_dimensions(w, h, elec):
     """
     전극 방향(elec)에 따라 가로(w) 또는 세로(h) 숫자를 진하게/연하게 처리
     """
     # 스타일 정의
-    style_bold = "font-weight: 900; font-size: 1.2em; color: black;" # 진하게, 약간 크게
-    style_light = "font-weight: 400; color: #777;" # 연하게, 회색톤
+    # 진하게: 검정색, 폰트 900(Extra Bold), 크기 약간 확대
+    style_bold = "font-weight: 900; font-size: 1.3em; color: black;" 
+    # 연하게: 회색, 폰트 400(Normal)
+    style_light = "font-weight: 400; color: #999;" 
 
-    w_html = f"<span style='{style_light}'>{w}</span>"
-    h_html = f"<span style='{style_light}'>{h}</span>"
+    # 기본값 (방향 정보가 없을 때)
+    w_html = f"<span style='font-weight:bold; color:black;'>{w}</span>"
+    h_html = f"<span style='font-weight:bold; color:black;'>{h}</span>"
 
     if "가로" in elec:
-        # 가로 방향 전극 -> 가로(Width) 숫자 강조
+        # 가로 방향 -> 가로(Width) 숫자 강조, 세로 연하게
         w_html = f"<span style='{style_bold}'>{w}</span>"
+        h_html = f"<span style='{style_light}'>{h}</span>"
     elif "세로" in elec:
-        # 세로 방향 전극 -> 세로(Height) 숫자 강조
+        # 세로 방향 -> 세로(Height) 숫자 강조, 가로 연하게
+        w_html = f"<span style='{style_light}'>{w}</span>"
         h_html = f"<span style='{style_bold}'>{h}</span>"
-    else:
-        # 방향 정보가 없거나(없음) 모호할 때 -> 둘 다 기본 진하기
-        w_html = f"<span style='font-weight:bold; color:black;'>{w}</span>"
-        h_html = f"<span style='font-weight:bold; color:black;'>{h}</span>"
 
     return f"<div class='txt-dim'>{w_html} x {h_html}</div>"
 
@@ -171,16 +167,12 @@ def create_a4_html(header, items):
             if item:
                 img_b64 = image_to_base64(item['img'])
                 
-                # [적용] 전극 방향에 따른 치수 강조 로직 적용
+                # [적용] 위에서 정의한 치수 강조 함수 사용
                 dim_html = get_styled_dimensions(item['w'], item['h'], item['elec'])
-                
-                # 전극 텍스트(예: [가로(1면)]) 내 숫자 강조 (선택사항, 일관성을 위해 유지)
-                elec_str = str(item['elec'])
-                elec_html = re.sub(r'(\d+)', r'<span style="font-weight:900; font-size:1.1em;">\1</span>', elec_str)
 
                 content = f"""
                 {dim_html}
-                <div class="txt-elec">[{elec_html}]</div>
+                <div class="txt-elec">[{item['elec']}]</div>
                 <img src="data:image/png;base64,{img_b64}" class="qr-img">
                 <div class="txt-lot">{item['lot']}</div>
                 <div class="txt-info">{item['cust']} | {item['prod']}</div>
@@ -221,17 +213,7 @@ def create_label_html(items):
             item = cells_data[idx]
             if item:
                 img_b64 = image_to_base64(item['img'])
-                
-                # 라벨용 간소화된 치수 강조 (크기만 조절)
-                w, h, elec = item['w'], item['h'], item['elec']
-                if "가로" in elec:
-                    dim_str = f"<span style='font-weight:900;'>{w}</span>x{h}"
-                elif "세로" in elec:
-                    dim_str = f"{w}x<span style='font-weight:900;'>{h}</span>"
-                else:
-                    dim_str = f"{w}x{h}"
-
-                content = f"""<div style="font-size:16pt; margin-bottom:2px;">{dim_str}</div><div style="font-size:12pt; margin-bottom:5px;">[{item['elec']}]</div><img src="data:image/png;base64,{img_b64}" style="width:110px;"><div style="font-size:9pt; font-weight:bold; margin-top:2px;">{item['lot']}</div>"""
+                content = f"""<div style="font-size:16pt; font-weight:bold; margin-bottom:2px;">{item['w']}x{item['h']}</div><div style="font-size:12pt; margin-bottom:5px;">[{item['elec']}]</div><img src="data:image/png;base64,{img_b64}" style="width:110px;"><div style="font-size:9pt; font-weight:bold; margin-top:2px;">{item['lot']}</div>"""
             else: content = ""
             rows_html += f'<td class="qr-cell" style="vertical-align:middle;">{content}</td>'
         rows_html += "</tr>"
