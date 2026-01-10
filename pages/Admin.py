@@ -40,107 +40,119 @@ if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
 # ==========================================
-# 🔥 [스타일] CSS 정의 (안정적인 Block 레이아웃으로 복구 & 디자인 적용)
+# 🔥 [스타일] CSS 정의 (백지 현상 해결 & 치수 강조)
 # ==========================================
 st.markdown("""
 <style>
+    /* 화면용 기본 스타일 */
     .stApp { background-color: #ffffff !important; color: #000000 !important; }
     
+    /* 🖨️ 인쇄 전용 스타일 */
     @media print {
-        @page { size: A4 portrait; margin: 5mm; }
+        /* 1. 용지 설정 */
+        @page { size: A4 portrait; margin: 0mm; }
         
-        body * { visibility: hidden; }
+        /* 2. 모든 화면 요소 숨김 (가장 강력한 숨김 처리) */
+        html, body, .stApp, header, footer, .stSidebar, .stButton, [data-testid="stHeader"] {
+            background: white !important;
+            height: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            visibility: hidden !important;
+        }
         
-        /* 인쇄 영역 강제 표시 */
-        #printable-area, #printable-area * {
+        /* 3. 인쇄 영역만 강제로 보이게 설정 (position: fixed 사용) */
+        #printable-area {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 210mm !important;
+            height: 297mm !important;
+            background-color: white !important;
+            z-index: 999999 !important;
+            visibility: visible !important;
+            display: block !important;
+            padding: 10mm !important; /* 내부 여백 */
+            box-sizing: border-box !important;
+        }
+        
+        /* 인쇄 영역 내부 요소들은 무조건 보이게 */
+        #printable-area * {
             visibility: visible !important;
             color: black !important;
-            -webkit-print-color-adjust: exact;
-        }
-        
-        #printable-area {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 200mm; /* A4 폭 - 여백 */
-            height: auto;
-            background-color: white;
-            z-index: 999999;
-            padding: 0;
-            margin: 0;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
         }
 
-        /* 스트림릿 UI 숨김 */
-        header, footer, .stButton, [data-testid="stHeader"], .stSidebar { display: none !important; }
+        /* --- 레이아웃 스타일 --- */
+        .header-section { 
+            width: 100%; 
+            margin-bottom: 5px; 
+            border-bottom: none !important; 
+        }
         
-        /* --- 상단 정보 테이블 --- */
+        /* 정보 테이블 */
         .info-table { 
             width: 100%; 
             border-collapse: collapse; 
             border: 2px solid black !important; 
-            font-size: 11pt;
-            margin-bottom: 0px !important; /* QR 표와 붙이기 */
+            font-size: 11pt; 
+            margin-bottom: 0px !important; /* QR 표와 딱 붙이기 */
         }
         .info-table th { 
             background: #eee !important; font-weight: bold; width: 18%; 
-            border: 1px solid black !important; padding: 6px; 
+            border: 1px solid black !important; padding: 5px; 
         }
         .info-table td { 
-            text-align: center; border: 1px solid black !important; padding: 6px; 
+            text-align: center; border: 1px solid black !important; padding: 5px; 
         }
 
-        /* --- QR 그리드 --- */
+        /* QR 그리드 */
         .qr-table { 
             width: 100%; 
-            border-collapse: collapse; /* 선 겹침 방지 */
+            border-collapse: collapse; 
             border: 2px solid black !important;
             border-top: none !important; /* 상단 테이블과 연결 */
             table-layout: fixed; 
+            margin-top: 0 !important;
         }
         
+        /* 셀 스타일 (높이 조정하여 A4 꽉 채움) */
         .qr-cell { 
             width: 33.33%; 
-            /* A4 한 페이지에 3행이 꽉 차게 높이 설정 (약 70mm) */
-            height: 70mm; 
+            height: 72mm; /* 높이를 키워서 3줄이 A4에 꽉 차게 */
             border: 1px solid black !important; 
             text-align: center; 
             vertical-align: middle; 
-            padding: 5px;
+            padding: 2px;
         }
         
-        /* 3x3 그리드에서 첫 번째 줄의 윗선 제거 (이중선 방지) */
-        tr:first-child .qr-cell {
-            border-top: none !important;
-        }
+        /* 첫 번째 줄(1~3번) 윗선 제거 */
+        tr:first-child .qr-cell { border-top: none !important; }
 
-        /* 이미지 */
         .qr-img {
-            width: 130px; 
-            height: 130px;
-            margin: 5px auto;
-            display: block;
+            width: 130px; height: 130px;
+            margin: 2px auto; display: block;
         }
 
         /* 텍스트 스타일 */
-        .txt-dim { font-size: 18pt; margin-bottom: 5px; display: block; line-height: 1.1; }
-        .txt-elec { font-size: 13pt; font-weight: normal; margin-bottom: 5px; display: block; }
-        .txt-lot { font-size: 10pt; font-weight: 900; margin-top: 5px; font-family: monospace; display: block; }
-        .txt-info { font-size: 9pt; color: #000; font-weight: bold; display: block; }
+        .txt-dim { font-size: 18pt; margin-bottom: 2px; display: block; line-height: 1.1; }
+        .txt-elec { font-size: 14pt; font-weight: normal; margin-bottom: 5px; display: block; }
+        .txt-lot { font-size: 10pt; font-weight: 900; margin-top: 2px; font-family: monospace; display: block; }
+        .txt-info { font-size: 9pt; font-weight: bold; display: block; }
 
         /* 하단 경고 */
         .footer-warning { 
-            width: 100%; 
-            text-align: center; font-size: 10pt; font-weight: bold; 
+            width: 100%; text-align: center; font-size: 10pt; font-weight: bold; 
             margin-top: 10px;
         }
         
-        /* 라벨/접속QR용 */
-        .access-qr-box { text-align: center; margin-top: 50px; border: 5px solid #000; padding: 30px; border-radius: 20px; }
-        .grid-table { width: 100%; border-collapse: collapse; }
+        /* 라벨용 그리드 */
+        .grid-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         .grid-cell { width: 50%; height: 60mm; border: 1px dashed #999; text-align: center; vertical-align: middle; padding: 10px; }
-        .mini-card { border: 2px solid black; border-radius: 10px; padding: 10px; display: inline-block; width: 90%; }
     }
     
+    /* 평소 화면에서는 숨김 */
     #printable-area { display: none; }
 </style>
 """, unsafe_allow_html=True)
@@ -151,43 +163,54 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # ----------------------------------------------------
-# 🔍 치수 강조 로직 (가로/세로 방향에 따라) - 요청사항 준수
+# 🔍 [핵심] 치수 및 전극 텍스트 강조 함수
 # ----------------------------------------------------
 def get_styled_dimensions(w, h, elec):
     """
-    elec(전극정보)에 따라 w(가로) 또는 h(세로)를 진하게 표시
-    가로/양쪽가로 -> 1000(진하게) x 2000(연하게)
-    세로/양쪽세로 -> 1000(연하게) x 2000(진하게)
+    전극 방향(elec)에 따라 가로(w) 또는 세로(h) 숫자를 진하게/연하게 처리
     """
-    style_bold = "font-weight: 900; font-size: 1.2em; color: black;"  
-    style_light = "font-weight: 400; color: #999;"                   
+    # 스타일: 진하게(검정, 큰폰트) / 연하게(회색, 작은폰트)
+    style_bold = "font-weight: 900; font-size: 1.2em; color: black;"
+    style_light = "font-weight: 400; font-size: 1.0em; color: #888;"
 
     w_html, h_html = w, h
 
     if "가로" in elec:
+        # 가로, 양쪽가로 -> 가로(W) 강조
         w_html = f"<span style='{style_bold}'>{w}</span>"
         h_html = f"<span style='{style_light}'>{h}</span>"
     elif "세로" in elec:
+        # 세로, 양쪽세로 -> 세로(H) 강조
         w_html = f"<span style='{style_light}'>{w}</span>"
         h_html = f"<span style='{style_bold}'>{h}</span>"
     else:
-        # 방향 정보 없으면 둘 다 기본 진하게
-        w_html = f"<span style='font-weight:bold;'>{w}</span>"
-        h_html = f"<span style='font-weight:bold;'>{h}</span>"
+        # 방향 정보 없음 -> 둘 다 기본 강조
+        w_html = f"<span style='font-weight:bold; color:black;'>{w}</span>"
+        h_html = f"<span style='font-weight:bold; color:black;'>{h}</span>"
 
     return f"<div class='txt-dim'>{w_html} x {h_html}</div>"
 
+def format_electrode_text(text):
+    """
+    전극 텍스트 내의 '숫자'만 찾아서 진하게(Bold) 처리
+    예: 가로(1면) -> '가로'는 보통, '1'은 진하게
+    """
+    if not text: return ""
+    # 숫자(\d+)를 찾아서 <span>으로 감싸고 스타일 적용
+    return re.sub(r'(\d+)', r'<span style="font-weight:900; font-size:1.2em; color:black;">\1</span>', str(text))
+
 # ----------------------------------------------------
-# 📄 작업 지시서 HTML 생성 (3x3 테이블 구조 사용 - 안정성 확보)
+# 📄 작업 지시서 HTML (3x3 테이블 구조 - 안정적 인쇄)
 # ----------------------------------------------------
 def create_a4_html(header, items):
     LIMIT = 9
+    # 항상 9개 셀을 채움 (빈 셀은 None)
     cells_data = items[:LIMIT] + [None] * (LIMIT - len(items[:LIMIT]))
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     html = '<div id="printable-area">'
     
-    # 상단 헤더
+    # 헤더
     html += f'<div style="text-align:right; font-size:9pt; margin-bottom:5px;">출력일시: {now_str}</div>'
     html += '<div style="text-align:center; font-size:28pt; font-weight:900; margin-bottom:10px; text-decoration:underline;">작업 지시서 (Work Order)</div>'
     
@@ -199,7 +222,7 @@ def create_a4_html(header, items):
     html += f'<tr><th>비고</th><td colspan="3" style="height:35px; text-align:left; padding:5px;">{header["note"]}</td></tr>'
     html += '</table>'
     
-    # QR 그리드 (Table 태그 사용 - 인쇄 시 가장 안정적)
+    # QR 그리드 (HTML Table 사용)
     html += '<table class="qr-table">'
     for r in range(3):
         html += '<tr>'
@@ -211,12 +234,11 @@ def create_a4_html(header, items):
             if item:
                 img_b64 = image_to_base64(item['img'])
                 
-                # 1. 치수 강조 적용
+                # 1. 치수 강조 (가로 vs 세로)
                 dim_html = get_styled_dimensions(item['w'], item['h'], item['elec'])
                 
-                # 2. 전극 숫자 강조 (전극 텍스트 내의 숫자만 진하게)
-                elec_str = str(item['elec'])
-                elec_html = re.sub(r'(\d+)', r'<span style="font-weight:900; font-size:1.2em;">\1</span>', elec_str)
+                # 2. 전극 텍스트 내 숫자 강조
+                elec_html = format_electrode_text(item['elec'])
 
                 html += f'{dim_html}'
                 html += f'<div class="txt-elec">[{elec_html}]</div>' 
@@ -245,13 +267,16 @@ def create_label_html(items):
             html += '<td class="grid-cell" style="width:25%;">'
             if item:
                 img_b64 = image_to_base64(item['img'])
+                # 라벨용 치수 강조 (간단 버전)
                 w, h, elec = item['w'], item['h'], item['elec']
                 w_s, h_s = "", ""
-                if "가로" in elec: w_s = "font-weight:900; font-size:1.1em;"
-                elif "세로" in elec: h_s = "font-weight:900; font-size:1.1em;"
+                if "가로" in elec: w_s = "font-weight:900; font-size:1.2em;"
+                elif "세로" in elec: h_s = "font-weight:900; font-size:1.2em;"
+                
+                elec_html = format_electrode_text(elec)
                 
                 html += f'<div style="font-size:16pt; margin-bottom:2px;"><span style="{w_s}">{w}</span>x<span style="{h_s}">{h}</span></div>'
-                html += f'<div style="font-size:12pt; margin-bottom:5px;">[{item["elec"]}]</div>'
+                html += f'<div style="font-size:12pt; margin-bottom:5px;">[{elec_html}]</div>'
                 html += f'<img src="data:image/png;base64,{img_b64}" style="width:100px;">'
                 html += f'<div style="font-size:9pt; font-weight:900;">{item["lot"]}</div>'
             html += '</td>'
@@ -278,7 +303,7 @@ def create_access_qr_html(url, mode="big"):
         for r in range(4):
             html += '<tr>'
             for c in range(2):
-                html += f"""<td class="grid-cell"><div class="mini-card"><div style="font-weight:bold; font-size:16pt; margin-bottom:5px;">🏭 시스템 접속</div><img src="data:image/png;base64,{img_b64}" style="width: 120px;"><div style="font-size:10px; margin-top:5px;">(주)베스트룸 생산관리</div></div></td>"""
+                html += f"""<td class="grid-cell"><div style="border:2px solid black; border-radius:10px; padding:10px;"><div style="font-weight:bold; font-size:16pt; margin-bottom:5px;">🏭 시스템 접속</div><img src="data:image/png;base64,{img_b64}" style="width: 120px;"><div style="font-size:10px; margin-top:5px;">(주)베스트룸 생산관리</div></div></td>"""
             html += '</tr>'
         html += "</table></div>"
     return html
@@ -425,7 +450,7 @@ with tab2:
                 st.success(f"✅ {len(selected_rows)}개 항목 선택됨")
                 
                 print_items = []
-                # 첫 번째 행 정보로 헤더 생성
+                # 헤더용 첫 행 데이터
                 first_row = selected_rows.iloc[0]
                 header_info = {
                     'cust': first_row['customer'], 
@@ -438,9 +463,7 @@ with tab2:
 
                 for _, row in selected_rows.iterrows():
                     dim_str = row['dimension']
-                    
-                    # 치수 파싱
-                    w, h, elec = "규격", "확인", dim_str
+                    w, h, elec = "0", "0", "Unknown"
                     try:
                         match = re.search(r'(\d+)x(\d+)\s*\[(.*?)\]', dim_str) 
                         if match: 
@@ -459,7 +482,7 @@ with tab2:
 
                     print_items.append({"lot": row['lot_no'], "w": w, "h": h, "elec": elec, "prod": row['product'], "cust": row['customer'], "img": img})
                 
-                # HTML 생성 및 표시
+                # '방금 발행'과 동일한 create_a4_html 함수 사용
                 html_content = create_a4_html(header_info, print_items)
                 st.markdown(html_content, unsafe_allow_html=True)
                 
@@ -478,7 +501,7 @@ with tab3:
     else:
         st.info("👈 먼저 [작업 입력] 탭에서 발행을 진행해주세요.")
 
-# [수정] QR 재발행 탭 (기능 복구)
+# 🔄 QR 재발행 탭 (기능 활성화)
 with tab4:
     st.header("🔄 QR 재발행 (선택 인쇄)")
     with st.form("reprint"):
@@ -498,7 +521,7 @@ with tab4:
             sel_rows = edited_reprint[edited_reprint["선택"]]
             
             if not sel_rows.empty:
-                # 선택된 항목을 인쇄 포맷으로 변환
+                # 선택된 항목 인쇄 포맷 변환
                 rep_items = []
                 first_row = sel_rows.iloc[0]
                 rep_header = {
@@ -514,13 +537,16 @@ with tab4:
                     try:
                         match = re.search(r'(\d+)x(\d+)\s*\[(.*?)\]', dim_str) 
                         if match: w, h, elec = match.group(1), match.group(2), match.group(3)
+                        else:
+                            parts = dim_str.split('[')
+                            if len(parts) > 1: wh = parts[0].split('x'); w, h = wh[0].strip(), wh[1].strip(); elec = parts[1].replace(']', '').strip()
                     except: pass
                     
                     qr = qrcode.QRCode(box_size=5, border=2); qr.add_data(row['lot_no']); qr.make(fit=True)
                     img = qr.make_image(fill_color="black", back_color="white")
                     rep_items.append({"lot": row['lot_no'], "w": w, "h": h, "elec": elec, "cust": row['customer'], "prod": row['product'], "img": img})
                 
-                # HTML 생성 및 인쇄 버튼 표시
+                # HTML 생성 및 인쇄 버튼
                 html_rep = create_a4_html(rep_header, rep_items)
                 st.markdown(html_rep, unsafe_allow_html=True)
                 if st.button("🖨️ 재발행 인쇄", type="primary"):
