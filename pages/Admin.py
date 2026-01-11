@@ -122,16 +122,17 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # ----------------------------------------------------
-# 🔍 [핵심] 치수 및 전극 강조 함수
+# 🔍 [핵심] 치수 및 전극 강조 함수 (수정됨)
 # ----------------------------------------------------
 def get_styled_dimensions(w, h, elec):
     """ 
     [가로] 선택시: 앞(W) 진하게, 뒤(H) 연하게
     [세로] 선택시: 앞(W) 연하게, 뒤(H) 진하게
     [없음] 선택시: 앞(W) 연하게, 뒤(H) 연하게
+    *수정: 연한 숫자와 진한 숫자의 폰트 크기(1.2em)를 동일하게 맞춤*
     """
     style_bold = "font-weight: 900; font-size: 1.2em; color: black;"  
-    style_light = "font-weight: 400; font-size: 1.0em; color: #999;" 
+    style_light = "font-weight: 400; font-size: 1.2em; color: #999;" # 1.0em -> 1.2em으로 변경
 
     if "가로" in elec:
         w_html = f"<span style='{style_bold}'>{w}</span>"
@@ -212,9 +213,10 @@ def get_label_content_html(items):
                 img_b64 = image_to_base64(item['img'])
                 w, h, elec = item['w'], item['h'], item['elec']
                 
-                # 라벨용 치수 강조 로직 적용 (스타일 문자열 구성)
+                # 라벨용 치수 강조 로직 적용 (스타일 문자열 구성) - 수정됨
+                # 여기서도 폰트 크기를 1.1em으로 통일했습니다.
                 style_bold = "font-weight: 900; font-size: 1.1em; color: black;"
-                style_light = "font-weight: 400; font-size: 1.0em; color: #999;"
+                style_light = "font-weight: 400; font-size: 1.1em; color: #999;" # 1.0em -> 1.1em 변경
                 
                 if "가로" in elec:
                     w_html = f"<span style='{style_bold}'>{w}</span>"
