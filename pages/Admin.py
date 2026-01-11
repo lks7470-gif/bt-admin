@@ -40,7 +40,7 @@ if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
 # ==========================================
-# 🔥 [스타일] CSS 정의 (인쇄 백지 방지 & 치수 강조 최적화)
+# 🔥 [스타일] CSS 정의 (인쇄 백지 해결 - Table 구조)
 # ==========================================
 st.markdown("""
 <style>
@@ -50,10 +50,10 @@ st.markdown("""
         /* 1. 용지 설정 */
         @page { size: A4 portrait; margin: 0; }
         
-        /* 2. 화면 요소 숨김 */
+        /* 2. 화면의 모든 요소 숨김 */
         body * { visibility: hidden; }
         
-        /* 3. 인쇄 영역 강제 표시 (절대 위치) */
+        /* 3. 인쇄 영역만 표시 (절대 위치로 최상단 배치) */
         #printable-area {
             position: absolute !important;
             left: 0 !important;
@@ -74,12 +74,12 @@ st.markdown("""
             print-color-adjust: exact !important;
         }
 
-        /* 4. UI 숨김 */
+        /* 4. 불필요한 UI 숨김 */
         header, footer, .stButton, [data-testid="stHeader"], .stSidebar, .block-container { 
             display: none !important; 
         }
         
-        /* --- 테이블 스타일 --- */
+        /* --- 인쇄 내부 스타일 (Table 사용) --- */
         .info-table { 
             width: 100%; border-collapse: collapse; 
             border: 2px solid black !important; 
@@ -88,17 +88,17 @@ st.markdown("""
         .info-table th { background: #eee !important; border: 1px solid black; padding: 5px; width: 18%; }
         .info-table td { text-align: center; border: 1px solid black; padding: 5px; }
 
-        /* QR 그리드 (Table 구조) */
+        /* QR 그리드 (Table 구조 사용 - 백지 방지) */
         .qr-table { 
             width: 100%; 
             border-collapse: collapse; 
             border: 2px solid black !important;
-            border-top: none !important; 
+            border-top: none !important; /* 상단 테이블과 연결 */
             table-layout: fixed;
         }
         .qr-cell { 
             width: 33.33%; 
-            height: 70mm; /* A4 높이 배분 */
+            height: 70mm; /* 높이 고정 (A4 3행 꽉 채움) */
             border: 1px solid black !important; 
             text-align: center; vertical-align: middle; 
             padding: 5px;
@@ -109,7 +109,7 @@ st.markdown("""
         .qr-img { width: 130px; height: 130px; margin: 5px auto; display: block; }
 
         /* 텍스트 스타일 */
-        .txt-dim-wrapper { font-size: 18pt; margin-bottom: 5px; display: block; line-height: 1.2; }
+        .txt-dim { font-size: 18pt; margin-bottom: 5px; display: block; line-height: 1.2; }
         .txt-elec { font-size: 14pt; font-weight: normal; margin-bottom: 5px; display: block; }
         .txt-lot { font-size: 10pt; font-weight: 900; margin-top: 5px; font-family: monospace; display: block; }
         .txt-info { font-size: 9pt; font-weight: bold; display: block; }
@@ -131,18 +131,16 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # ----------------------------------------------------
-# 🔍 [핵심] 치수 강조 로직 (가로 vs 세로)
+# 🔍 [핵심] 치수(가로/세로) 강조 함수
 # ----------------------------------------------------
 def get_styled_dimensions(w, h, elec):
     """
-    [가로] 포함 -> 가로(W) 진하게/크게, 세로(H) 연하게/작게
-    [세로] 포함 -> 가로(W) 연하게/작게, 세로(H) 진하게/크게
+    [가로] 포함 -> 가로(W) 진하게, 세로(H) 연하게
+    [세로] 포함 -> 가로(W) 연하게, 세로(H) 진하게
     """
-    # 스타일 정의
-    # 진하게: Black, Extra Bold, 1.3배 크기
-    style_bold = "font-weight: 900; font-size: 1.3em; color: black;"  
-    # 연하게: Gray, Normal, 0.9배 크기
-    style_light = "font-weight: 400; font-size: 0.9em; color: #999;" 
+    # 스타일: 진하게(검정, 큰폰트) / 연하게(회색, 작은폰트)
+    style_bold = "font-weight: 900; font-size: 1.2em; color: black;"  
+    style_light = "font-weight: 400; font-size: 1.0em; color: #999;" 
 
     if "가로" in elec:
         w_html = f"<span style='{style_bold}'>{w}</span>"
@@ -155,7 +153,7 @@ def get_styled_dimensions(w, h, elec):
         w_html = f"<span style='font-weight:bold; color:black;'>{w}</span>"
         h_html = f"<span style='font-weight:bold; color:black;'>{h}</span>"
 
-    return f"<div class='txt-dim-wrapper'>{w_html} x {h_html}</div>"
+    return f"<div class='txt-dim'>{w_html} x {h_html}</div>"
 
 def format_electrode_text(text):
     """ 전극 텍스트 내 숫자만 진하게 """
@@ -163,7 +161,7 @@ def format_electrode_text(text):
     return re.sub(r'(\d+)', r'<span style="font-weight:900; font-size:1.2em; color:black;">\1</span>', str(text))
 
 # ----------------------------------------------------
-# 📄 작업 지시서 HTML (Table 구조)
+# 📄 작업 지시서 HTML (Table 구조 - 인쇄 안정성 최우선)
 # ----------------------------------------------------
 def create_a4_html(header, items):
     LIMIT = 9
@@ -222,11 +220,11 @@ def create_label_html(items):
             if item:
                 img_b64 = image_to_base64(item['img'])
                 
-                # 라벨용 치수 강조
+                # 라벨용 치수 강조 (간단 버전)
                 w, h, elec = item['w'], item['h'], item['elec']
                 w_s, h_s = "", ""
-                if "가로" in elec: w_s = "font-weight:900; font-size:1.2em;"
-                elif "세로" in elec: h_s = "font-weight:900; font-size:1.2em;"
+                if "가로" in elec: w_s = "font-weight:900; font-size:1.1em;"
+                elif "세로" in elec: h_s = "font-weight:900; font-size:1.1em;"
                 
                 elec_html = format_electrode_text(elec)
                 html += f'<div style="font-size:16pt; margin-bottom:2px;"><span style="{w_s}">{w}</span>x<span style="{h_s}">{h}</span></div>'
@@ -346,21 +344,23 @@ with tab2:
         if st.session_state.generated_qrs:
             qrs = st.session_state.generated_qrs
             header_info = {'cust': qrs[0]['cust'], 'prod': qrs[0]['prod'], 'date': delivery_date.strftime('%Y-%m-%d'), 'fabric': fabric_lot, 'guide': guide_full_text, 'note': admin_notes}
+            
             html_content = create_a4_html(header_info, qrs)
             st.markdown(html_content, unsafe_allow_html=True)
+            
             if st.button("🖨️ 인쇄창 열기 (Print)", type="primary"):
                 components.html("<script>parent.window.print()</script>", height=0, width=0)
         else:
             st.info("⚠️ 현재 발행된 작업이 없습니다.")
             
-    # Case 2: 이력 조회 (기간 검색)
+    # Case 2: 이력 조회
     else:
         with st.form("history_search"):
             st.caption("🔍 날짜 기간을 설정하여 이력을 조회하세요.")
             col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
             d_range = col1.date_input("조회 기간", value=(datetime.now() - timedelta(days=7), datetime.now()), key="hist_date")
-            s_cust = col2.text_input("고객사 (포함)")
-            s_lot = col3.text_input("LOT 번호 (포함)")
+            s_cust = col2.text_input("고객사")
+            s_lot = col3.text_input("LOT 번호")
             do_search = col4.form_submit_button("🔍 조회", type="primary")
             
             if do_search:
@@ -408,7 +408,7 @@ with tab2:
 
                 for _, row in selected_rows.iterrows():
                     dim_str = row['dimension']
-                    w, h, elec = "규격", "확인", dim_str
+                    w, h, elec = "0", "0", "Unknown"
                     try:
                         match = re.search(r'(\d+)x(\d+)\s*\[(.*?)\]', dim_str) 
                         if match: 
@@ -427,8 +427,9 @@ with tab2:
 
                     print_items.append({"lot": row['lot_no'], "w": w, "h": h, "elec": elec, "prod": row['product'], "cust": row['customer'], "img": img})
                 
-                html_content = create_a4_html(header_info, print_items)
-                st.markdown(html_content, unsafe_allow_html=True)
+                # HTML 생성 및 인쇄
+                content_html = create_a4_html(header_info, print_items)
+                st.markdown(content_html, unsafe_allow_html=True)
                 
                 if st.button("🖨️ 선택 항목 인쇄하기", type="primary"):
                     components.html("<script>parent.window.print()</script>", height=0, width=0)
@@ -438,14 +439,16 @@ with tab2:
             st.write("조회된 데이터가 없습니다.")
 
 with tab3:
-    st.header("🏷️ QR 라벨 인쇄 (스티커용)")
+    st.header("🏷️ QR 라벨 인쇄")
     if st.session_state.generated_qrs:
-        st.markdown(create_label_html(st.session_state.generated_qrs), unsafe_allow_html=True)
-        if st.button("🖨️ 스티커 인쇄", type="primary"): components.html("<script>parent.window.print()</script>", height=0, width=0)
+        content_html = create_label_html(st.session_state.generated_qrs)
+        st.markdown(content_html, unsafe_allow_html=True)
+        if st.button("🖨️ 스티커 인쇄", type="primary"):
+            components.html("<script>parent.window.print()</script>", height=0, width=0)
     else:
         st.info("👈 먼저 [작업 입력] 탭에서 발행을 진행해주세요.")
 
-# 🔄 QR 재발행 탭
+# 🔄 QR 재발행 탭 (기능 복구)
 with tab4:
     st.header("🔄 QR 재발행 (선택 인쇄)")
     with st.form("reprint"):
