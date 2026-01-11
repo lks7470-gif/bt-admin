@@ -242,7 +242,7 @@ def get_label_content_html(items):
                 # LOT 번호
                 html += f'<div style="font-size:9pt; font-weight:900;">{item["lot"]}</div>'
                 # [추가] 원단 정보 표시 (작게)
-                html += f'<div style="font-size:8pt; color:#666; margin-top:2px;">원단: {fabric_info}</div>'
+                html += f'<div style="font-size:8pt; color:#666; margin-top:2px;"> {fabric_info}</div>'
 
             html += '</td>'
         html += '</tr>'
