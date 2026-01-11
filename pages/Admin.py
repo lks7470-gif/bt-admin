@@ -29,10 +29,23 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# ⚙️ 설정
+# ⚙️ 설정 & [추가] 명명 규칙 정의
 # ==========================================
 st.set_page_config(page_title="(주)베스트룸 생산관리", page_icon="🏭", layout="wide")
 APP_URL = "https://bt-app-pwgumeleefkwpf3xsu5bob.streamlit.app/"
+
+# [추가] 제품별 코드 매핑 (Smart LOT용)
+PRODUCT_PREFIX = {
+    "스마트글라스": "SG",  # Smart Glass
+    "접합필름": "LF",    # Lamination Film
+    "PDLC원단": "PD",    # PDLC Fabric
+    "일반유리": "GL"     # Glass
+}
+
+# [추가] 고객사 코드 생성 함수 (앞 2글자)
+def get_customer_code(name):
+    if not name: return "XX"
+    return name[:2].upper()
 
 if 'order_list' not in st.session_state: st.session_state.order_list = []
 if 'generated_qrs' not in st.session_state: st.session_state.generated_qrs = []
@@ -40,7 +53,7 @@ if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
 # ==========================================
-# 🖨️ [인쇄용] HTML/CSS 생성 함수 (백지 방지용 Iframe 방식)
+# 🖨️ [인쇄용] HTML/CSS 생성 함수
 # ==========================================
 def generate_print_html(content_html):
     return f"""
@@ -107,7 +120,6 @@ def generate_print_html(content_html):
     <body>
         {content_html}
         <script>
-            // 페이지 로드 후 0.5초 뒤 자동 인쇄 트리거
             setTimeout(function() {{
                 window.print();
             }}, 500);
@@ -125,12 +137,6 @@ def image_to_base64(img):
 # 🔍 [핵심] 치수 및 전극 강조 함수
 # ----------------------------------------------------
 def get_styled_dimensions(w, h, elec):
-    """ 
-    [가로] 선택시: 앞(W) 진하게, 뒤(H) 연하게
-    [세로] 선택시: 앞(W) 연하게, 뒤(H) 진하게
-    [없음] 선택시: 앞(W) 연하게, 뒤(H) 연하게
-    *폰트 크기 1.2em 통일*
-    """
     style_bold = "font-weight: 900; font-size: 1.2em; color: black;"  
     style_light = "font-weight: 400; font-size: 1.2em; color: #999;" 
 
@@ -147,12 +153,11 @@ def get_styled_dimensions(w, h, elec):
     return f"<div class='txt-dim'>{w_html} x {h_html}</div>"
 
 def format_electrode_text(text):
-    """ 전극 텍스트 내 숫자만 진하게 """
     if not text: return ""
     return re.sub(r'(\d+)', r'<span style="font-weight:900; font-size:1.2em; color:black;">\1</span>', str(text))
 
 # ----------------------------------------------------
-# 📄 HTML 컨텐츠 생성 함수
+# 📄 작업지시서(A4) HTML
 # ----------------------------------------------------
 def get_a4_content_html(header, items):
     LIMIT = 9
@@ -178,9 +183,7 @@ def get_a4_content_html(header, items):
             html += '<td class="qr-cell">'
             if item:
                 img_b64 = image_to_base64(item['img'])
-                # 1. 치수 강조
                 dim_html = get_styled_dimensions(item['w'], item['h'], item['elec'])
-                # 2. 전극 숫자 강조
                 elec_html = format_electrode_text(item['elec'])
 
                 html += f'{dim_html}'
@@ -194,6 +197,9 @@ def get_a4_content_html(header, items):
     html += '<div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>'
     return html
 
+# ----------------------------------------------------
+# 🏷️ [수정됨] 라벨 HTML (원단 정보 추가)
+# ----------------------------------------------------
 def get_label_content_html(items):
     cells_data = items[:12] + [None] * (12 - len(items[:12]))
     html = '<div style="text-align:center; margin-bottom:20px;">'
@@ -212,6 +218,9 @@ def get_label_content_html(items):
                 img_b64 = image_to_base64(item['img'])
                 w, h, elec = item['w'], item['h'], item['elec']
                 
+                # [추가] 원단 정보 가져오기 (없으면 '-')
+                fabric_info = item.get('fabric', '-')
+
                 style_bold = "font-weight: 900; font-size: 1.1em; color: black;"
                 style_light = "font-weight: 400; font-size: 1.1em; color: #999;" 
                 
@@ -230,14 +239,18 @@ def get_label_content_html(items):
                 html += f'<div style="font-size:16pt; margin-bottom:2px;">{w_html}x{h_html}</div>'
                 html += f'<div style="font-size:12pt; margin-bottom:5px;">[{elec_html}]</div>'
                 html += f'<img src="data:image/png;base64,{img_b64}" style="width:100px;">'
+                # LOT 번호
                 html += f'<div style="font-size:9pt; font-weight:900;">{item["lot"]}</div>'
+                # [추가] 원단 정보 표시 (작게)
+                html += f'<div style="font-size:8pt; color:#666; margin-top:2px;">원단: {fabric_info}</div>'
+
             html += '</td>'
         html += '</tr>'
     html += '</table>'
     return html
 
 # ----------------------------------------------------
-# 📱 접속 QR HTML 생성 함수 (수정됨)
+# 📱 접속 QR HTML
 # ----------------------------------------------------
 def get_access_qr_content_html(url, mode="big"):
     qr = qrcode.QRCode(box_size=10, border=1)
@@ -254,7 +267,6 @@ def get_access_qr_content_html(url, mode="big"):
                 <div style="font-size:15pt; margin-top:20px; font-family:monospace;">{url}</div>
             </div></div>"""
     else:
-        # ✂️ 상단 문구 추가됨
         html = '<div style="text-align:center; font-size:15pt; font-weight:bold; margin-bottom:10px;">✂️ 점선을 따라 잘라서 사용하세요.</div>'
         html += '<table class="grid-table">'
         for r in range(4):
@@ -315,8 +327,28 @@ with tab1:
         per_row = max(1, int(fab_w / in_w)) if in_w > 0 else 1
         est_len = (math.ceil(in_qty / per_row) * in_h) / 1000.0
         st.info(f"예상 소모량: {est_len:.1f} m")
+        
         if st.button("➕ 장바구니 추가", use_container_width=True):
-            st.session_state.order_list.append({"고객사": customer, "제품": product_type, "규격": f"{int(in_w)}x{int(in_h)}", "전극": in_elec, "수량": int(in_qty), "스펙": guide_full_text, "비고": admin_notes, "w": int(in_w), "h": int(in_h), "lot_no": fabric_lot, "calc_len": est_len})
+            # [추가] Smart LOT 생성을 위한 코드 조합
+            p_code = PRODUCT_PREFIX.get(product_type, "ET")
+            c_code = get_customer_code(customer)
+
+            st.session_state.order_list.append({
+                "고객사": customer, 
+                "제품": product_type, 
+                "규격": f"{int(in_w)}x{int(in_h)}", 
+                "전극": in_elec, 
+                "수량": int(in_qty), 
+                "스펙": guide_full_text, 
+                "비고": admin_notes, 
+                "w": int(in_w), 
+                "h": int(in_h), 
+                "lot_no": fabric_lot, 
+                "calc_len": est_len,
+                # [추가] 메타데이터 저장
+                "p_code": p_code,
+                "c_code": c_code
+            })
 
     if st.session_state.order_list:
         df = pd.DataFrame(st.session_state.order_list)
@@ -326,19 +358,37 @@ with tab1:
         if c1.button("🗑️ 삭제"):
             for i in sorted(edited_df[edited_df["선택"]].index.tolist(), reverse=True): del st.session_state.order_list[i]
             st.rerun()
+            
         if c2.button("🚀 최종 발행 및 저장 (Supabase)", type="primary", use_container_width=True):
-            today_str = datetime.now().strftime("%y%m%d"); base_time = datetime.now().strftime('%H%M%S'); new_qrs, cnt = [], 0
+            today_str = datetime.now().strftime("%y%m%d")
+            new_qrs, cnt = [], 1
+            
             for item in st.session_state.order_list:
                 for _ in range(item['수량']):
-                    cnt += 1; lot_id = f"LOT-{today_str}-{base_time}-{cnt:03d}"
-                    supabase.table("work_orders").insert({"lot_no": lot_id, "customer": item['고객사'], "product": item['제품'], "dimension": f"{item['규격']} [{item['전극']}]", "spec": item['스펙'], "status": "작업대기", "note": item['비고'], "fabric_lot_no": item['lot_no']}).execute()
+                    # [수정] Smart LOT 번호 생성 (SG-AC-240111-001)
+                    seq_str = f"{cnt:03d}"
+                    lot_id = f"{item['p_code']}-{item['c_code']}-{today_str}-{seq_str}"
+                    cnt += 1
+
+                    supabase.table("work_orders").insert({
+                        "lot_no": lot_id, "customer": item['고객사'], "product": item['제품'], 
+                        "dimension": f"{item['규격']} [{item['전극']}]", "spec": item['스펙'], 
+                        "status": "작업대기", "note": item['비고'], "fabric_lot_no": item['lot_no']
+                    }).execute()
+                    
                     qr = qrcode.QRCode(box_size=5, border=2); qr.add_data(lot_id); qr.make(fit=True); img = qr.make_image(fill_color="black", back_color="white")
-                    new_qrs.append({"lot": lot_id, "w": item['w'], "h": item['h'], "elec": item['전극'], "prod": item['제품'], "cust": item['고객사'], "img": img})
+                    
+                    # [수정] 라벨 출력을 위해 'fabric' 정보도 함께 전달
+                    new_qrs.append({
+                        "lot": lot_id, "w": item['w'], "h": item['h'], "elec": item['전극'], 
+                        "prod": item['제품'], "cust": item['고객사'], "fabric": item['lot_no'], "img": img
+                    })
                 try:
                     curr = supabase.table("fabric_stock").select("used_len").eq("lot_no", item['lot_no']).execute()
                     if curr.data: supabase.table("fabric_stock").update({"used_len": float(curr.data[0]['used_len']) + item['calc_len']}).eq("lot_no", item['lot_no']).execute()
                 except: pass
-            st.session_state.generated_qrs = new_qrs; st.session_state.order_list = []; st.session_state.fabric_db = fetch_fabric_stock(); st.success("✅ Supabase 저장 완료!"); st.rerun()
+            
+            st.session_state.generated_qrs = new_qrs; st.session_state.order_list = []; st.session_state.fabric_db = fetch_fabric_stock(); st.success("✅ Smart LOT 적용 완료!"); st.rerun()
 
 with tab2:
     st.header("📄 작업 지시서 인쇄")
@@ -349,12 +399,8 @@ with tab2:
         if st.session_state.generated_qrs:
             qrs = st.session_state.generated_qrs
             header_info = {'cust': qrs[0]['cust'], 'prod': qrs[0]['prod'], 'date': delivery_date.strftime('%Y-%m-%d'), 'fabric': fabric_lot, 'guide': guide_full_text, 'note': admin_notes}
-            
-            # HTML 생성 및 화면 표시
             content_html = get_a4_content_html(header_info, qrs)
-            st.components.v1.html(content_html, height=1000, scrolling=True) # 화면 확인용
-            
-            # 인쇄 버튼 (Iframe 방식)
+            st.components.v1.html(content_html, height=1000, scrolling=True)
             if st.button("🖨️ 인쇄하기 (Print)", type="primary"):
                 full_html = generate_print_html(content_html)
                 components.html(full_html, height=0, width=0)
@@ -372,80 +418,45 @@ with tab2:
             do_search = col4.form_submit_button("🔍 조회", type="primary")
             
             if do_search:
-                if isinstance(d_range, tuple):
-                    start_date = d_range[0]
-                    end_date = d_range[1] if len(d_range) > 1 else d_range[0]
+                if isinstance(d_range, tuple): start_date = d_range[0]; end_date = d_range[1] if len(d_range) > 1 else d_range[0]
                 else: start_date = end_date = d_range
-
-                start_ts = start_date.strftime("%Y-%m-%d 00:00:00")
-                end_ts = end_date.strftime("%Y-%m-%d 23:59:59")
-                
+                start_ts = start_date.strftime("%Y-%m-%d 00:00:00"); end_ts = end_date.strftime("%Y-%m-%d 23:59:59")
                 query = supabase.table("work_orders").select("*").gte("created_at", start_ts).lte("created_at", end_ts)
                 if s_cust: query = query.ilike("customer", f"%{s_cust}%")
                 if s_lot: query = query.ilike("lot_no", f"%{s_lot}%")
-                
-                try:
-                    res = query.execute()
-                    st.session_state.history_data = res.data
-                except Exception as e:
-                    st.error(f"조회 실패: {e}"); st.session_state.history_data = []
+                try: res = query.execute(); st.session_state.history_data = res.data
+                except Exception as e: st.error(f"조회 실패: {e}"); st.session_state.history_data = []
         
         if st.session_state.history_data:
-            edited_hist = st.data_editor(
-                pd.DataFrame(st.session_state.history_data).assign(선택=False), 
-                hide_index=True, use_container_width=True,
-                column_config={"선택": st.column_config.CheckboxColumn(width="small")}
-            )
-            
+            edited_hist = st.data_editor(pd.DataFrame(st.session_state.history_data).assign(선택=False), hide_index=True, use_container_width=True, column_config={"선택": st.column_config.CheckboxColumn(width="small")})
             selected_rows = edited_hist[edited_hist["선택"]]
             
             if not selected_rows.empty:
-                st.divider()
-                st.success(f"✅ {len(selected_rows)}개 항목 선택됨")
-                
+                st.divider(); st.success(f"✅ {len(selected_rows)}개 항목 선택됨")
                 print_items = []
                 first_row = selected_rows.iloc[0]
                 header_info = {
-                    'cust': first_row['customer'], 
-                    'prod': first_row['product'], 
-                    'date': pd.to_datetime(first_row['created_at']).strftime('%Y-%m-%d'), 
-                    'fabric': first_row.get('fabric_lot_no', 'Unknown'), 
-                    'guide': first_row.get('spec', ''), 
-                    'note': first_row.get('note', '')
+                    'cust': first_row['customer'], 'prod': first_row['product'], 'date': pd.to_datetime(first_row['created_at']).strftime('%Y-%m-%d'), 
+                    'fabric': first_row.get('fabric_lot_no', 'Unknown'), 'guide': first_row.get('spec', ''), 'note': first_row.get('note', '')
                 }
-
                 for _, row in selected_rows.iterrows():
-                    dim_str = row['dimension']
-                    w, h, elec = "0", "0", "Unknown"
+                    dim_str = row['dimension']; w, h, elec = "0", "0", "Unknown"
                     try:
                         match = re.search(r'(\d+)x(\d+)\s*\[(.*?)\]', dim_str) 
-                        if match: 
-                            w, h = match.group(1), match.group(2)
-                            elec = match.group(3)
+                        if match: w, h = match.group(1), match.group(2); elec = match.group(3)
                         else:
-                            parts = dim_str.split('[')
-                            if len(parts) > 1:
-                                wh = parts[0].split('x'); w, h = wh[0].strip(), wh[1].strip(); elec = parts[1].replace(']', '').strip()
+                            parts = dim_str.split('['); 
+                            if len(parts) > 1: wh = parts[0].split('x'); w, h = wh[0].strip(), wh[1].strip(); elec = parts[1].replace(']', '').strip()
                     except: pass
-
-                    qr = qrcode.QRCode(box_size=5, border=2)
-                    qr.add_data(row['lot_no'])
-                    qr.make(fit=True)
-                    img = qr.make_image(fill_color="black", back_color="white")
-
+                    qr = qrcode.QRCode(box_size=5, border=2); qr.add_data(row['lot_no']); qr.make(fit=True); img = qr.make_image(fill_color="black", back_color="white")
                     print_items.append({"lot": row['lot_no'], "w": w, "h": h, "elec": elec, "prod": row['product'], "cust": row['customer'], "img": img})
                 
-                # HTML 생성 및 인쇄
                 content_html = get_a4_content_html(header_info, print_items)
                 st.components.v1.html(content_html, height=500, scrolling=True)
-                
                 if st.button("🖨️ 선택 항목 인쇄하기", type="primary"):
-                    full_html = generate_print_html(content_html)
-                    components.html(full_html, height=0, width=0)
-            else:
-                st.info("👆 인쇄할 항목을 체크(v) 하세요.")
-        else:
-            st.write("조회된 데이터가 없습니다.")
+                    full_html = generate_print_html(content_html); components.html(full_html, height=0, width=0)
+            else: st.info("👆 인쇄할 항목을 체크(v) 하세요.")
+        else: st.write("조회된 데이터가 없습니다.")
 
 with tab3:
     st.header("🏷️ QR 라벨 인쇄")
@@ -458,15 +469,14 @@ with tab3:
     else:
         st.info("👈 먼저 [작업 입력] 탭에서 발행을 진행해주세요.")
 
-# 🔄 QR 재발행 탭 (기능 복구)
+# 🔄 QR 재발행 탭
 with tab4:
     st.header("🔄 QR 재발행")
     with st.form("reprint"):
         c1,c2=st.columns([3,1]); s_d=c1.date_input("날짜"); btn=c2.form_submit_button("조회")
         if btn:
             try: 
-                start_ts = s_d.strftime("%Y-%m-%d 00:00:00")
-                end_ts = s_d.strftime("%Y-%m-%d 23:59:59")
+                start_ts = s_d.strftime("%Y-%m-%d 00:00:00"); end_ts = s_d.strftime("%Y-%m-%d 23:59:59")
                 res=supabase.table("work_orders").select("*").gte("created_at", start_ts).lte("created_at", end_ts).execute()
                 st.session_state.reprint_data=res.data
             except Exception as e: st.error(f"오류: {e}")
@@ -481,28 +491,29 @@ with tab4:
                 rep_items = []
                 first_row = sel_rows.iloc[0]
                 rep_header = {
-                    'cust': first_row['customer'], 'prod': first_row['product'], 
-                    'date': pd.to_datetime(first_row['created_at']).strftime('%Y-%m-%d'), 
-                    'fabric': first_row.get('fabric_lot_no', 'Unknown'), 
-                    'guide': first_row.get('spec', ''), 'note': first_row.get('note', '')
+                    'cust': first_row['customer'], 'prod': first_row['product'], 'date': pd.to_datetime(first_row['created_at']).strftime('%Y-%m-%d'), 
+                    'fabric': first_row.get('fabric_lot_no', 'Unknown'), 'guide': first_row.get('spec', ''), 'note': first_row.get('note', '')
                 }
                 
                 for _, row in sel_rows.iterrows():
-                    dim_str = row['dimension']
-                    w, h, elec = "0", "0", "Unknown"
+                    dim_str = row['dimension']; w, h, elec = "0", "0", "Unknown"
                     try:
                         match = re.search(r'(\d+)x(\d+)\s*\[(.*?)\]', dim_str) 
                         if match: w, h, elec = match.group(1), match.group(2), match.group(3)
                         else:
-                            elec_match = re.search(r'\[(.*?)\]', dim_str)
-                            elec = elec_match.group(1) if elec_match else ""
-                            nums = re.findall(r'\d+', dim_str)
+                            elec_match = re.search(r'\[(.*?)\]', dim_str); elec = elec_match.group(1) if elec_match else ""
+                            nums = re.findall(r'\d+', dim_str); 
                             if len(nums) >= 2: w, h = nums[0], nums[1]
                     except: pass
                     
-                    qr = qrcode.QRCode(box_size=5, border=2); qr.add_data(row['lot_no']); qr.make(fit=True)
-                    img = qr.make_image(fill_color="black", back_color="white")
-                    rep_items.append({"lot": row['lot_no'], "w": w, "h": h, "elec": elec, "cust": row['customer'], "prod": row['product'], "img": img})
+                    qr = qrcode.QRCode(box_size=5, border=2); qr.add_data(row['lot_no']); qr.make(fit=True); img = qr.make_image(fill_color="black", back_color="white")
+                    
+                    # [수정] 재발행 시에도 DB에 저장된 fabric_lot_no를 전달
+                    rep_items.append({
+                        "lot": row['lot_no'], "w": w, "h": h, "elec": elec, 
+                        "cust": row['customer'], "prod": row['product'], 
+                        "fabric": row.get('fabric_lot_no', '-'), "img": img
+                    })
                 
                 content_html = get_a4_content_html(rep_header, rep_items)
                 st.components.v1.html(content_html, height=500, scrolling=True)
@@ -530,27 +541,16 @@ with tab9:
     st.header("📱 현장 접속 QR 인쇄")
     qr_mode = st.radio("인쇄 스타일을 선택하세요", ["벽 부착용 (대형 1개)", "배포용 (소형 8개)"], horizontal=True)
     
-    # 1. QR 이미지 생성 (PIL 객체)
-    qr = qrcode.QRCode(box_size=10, border=1)
-    qr.add_data(APP_URL)
-    qr.make(fit=True)
-    img_pil = qr.make_image(fill_color="black", back_color="white")
-    
-    # 2. 화면 표시용 (BytesIO 사용 -> 에러 방지)
-    buf = io.BytesIO()
-    img_pil.save(buf, format="PNG")
-    byte_im = buf.getvalue()
+    qr = qrcode.QRCode(box_size=10, border=1); qr.add_data(APP_URL); qr.make(fit=True); img_pil = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO(); img_pil.save(buf, format="PNG"); byte_im = buf.getvalue()
 
     c1, c2 = st.columns([1, 3])
-    with c1:
-        st.image(byte_im, width=200, caption="접속 URL QR")
+    with c1: st.image(byte_im, width=200, caption="접속 URL QR")
     with c2:
         st.success(f"접속 주소: {APP_URL}")
-        
         mode_key = "big" if "대형" in qr_mode else "small"
         content_html = get_access_qr_content_html(APP_URL, mode_key)
         st.components.v1.html(content_html, height=600, scrolling=True)
-        
         if st.button("🖨️ QR 인쇄하기", type="primary", use_container_width=True):
             full_html = generate_print_html(content_html)
             components.html(full_html, height=0, width=0)
