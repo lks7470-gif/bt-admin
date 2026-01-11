@@ -122,17 +122,17 @@ def image_to_base64(img):
     return base64.b64encode(buffered.getvalue()).decode()
 
 # ----------------------------------------------------
-# 🔍 [핵심] 치수 및 전극 강조 함수 (수정됨)
+# 🔍 [핵심] 치수 및 전극 강조 함수
 # ----------------------------------------------------
 def get_styled_dimensions(w, h, elec):
     """ 
     [가로] 선택시: 앞(W) 진하게, 뒤(H) 연하게
     [세로] 선택시: 앞(W) 연하게, 뒤(H) 진하게
     [없음] 선택시: 앞(W) 연하게, 뒤(H) 연하게
-    *수정: 연한 숫자와 진한 숫자의 폰트 크기(1.2em)를 동일하게 맞춤*
+    *폰트 크기 1.2em 통일*
     """
     style_bold = "font-weight: 900; font-size: 1.2em; color: black;"  
-    style_light = "font-weight: 400; font-size: 1.2em; color: #999;" # 1.0em -> 1.2em으로 변경
+    style_light = "font-weight: 400; font-size: 1.2em; color: #999;" 
 
     if "가로" in elec:
         w_html = f"<span style='{style_bold}'>{w}</span>"
@@ -141,7 +141,6 @@ def get_styled_dimensions(w, h, elec):
         w_html = f"<span style='{style_light}'>{w}</span>"
         h_html = f"<span style='{style_bold}'>{h}</span>"
     else:
-        # 없음/기타 -> 둘 다 연하게
         w_html = f"<span style='{style_light}'>{w}</span>"
         h_html = f"<span style='{style_light}'>{h}</span>"
 
@@ -213,10 +212,8 @@ def get_label_content_html(items):
                 img_b64 = image_to_base64(item['img'])
                 w, h, elec = item['w'], item['h'], item['elec']
                 
-                # 라벨용 치수 강조 로직 적용 (스타일 문자열 구성) - 수정됨
-                # 여기서도 폰트 크기를 1.1em으로 통일했습니다.
                 style_bold = "font-weight: 900; font-size: 1.1em; color: black;"
-                style_light = "font-weight: 400; font-size: 1.1em; color: #999;" # 1.0em -> 1.1em 변경
+                style_light = "font-weight: 400; font-size: 1.1em; color: #999;" 
                 
                 if "가로" in elec:
                     w_html = f"<span style='{style_bold}'>{w}</span>"
@@ -239,6 +236,9 @@ def get_label_content_html(items):
     html += '</table>'
     return html
 
+# ----------------------------------------------------
+# 📱 접속 QR HTML 생성 함수 (수정됨)
+# ----------------------------------------------------
 def get_access_qr_content_html(url, mode="big"):
     qr = qrcode.QRCode(box_size=10, border=1)
     qr.add_data(url)
@@ -254,7 +254,9 @@ def get_access_qr_content_html(url, mode="big"):
                 <div style="font-size:15pt; margin-top:20px; font-family:monospace;">{url}</div>
             </div></div>"""
     else:
-        html = '<table class="grid-table">'
+        # ✂️ 상단 문구 추가됨
+        html = '<div style="text-align:center; font-size:15pt; font-weight:bold; margin-bottom:10px;">✂️ 점선을 따라 잘라서 사용하세요.</div>'
+        html += '<table class="grid-table">'
         for r in range(4):
             html += '<tr>'
             for c in range(2):
