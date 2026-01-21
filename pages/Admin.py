@@ -531,13 +531,14 @@ with tab5:
     res=supabase.table("fabric_stock").select("*").execute(); st.data_editor(pd.DataFrame(res.data),hide_index=True)
 
 # ==========================================
-# 📊 [Tab 6] 통합 관제 및 이력 관리 (수정버전)
+# 📊 [Tab 6] 통합 관제 및 이력 관리 (완전체)
 # ==========================================
 with tab6:
     st.title("📊 생산 현황 및 이력 관리")
 
-    # 1. 데이터 가져오기
+    # 1. 데이터 가져오기 (최신순 200개)
     try:
+        # spec(작업조건)과 note(특이사항) 등 모든 컬럼 조회
         res = supabase.table("work_orders").select("*").order("created_at", desc=True).limit(200).execute()
         df_log = pd.DataFrame(res.data)
     except Exception as e:
@@ -549,7 +550,7 @@ with tab6:
         # 🛠️ [긴급 수정] 날짜 데이터 형식 변환 (String -> Datetime)
         # -------------------------------------------------------
         if "created_at" in df_log.columns:
-            # 에러가 발생하는 원인 해결: 문자열을 날짜 객체로 변환
+            # 에러 방지: 문자열을 날짜 객체로 변환
             df_log["created_at"] = pd.to_datetime(df_log["created_at"])
 
         # 2. 상단 현황판 (Dashboard)
@@ -557,27 +558,33 @@ with tab6:
         status_counts = df_log['status'].value_counts()
         
         k1, k2, k3, k4 = st.columns(4)
+        
+        # (1) 작업 대기
         wait_cnt = status_counts.get("작업대기", 0)
         k1.metric("⚪ 작업 대기", f"{wait_cnt}건")
         
+        # (2) 공정 진행중 (대기, 완료, 불량 제외한 모든 상태)
         ing_cnt = sum([v for k, v in status_counts.items() if k not in ["작업대기", "완료", "End"] and "불량" not in k])
         k2.metric("🔵 공정 진행중", f"{ing_cnt}건")
         
+        # (3) 생산 완료
         done_cnt = status_counts.get("완료", 0) + status_counts.get("End", 0)
         k3.metric("🟢 생산 완료", f"{done_cnt}건")
         
+        # (4) 불량/이슈
         defect_cnt = df_log[df_log['status'].str.contains("불량|보류", na=False)].shape[0]
         k4.metric("🔴 불량/이슈", f"{defect_cnt}건")
 
         st.divider()
 
-        # 3. 상세 리스트 및 삭제 관리
-        st.markdown("### 📋 발행 이력 상세")
+        # 3. 상세 리스트 및 필터링
+        st.markdown("### 📋 발행 이력 조회")
         
         c_filter1, c_filter2 = st.columns(2)
         filter_status = c_filter1.multiselect("상태별 필터", options=df_log['status'].unique())
-        filter_lot = c_filter2.text_input("LOT 번호 검색")
+        filter_lot = c_filter2.text_input("LOT 번호 검색", placeholder="SG-...")
         
+        # 필터 적용
         df_view = df_log.copy()
         if filter_status:
             df_view = df_view[df_view['status'].isin(filter_status)]
@@ -588,7 +595,7 @@ with tab6:
         df_view.insert(0, "선택", False)
         
         # -------------------------------------------------------
-        # 🛠️ 데이터 에디터 (이제 에러가 나지 않습니다)
+        # 🛠️ 데이터 에디터 (스펙 요약 컬럼 추가됨)
         # -------------------------------------------------------
         edited_log = st.data_editor(
             df_view,
@@ -599,44 +606,120 @@ with tab6:
                 "created_at": st.column_config.DatetimeColumn("발행일시", format="MM-DD HH:mm"),
                 "lot_no": st.column_config.TextColumn("LOT 번호", width="medium"),
                 "status": st.column_config.TextColumn("현재 상태"),
-                "customer": "고객사",
-                "product": "제품",
-                "dimension": "규격",
+                "product": st.column_config.TextColumn("제품"),
+                "spec": st.column_config.TextColumn("스펙 요약", width="medium", help="커팅/접합 조건 원본"),
                 "note": "비고"
             },
             key="history_editor"
         )
 
-        # 4. 삭제 로직
+        # 4. 선택 항목에 대한 [상세 보기] 및 [삭제 관리]
         selected_rows = edited_log[edited_log["선택"]]
         
         if not selected_rows.empty:
             st.markdown("---")
-            st.markdown(f"#### ✅ {len(selected_rows)}개 항목이 선택되었습니다.")
+            # 탭을 나누어 기능 분리
+            detail_tab, delete_tab = st.tabs(["🔍 상세 조건 확인", "🗑️ 데이터 삭제"])
             
-            is_delete_mode = st.toggle("🚨 관리자 삭제 모드 (Delete Mode)", value=False)
-            
-            if is_delete_mode:
-                warning_box = st.container(border=True)
-                warning_box.markdown("""<div style="color:#C62828;"><b>⛔ 경고: 데이터 영구 삭제</b><br>삭제하시려면 아래에 '삭제승인'을 입력하세요.</div>""", unsafe_allow_html=True)
+            # (A) 상세 조건 확인 탭 (첫 번째 선택 항목 기준)
+            with detail_tab:
+                row = selected_rows.iloc[0]
+                st.info(f"선택된 항목 중 최상단 `{row['lot_no']}`의 상세 작업 지시 내용입니다.")
                 
-                c_confirm, c_btn = st.columns([3, 1])
-                user_confirm = c_confirm.text_input("확인 입력", placeholder="삭제승인", label_visibility="collapsed")
+                spec_text = row.get("spec", "")
+                note_text = row.get("note", "")
                 
-                if c_btn.button("🗑️ 삭제 실행", type="primary", use_container_width=True):
-                    if user_confirm == "삭제승인":
-                        try:
-                            delete_lots = selected_rows['lot_no'].tolist()
-                            supabase.table("work_orders").delete().in_("lot_no", delete_lots).execute()
-                            st.toast(f"🗑️ {len(delete_lots)}건 삭제 완료", icon="✅")
-                            time.sleep(1)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"오류: {e}")
-                    else:
-                        st.error("입력 문구가 일치하지 않습니다.")
+                # 텍스트 파싱 (암호 풀기: Full(50/80/20) -> 값 추출)
+                full_cut = "정보 없음"
+                half_cut = "정보 없음"
+                lam_cond = "정보 없음"
+                
+                if spec_text:
+                    parts = spec_text.split('|')
+                    for p in parts:
+                        p = p.strip()
+                        if "Full" in p: full_cut = p.replace("Full", "").strip("()")
+                        elif "Half" in p: half_cut = p.replace("Half", "").strip("()")
+                        elif "단계" in p or "℃" in p: lam_cond = p
+                
+                # 카드 UI 형태로 보여주기
+                with st.container(border=True):
+                    st.markdown(f"#### 📌 LOT: `{row['lot_no']}` 작업 지시서")
+                    
+                    c_cut1, c_cut2 = st.columns(2)
+                    with c_cut1:
+                        st.markdown("##### ✂️ 풀컷 (Full Cut)")
+                        if full_cut != "정보 없음":
+                            try:
+                                sp, mx, mn = full_cut.split('/')
+                                st.write(f"- 속도: **{sp}**")
+                                st.write(f"- Max: **{mx}**")
+                                st.write(f"- Min: **{mn}**")
+                            except:
+                                st.write(full_cut)
+                        else:
+                            st.caption("설정값 없음")
+                            
+                    with c_cut2:
+                        st.markdown("##### 🗡️ 하프컷 (Half Cut)")
+                        if half_cut != "정보 없음":
+                            try:
+                                sp, mx, mn = half_cut.split('/')
+                                st.write(f"- 속도: **{sp}**")
+                                st.write(f"- Max: **{mx}**")
+                                st.write(f"- Min: **{mn}**")
+                            except:
+                                st.write(half_cut)
+                        else:
+                            st.caption("설정값 없음")
+                    
+                    st.divider()
+                    
+                    c_lam, c_note = st.columns(2)
+                    with c_lam:
+                        st.markdown("##### 🔥 접합 유리 조건")
+                        formatted_lam = lam_cond.replace("->", " → ")
+                        st.write(formatted_lam)
+                        
+                    with c_note:
+                        st.markdown("##### ⚠️ 특이사항 (비고)")
+                        if note_text and str(note_text).strip() != "":
+                            st.error(f"📢 {note_text}")
+                        else:
+                            st.caption("특이사항 없음")
+                    
+                    st.caption(f"🧵 원단 정보: {row.get('fabric_lot_no', '-')}")
+
+            # (B) 삭제 관리 탭
+            with delete_tab:
+                st.warning(f"선택된 {len(selected_rows)}개의 데이터를 영구 삭제합니다.")
+                
+                is_delete_mode = st.toggle("🚨 관리자 삭제 모드 켜기", value=False)
+                
+                if is_delete_mode:
+                    warning_box = st.container(border=True)
+                    warning_box.markdown("""<div style="color:#C62828;"><b>⛔ 경고: 데이터 영구 삭제</b><br>삭제하시려면 아래에 <b>'삭제승인'</b>을 입력하세요.</div>""", unsafe_allow_html=True)
+                    
+                    c_confirm, c_btn = st.columns([3, 1])
+                    user_confirm = c_confirm.text_input("승인 코드 입력", placeholder="삭제승인", label_visibility="collapsed")
+                    
+                    if c_btn.button("🗑️ 삭제 실행", type="primary", use_container_width=True):
+                        if user_confirm == "삭제승인":
+                            try:
+                                delete_lots = selected_rows['lot_no'].tolist()
+                                supabase.table("work_orders").delete().in_("lot_no", delete_lots).execute()
+                                st.toast(f"🗑️ {len(delete_lots)}건 삭제 완료!", icon="✅")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"삭제 오류: {e}")
+                        else:
+                            st.error("승인 코드가 일치하지 않습니다.")
+                else:
+                    st.info("실수로 삭제하는 것을 방지하기 위해 스위치를 켜야 합니다.")
+
     else:
-        st.info("데이터가 없습니다.")
+        st.info("조회된 데이터가 없습니다.")
 
 with tab7:
     with st.form("track"): c1,c2=st.columns([4,1]); l=c1.text_input("LOT"); b=c2.form_submit_button("조회")
