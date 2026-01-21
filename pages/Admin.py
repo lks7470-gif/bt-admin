@@ -530,7 +530,140 @@ with tab5:
             supabase.table("fabric_stock").insert({"lot_no":n_lot,"name":n_name,"width":n_w,"total_len":n_tot,"used_len":n_tot-n_rem}).execute(); st.rerun()
     res=supabase.table("fabric_stock").select("*").execute(); st.data_editor(pd.DataFrame(res.data),hide_index=True)
 
-with tab6: res=supabase.table("work_orders").select("*").order("created_at",desc=True).limit(50).execute(); st.dataframe(pd.DataFrame(res.data),use_container_width=True)
+# ==========================================
+# 📊 [Tab 6] 통합 관제 및 이력 관리 (대폭 수정)
+# ==========================================
+with tab6:
+    st.title("📊 생산 현황 및 이력 관리")
+
+    # 1. 데이터 가져오기 (최신순 200개)
+    # ----------------------------------------
+    try:
+        # DB에서 최신 데이터 조회
+        res = supabase.table("work_orders").select("*").order("created_at", desc=True).limit(200).execute()
+        df_log = pd.DataFrame(res.data)
+    except Exception as e:
+        st.error(f"데이터 조회 실패: {e}")
+        df_log = pd.DataFrame()
+
+    if not df_log.empty:
+        # 2. 상단 현황판 (Dashboard) - 현재 공장 상황 요약
+        # ----------------------------------------
+        st.markdown("### 🏭 실시간 공정 현황")
+        
+        # 상태별 카운트 계산
+        status_counts = df_log['status'].value_counts()
+        
+        # 보기 좋게 4분할
+        k1, k2, k3, k4 = st.columns(4)
+        
+        # (1) 대기중
+        wait_cnt = status_counts.get("작업대기", 0)
+        k1.metric("⚪ 작업 대기", f"{wait_cnt}건", delta_color="off")
+        
+        # (2) 진행중 (Cut, Half 등 모든 진행 상태 포함)
+        # '작업대기', '완료', '불량'을 제외한 모든 것을 진행중으로 간주
+        ing_cnt = sum([v for k, v in status_counts.items() if k not in ["작업대기", "완료", "End"] and "불량" not in k])
+        k2.metric("🔵 공정 진행중", f"{ing_cnt}건", help="커팅, 전극, 접합 등 진행 중인 작업")
+        
+        # (3) 완료
+        done_cnt = status_counts.get("완료", 0) + status_counts.get("End", 0)
+        k3.metric("🟢 생산 완료", f"{done_cnt}건")
+        
+        # (4) 불량
+        # 상태 메시지에 '불량'이나 '보류'가 포함된 경우
+        defect_cnt = df_log[df_log['status'].str.contains("불량|보류", na=False)].shape[0]
+        k4.metric("🔴 불량/이슈", f"{defect_cnt}건")
+
+        st.divider()
+
+        # 3. 상세 리스트 및 삭제 관리
+        # ----------------------------------------
+        st.markdown("### 📋 발행 이력 상세")
+        
+        # (1) 필터링 기능
+        c_filter1, c_filter2 = st.columns(2)
+        filter_status = c_filter1.multiselect("상태별 필터", options=df_log['status'].unique())
+        filter_lot = c_filter2.text_input("LOT 번호 검색", placeholder="예: SG-AC-...")
+        
+        # 필터 적용
+        df_view = df_log.copy()
+        if filter_status:
+            df_view = df_view[df_view['status'].isin(filter_status)]
+        if filter_lot:
+            df_view = df_view[df_view['lot_no'].str.contains(filter_lot, case=False)]
+
+        # (2) 데이터 에디터 (체크박스 포함)
+        df_view.insert(0, "선택", False) # 선택 컬럼 맨 앞에 추가
+        
+        # 컬럼 설정 (보기 좋게 정리)
+        edited_log = st.data_editor(
+            df_view,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "선택": st.column_config.CheckboxColumn(width="small"),
+                "created_at": st.column_config.DatetimeColumn("발행일시", format="MM-DD HH:mm"),
+                "lot_no": st.column_config.TextColumn("LOT 번호", width="medium"),
+                "status": st.column_config.TextColumn("현재 상태"),
+                "customer": "고객사",
+                "product": "제품",
+                "dimension": "규격",
+                "note": "비고"
+            },
+            key="history_editor"
+        )
+
+        # 4. 🚨 위험 관리 구역 (삭제 로직)
+        # ----------------------------------------
+        selected_rows = edited_log[edited_log["선택"]]
+        
+        if not selected_rows.empty:
+            st.markdown("---")
+            st.markdown(f"#### ✅ {len(selected_rows)}개 항목이 선택되었습니다.")
+            
+            # [삭제 모드] 토글 스위치
+            is_delete_mode = st.toggle("🚨 관리자 삭제 모드 (Delete Mode)", value=False)
+            
+            if is_delete_mode:
+                # 붉은색 경고 박스
+                warning_box = st.container(border=True)
+                warning_box.markdown("""
+                <div style="background-color:#FFEBEE; padding:15px; border-radius:10px; color:#C62828;">
+                    <b>⛔ 경고: 데이터 영구 삭제</b><br>
+                    선택한 항목을 정말로 삭제하시겠습니까?<br>
+                    이 작업은 되돌릴 수 없으며, 연결된 생산 실적 데이터에 오류를 줄 수 있습니다.<br>
+                    테스트 발행이나 실수인 경우에만 진행하세요.
+                </div>
+                """, unsafe_allow_html=True)
+                
+                c_confirm, c_btn = st.columns([3, 1])
+                
+                # 안전장치: 텍스트 입력 확인
+                user_confirm = c_confirm.text_input("아래에 '삭제승인' 이라고 입력하세요.", placeholder="삭제승인")
+                
+                if c_btn.button("🗑️ 영구 삭제 실행", type="primary", use_container_width=True):
+                    if user_confirm == "삭제승인":
+                        try:
+                            # 선택된 LOT 번호 리스트 추출
+                            delete_lots = selected_rows['lot_no'].tolist()
+                            
+                            # Supabase에서 삭제 수행
+                            supabase.table("work_orders").delete().in_("lot_no", delete_lots).execute()
+                            
+                            st.toast(f"🗑️ {len(delete_lots)}건이 삭제되었습니다.", icon="✅")
+                            time.sleep(1)
+                            st.rerun() # 화면 새로고침
+                        except Exception as e:
+                            st.error(f"삭제 중 오류 발생: {e}")
+                    else:
+                        st.error("⛔ 확인 문구가 일치하지 않습니다. '삭제승인'을 정확히 입력해주세요.")
+            else:
+                st.info("💡 삭제하려면 위 '관리자 삭제 모드' 스위치를 켜주세요.")
+        
+    else:
+        st.info("데이터가 없습니다.")
+
 with tab7:
     with st.form("track"): c1,c2=st.columns([4,1]); l=c1.text_input("LOT"); b=c2.form_submit_button("조회")
     if b: r=supabase.table("work_orders").select("*").eq("lot_no",l).execute(); st.write(r.data)
