@@ -319,76 +319,164 @@ admin_notes = st.sidebar.text_area("비고", key="admin_notes_1")
 # 메인 탭
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["📝 작업 입력", "📄 지시서 인쇄", "🏷️ 라벨 인쇄", "🔄 QR 재발행", "🧵 원단 재고", "📊 발행 이력", "🔍 제품 추적", "🚨 불량 현황", "📱 접속 QR"])
 
+# ==========================================
+# 📝 [Tab 1] 신규 작업 지시 생성 (입력)
+# ==========================================
 with tab1:
-    st.title("📝 관리자용 - 지시서 발행")
-    with st.container(border=True):
-        c1, c2, c3, c4 = st.columns([2, 2, 2, 1])
-        in_w = c1.number_input("가로(mm)", value=1000); in_h = c2.number_input("세로(mm)", value=2000); in_elec = c3.selectbox("전극", ["없음", "가로(1면)", "세로(1면)", "양쪽가로", "양쪽세로"]); in_qty = c4.number_input("수량", min_value=1, value=1) 
-        per_row = max(1, int(fab_w / in_w)) if in_w > 0 else 1
-        est_len = (math.ceil(in_qty / per_row) * in_h) / 1000.0
-        st.info(f"예상 소모량: {est_len:.1f} m")
+    st.markdown("### 📝 신규 작업 지시 등록")
+
+    # ------------------------------------------------------------------
+    # 1. 입력 폼 (사이드바 활용)
+    # ------------------------------------------------------------------
+    with st.form("order_form"):
+        c1, c2 = st.columns([1, 1])
         
-        if st.button("➕ 장바구니 추가", use_container_width=True):
-            # [추가] Smart LOT 생성을 위한 코드 조합
-            p_code = PRODUCT_PREFIX.get(product_type, "ET")
-            c_code = get_customer_code(customer)
+        # (1) 기본 정보
+        customer = c1.text_input("고객사 (Customer)", placeholder="예: A건설")
+        product = c2.selectbox("제품 종류", ["스마트글라스", "접합필름", "PDLC원단", "일반유리"])
+        
+        st.divider()
+        
+        # (2) 원자재 정보 (여기가 수정된 부분!)
+        c_mat1, c_mat2 = st.columns(2)
+        fabric_lot = c_mat1.text_input("원단 LOT 번호 (Full)", placeholder="Roll-2312a-KR")
+        
+        # 👇 [NEW] 사장님이 원하는 4자리 약어 입력
+        # 값이 비어있으면 앞 4자리를 기본값으로 제안
+        default_short = fabric_lot[:4].upper() if fabric_lot else ""
+        fabric_short = c_mat2.text_input(
+            "🆔 ID용 약어 (4자리)", 
+            value=default_short, 
+            max_chars=4, 
+            help="QR 코드에 들어갈 식별 코드 (예: HCLA)"
+        )
 
-            st.session_state.order_list.append({
-                "고객사": customer, 
-                "제품": product_type, 
-                "규격": f"{int(in_w)}x{int(in_h)}", 
-                "전극": in_elec, 
-                "수량": int(in_qty), 
-                "스펙": guide_full_text, 
-                "비고": admin_notes, 
-                "w": int(in_w), 
-                "h": int(in_h), 
-                "lot_no": fabric_lot, 
-                "calc_len": est_len,
-                # [추가] 메타데이터 저장
-                "p_code": p_code,
-                "c_code": c_code
-            })
+        st.divider()
 
+        # (3) 규격 및 전극
+        c3, c4, c5 = st.columns([1, 1, 1])
+        w = c3.number_input("가로 (W)", min_value=0, step=10)
+        h = c4.number_input("세로 (H)", min_value=0, step=10)
+        elec_type = c5.selectbox("전극 위치", ["없음", "가로(W) 양쪽", "세로(H) 양쪽", "가로(W) 상단", "세로(H) 우측"])
+
+        # (4) 상세 스펙 (Full / Half / 접합)
+        st.caption("🔧 공정 조건 설정")
+        cc1, cc2 = st.columns(2)
+        spec_cut = cc1.text_input("✂️ 커팅 조건", placeholder="Full(50/80/20)")
+        spec_lam = cc2.text_input("🔥 접합 조건", placeholder="1단계(60도/30분)")
+        
+        note = st.text_input("비고 (특이사항)", placeholder="작업자 전달 사항")
+        count = st.number_input("수량", min_value=1, value=1)
+
+        # --------------------------------------------------------------
+        # 2. 장바구니 담기 버튼
+        # --------------------------------------------------------------
+        if st.form_submit_button("➕ 작업 목록 추가", type="primary", use_container_width=True):
+            if not customer or not w or not h:
+                st.error("고객사, 가로, 세로 사이즈는 필수입니다.")
+            else:
+                # 약어가 입력 안 됐으면 자동으로 채우기 (안전장치)
+                final_short = fabric_short if fabric_short else fabric_lot[:4].upper().ljust(4, 'X')
+
+                st.session_state.order_list.append({
+                    "고객사": customer,
+                    "제품": product,
+                    "규격": f"{w}x{h}",
+                    "w": w, "h": h,
+                    "전극": elec_type,
+                    "스펙": f"{spec_cut} | {spec_lam}",
+                    "비고": note,
+                    "수량": count,
+                    "lot_no": fabric_lot,     # 전체 번호 (기록용)
+                    "lot_short": final_short  # 👈 [저장] 사장님이 정한 4자리
+                })
+                st.success(f"리스트 추가됨! (ID 약어: {final_short})")
+
+    # ------------------------------------------------------------------
+    # 3. 대기 목록 확인 및 최종 발행
+    # ------------------------------------------------------------------
     if st.session_state.order_list:
-        df = pd.DataFrame(st.session_state.order_list)
-        df.insert(0, "선택", False)
-        edited_df = st.data_editor(df, key="editor", hide_index=True, use_container_width=True, column_config={"선택": st.column_config.CheckboxColumn(default=False)})
-        c1, c2 = st.columns([1,4])
-        if c1.button("🗑️ 삭제"):
-            for i in sorted(edited_df[edited_df["선택"]].index.tolist(), reverse=True): del st.session_state.order_list[i]
-            st.rerun()
-            
-        if c2.button("🚀 최종 발행 및 저장 (Supabase)", type="primary", use_container_width=True):
-            today_str = datetime.now().strftime("%y%m%d")
-            new_qrs, cnt = [], 1
-            
-            for item in st.session_state.order_list:
-                for _ in range(item['수량']):
-                    # [수정] Smart LOT 번호 생성 (SG-AC-240111-001)
-                    seq_str = f"{cnt:03d}"
-                    lot_id = f"{item['p_code']}-{item['c_code']}-{today_str}-{seq_str}"
-                    cnt += 1
+        st.divider()
+        st.markdown(f"### 🛒 발행 대기 목록 ({len(st.session_state.order_list)}건)")
+        
+        # 목록 보여주기
+        df_list = pd.DataFrame(st.session_state.order_list)
+        st.dataframe(df_list[["고객사", "lot_short", "제품", "규격", "수량"]], use_container_width=True)
 
-                    supabase.table("work_orders").insert({
-                        "lot_no": lot_id, "customer": item['고객사'], "product": item['제품'], 
-                        "dimension": f"{item['규격']} [{item['전극']}]", "spec": item['스펙'], 
-                        "status": "작업대기", "note": item['비고'], "fabric_lot_no": item['lot_no']
-                    }).execute()
-                    
-                    qr = qrcode.QRCode(box_size=5, border=2); qr.add_data(lot_id); qr.make(fit=True); img = qr.make_image(fill_color="black", back_color="white")
-                    
-                    # [수정] 라벨 출력을 위해 'fabric' 정보도 함께 전달
-                    new_qrs.append({
-                        "lot": lot_id, "w": item['w'], "h": item['h'], "elec": item['전극'], 
-                        "prod": item['제품'], "cust": item['고객사'], "fabric": item['lot_no'], "img": img
-                    })
-                try:
-                    curr = supabase.table("fabric_stock").select("used_len").eq("lot_no", item['lot_no']).execute()
-                    if curr.data: supabase.table("fabric_stock").update({"used_len": float(curr.data[0]['used_len']) + item['calc_len']}).eq("lot_no", item['lot_no']).execute()
-                except: pass
+        c1, c2 = st.columns([1, 2])
+        if c1.button("🗑️ 목록 초기화"):
+            st.session_state.order_list = []
+            st.rerun()
+
+        # [최종 발행 로직] 13자리 ID 생성 적용
+        if c2.button("🚀 최종 발행 및 저장 (Supabase)", type="primary", use_container_width=True):
             
-            st.session_state.generated_qrs = new_qrs; st.session_state.order_list = []; st.session_state.fabric_db = fetch_fabric_stock(); st.success("✅ Smart LOT 적용 완료!"); st.rerun()
+            # (A) 날짜 및 매핑 준비
+            date_str = datetime.now().strftime("%y%m%d") # 예: 250122
+            product_type_map = {"스마트글라스": "G", "접합필름": "F", "PDLC원단": "P", "일반유리": "N"}
+            
+            new_qrs = []
+            cnt = 0 # 순번
+
+            # (B) 리스트 순회하며 발행
+            for item in st.session_state.order_list:
+                
+                # 1. 약어 가져오기 (대문자 변환)
+                film_part = str(item['lot_short']).upper()
+                
+                # 2. 제품 코드 (1글자)
+                prod_char = product_type_map.get(item['제품'], "X")
+
+                for _ in range(item['수량']):
+                    # 3. 순번 (2자리)
+                    seq_str = f"{cnt:02d}"
+                    
+                    # ⭐ [최종 ID 13자리] 약어(4) + 날짜(6) + 제품(1) + 순번(2)
+                    final_lot_id = f"{film_part}{date_str}{prod_char}{seq_str}"
+                    
+                    cnt = (cnt + 1) % 100
+
+                    # 4. DB 저장
+                    try:
+                        supabase.table("work_orders").insert({
+                            "lot_no": final_lot_id,  # 13자리 ID를 Key로 저장
+                            "customer": item['고객사'],
+                            "product": item['제품'],
+                            "dimension": f"{item['규격']} [{item['전극']}]",
+                            "spec": item['스펙'],
+                            "status": "작업대기",
+                            "note": item['비고'],
+                            "fabric_lot_no": item['lot_no'] # 원본 LOT 보관
+                        }).execute()
+
+                        # 5. QR 생성 (13자리 데이터)
+                        qr = qrcode.QRCode(
+                            version=None,
+                            error_correction=qrcode.constants.ERROR_CORRECT_L,
+                            box_size=10,
+                            border=1
+                        )
+                        qr.add_data(final_lot_id)
+                        qr.make(fit=True)
+                        img = qr.make_image(fill_color="black", back_color="white")
+                        
+                        new_qrs.append({
+                            "lot": final_lot_id, 
+                            "w": item['w'], "h": item['h'], 
+                            "elec": item['전극'], 
+                            "prod": item['제품'], 
+                            "cust": item['고객사'],
+                            "img": img
+                        })
+                    except Exception as e:
+                        st.error(f"저장 중 오류 발생: {e}")
+
+            # (C) 완료 처리
+            st.session_state.generated_qrs = new_qrs
+            st.session_state.order_list = []
+            st.success(f"✅ 총 {len(new_qrs)}건 발행 완료!")
+            time.sleep(1)
+            st.rerun()
 
 with tab2:
     st.header("📄 작업 지시서 인쇄")
