@@ -32,11 +32,11 @@ except Exception as e:
     st.stop()
 
 # ==============================================================================
-# 🛡️ [핵심 기능] 공정 순서 위반 방지 함수 (여기에 추가되었습니다!)
+# 🛡️ [핵심 기능] 공정 순서 위반 방지 함수 (여기 추가됨!)
 # ==============================================================================
 def check_process_sequence(lot_no, current_step):
     """
-    작업자가 QR을 찍었을 때, 이전 공정이 완료되었는지 확인하는 문지기 함수입니다.
+    작업자가 QR을 찍었을 때, 이전 공정이 완료되었는지 확인하는 문지기 함수
     리턴값: (True/False, "메시지")
     """
     # 1. 이 제품(LOT)의 마지막 기록 조회
@@ -55,7 +55,6 @@ def check_process_sequence(lot_no, current_step):
         return False, "데이터 조회 중 오류가 발생했습니다."
 
     # 2. 내 작업을 하기 위해 끝내야 하는 '필수 전단계' 규칙
-    # (형식: "내작업": ["허용되는 전단계1", "허용되는 전단계2", ...])
     required_previous_step = {
         "원단커팅": ["작업대기"],               # 아무것도 안 한 상태여야 가능
         "하프커팅": ["원단커팅", "Full", "풀"], # 원단(풀)커팅이 끝나야 가능
@@ -65,24 +64,18 @@ def check_process_sequence(lot_no, current_step):
     }
 
     # 3. 규칙 검사
-    
-    # (예외) 이미 한 작업을 또 찍었을 때
     if last_step == current_step:
         return False, f"⚠️ 이미 '{current_step}' 작업이 등록되어 있습니다."
 
-    # (검사) 족보(규칙)에 있는 작업인지 확인
     valid_prev_steps = required_previous_step.get(current_step)
     
     if valid_prev_steps:
         # 내 전단계 기록(last_step)이 허용 목록(valid_prev_steps)에 포함되는지 확인
-        # (부분 글자 매칭: 예 - "원단커팅 완료"에 "원단커팅"이 포함되는지)
         is_valid = any(req in last_step for req in valid_prev_steps)
         
         if not is_valid:
-            # 순서 위반! (빨간 에러 메시지 리턴)
             return False, f"🚨 [순서 오류] 현재 상태는 '{last_step}' 입니다.\n선행 공정이 완료되지 않아 '{current_step}' 작업을 할 수 없습니다."
     
-    # 통과 (초록 불)
     return True, "OK"
 
 # ==========================================
@@ -111,15 +104,12 @@ def fetch_fabric_stock():
     except: return {}
 
 # ----------------------------------------------------
-# 🔡 [폰트] '굵은' 한글 폰트(Bold) 로드 (수정됨)
+# 🔡 [폰트] '굵은' 한글 폰트(Bold) 로드
 # ----------------------------------------------------
 @st.cache_resource
 def load_korean_font(size):
-    # [수정] Regular 대신 Bold 파일로 변경하여 진하기 확보
     font_filename = "NanumGothic-Bold.ttf"
-    
     if not os.path.exists(font_filename):
-        # 나눔고딕 Bold 다운로드 URL
         url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Bold.ttf"
         try:
             r = requests.get(url)
@@ -148,52 +138,46 @@ def create_label_strip_image(items, rotate=False):
     full_img = Image.new('RGB', (strip_w, strip_h), 'white')
     draw = ImageDraw.Draw(full_img)
 
-    # [수정] 폰트 크기 통일 및 확대 (모두 28pt)
-    # Bold 폰트 파일을 로드하므로 별도 stroke 옵션 없이도 진하게 나옴
+    # 폰트 로드 (Bold 적용)
     font_large = load_korean_font(28) 
-    
-    # 더 작은 보조 폰트 (필요시 사용, 현재는 모두 큰거 사용)
     font_medium = load_korean_font(24)
 
     for i, item in enumerate(items):
         x_offset = i * LABEL_W
         
-        # (A) 테두리 (컷팅선 표시용 연한 실선)
+        # (A) 테두리
         draw.rectangle([x_offset, 0, x_offset + LABEL_W-1, LABEL_H-1], outline="#cccccc", width=2)
         
-        # (B) QR 코드 (크기 확보)
+        # (B) QR 코드
         qr = qrcode.QRCode(box_size=5, border=0)
         qr.add_data(item['lot'])
         qr.make(fit=True)
         qr_img = qr.make_image(fill_color="black", back_color="white").resize((190, 190))
         
-        # QR 위치 (왼쪽)
+        # QR 위치
         qr_x = x_offset + 10
         qr_y = (LABEL_H - 190) // 2
         full_img.paste(qr_img, (qr_x, qr_y))
         
-        # (C) 텍스트 쓰기 (오른쪽 영역)
-        # 기준 X좌표: QR 옆 210px 지점
+        # (C) 텍스트 쓰기
         text_x = x_offset + 210
         
-        # 1. LOT 번호 (최상단)
+        # 1. LOT 번호
         draw.text((text_x, 25), item['lot'], font=font_large, fill="black")
         
-        # 2. 고객사 (중간) - 혹시 길면 medium 사용, 아니면 large
+        # 2. 고객사
         cust_font = font_large if len(item['cust']) < 5 else font_medium
         draw.text((text_x, 75), f"{item['cust']}", font=cust_font, fill="black")
         
-        # 3. 규격 (하단) - 가장 중요하므로 무조건 크게
-        # 예: 100 x 150
+        # 3. 규격
         dim_text = f"{item['w']} x {item['h']}"
         draw.text((text_x, 125), dim_text, font=font_large, fill="black")
         
-        # 4. 전극/방향 (맨 아래) - 이것도 크게 요청하심
-        # 예: [가로]
+        # 4. 전극/방향
         elec_text = f"[{item['elec']}]"
         draw.text((text_x, 170), elec_text, font=font_large, fill="black")
 
-        # (D) 절취선 (다음 라벨과 구분선)
+        # (D) 절취선
         if i < total_count - 1:
             line_x = x_offset + LABEL_W - 1
             for ly in range(0, LABEL_H, 10):
@@ -231,7 +215,7 @@ def generate_print_html(content_html):
     """
 
 # ----------------------------------------------------
-# 🏷️ [라벨] 화면 미리보기용 HTML (스타일 일치시킴)
+# 🏷️ [라벨] 화면 미리보기용 HTML (스타일 일치)
 # ----------------------------------------------------
 def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     transform_css = "transform: rotate(90deg);" if rotate else ""
@@ -264,7 +248,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     <html>
     <head>
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;900&display=swap'); /* 900 굵기 로드 */
+            @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;900&display=swap');
             @media print {{
                 {css_page}
                 body {{ margin: 0; padding: 0; }}
@@ -280,9 +264,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
                 display: flex; align-items: center;
                 {transform_css} 
             }}
-            /* [수정] 화면 미리보기에서도 글씨 진하게 표시 */
             .txt-bold {{ font-weight: 900; font-size: 11pt; color: black; line-height: 1.2; }}
-            
             .preview-container {{ display: flex; flex-wrap: wrap; }}
         </style>
     </head>
@@ -296,7 +278,6 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
         cust_name = item['cust']   
         w, h, elec = item['w'], item['h'], item['elec']
         
-        # 미리보기용 HTML 조립
         label_div = f"""
         <div class="label-box">
             <div class="label-content">
@@ -318,7 +299,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     return html
 
 # ----------------------------------------------------
-# 📄 [작업지시서] A4 (2x4 배열)
+# 📄 [작업지시서] A4 (2x4 배열) - 초대형/초강력 버전
 # ----------------------------------------------------
 def get_work_order_html(items):
     html = """
@@ -561,7 +542,7 @@ with tab2:
     else: st.info("⚠️ 현재 발행된 작업이 없습니다.")
 
 # ==========================================
-# 🏷️ [Tab 3] 라벨 인쇄 (폰트 굵기 수정됨)
+# 🏷️ [Tab 3] 라벨 인쇄 (초강력 가독성)
 # ==========================================
 with tab3:
     st.header("🏷️ QR 라벨 인쇄")
