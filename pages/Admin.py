@@ -32,7 +32,7 @@ except Exception as e:
     st.stop()
 
 # ==============================================================================
-# 🛠️ [기능 정의 구역] 화면을 그리기 위한 도구들을 미리 만듭니다.
+# 🛠️ [기능 정의 구역] 화면을 그리기 위한 도구들을 미리 만듭니다. (에러 방지)
 # ==============================================================================
 
 # 1. 공정 순서 위반 방지 함수
@@ -67,20 +67,20 @@ def check_process_sequence(lot_no, current_step):
     
     return True, "OK"
 
-# 2. 이미지 변환
+# 2. 이미지 변환 함수
 def image_to_base64(img):
     buffered = io.BytesIO()
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
-# 3. 재고 조회
+# 3. 재고 조회 함수
 def fetch_fabric_stock():
     try:
         response = supabase.table("fabric_stock").select("*").execute()
         return {row['lot_no']: row for row in response.data}
     except: return {}
 
-# 4. 폰트 로드
+# 4. 폰트 로드 함수
 @st.cache_resource
 def load_korean_font(size):
     font_filename = "NanumGothic-Bold.ttf"
@@ -94,7 +94,7 @@ def load_korean_font(size):
             return ImageFont.load_default()
     return ImageFont.truetype(font_filename, size)
 
-# 5. 라벨 이미지 생성 (가로 띠)
+# 5. 라벨 이미지 생성 (가로 띠 형태)
 def create_label_strip_image(items, rotate=False):
     LABEL_W = 472 
     LABEL_H = 236 
@@ -148,7 +148,7 @@ def create_label_strip_image(items, rotate=False):
     full_img.save(buf, format="PNG")
     return buf.getvalue()
 
-# 6. 인쇄 스크립트
+# 6. 인쇄 스크립트 래퍼
 def generate_print_html(content_html):
     return f"""
     <!DOCTYPE html>
@@ -169,7 +169,7 @@ def generate_print_html(content_html):
     </html>
     """
 
-# 7. 라벨 미리보기 HTML
+# 7. 라벨 미리보기 HTML 생성
 def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     transform_css = "transform: rotate(90deg);" if rotate else ""
     
@@ -251,7 +251,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     html += "</div></body></html>"
     return html
 
-# 8. [핵심 수정] 작업지시서 A4 2x4 HTML (깔끔한 디자인 + 강조)
+# 8. [핵심 수정] 작업지시서 A4 2x4 HTML (깔끔한 디자인 + 정보추가 + 강조)
 def get_work_order_html(items):
     html = """
     <html>
@@ -276,7 +276,7 @@ def get_work_order_html(items):
                 width: 100%; 
             }
             
-            /* 카드 스타일 (높이 65mm로 조정하여 A4에 4줄 들어가게) */
+            /* 카드 스타일 (높이 약 65mm로 조정하여 A4에 4줄 들어가게) */
             .job-card { 
                 width: 49%; height: 65mm; 
                 border: 2px solid #000; 
@@ -285,16 +285,20 @@ def get_work_order_html(items):
                 display: flex; flex-direction: column; 
             }
             
-            /* 헤더: LOT번호, 제품명, 날짜 */
+            /* 헤더: LOT번호, 제품명, 주문자, 날짜 */
             .card-header { 
                 background-color: #e0e0e0; 
                 padding: 4px 8px; 
                 border-bottom: 1px solid #000; 
                 display: flex; justify-content: space-between; align-items: center; 
-                height: 28px;
+                height: 30px;
+                white-space: nowrap; overflow: hidden;
             }
-            .lot-text { font-size: 14px; font-weight: 900; }
-            .prod-text { font-size: 13px; font-weight: 700; color: #333; }
+            .header-left { display: flex; align-items: center; gap: 6px; }
+            .lot-text { font-size: 14px; font-weight: 900; color: #000; }
+            .prod-text { font-size: 13px; font-weight: 900; color: #333; }
+            
+            .header-right { font-size: 11px; font-weight: 700; color: #333; text-align: right; }
             
             /* 본문: QR과 스펙 */
             .card-body { display: flex; flex: 1; overflow: hidden; }
@@ -315,7 +319,7 @@ def get_work_order_html(items):
             
             /* 하단 규격 박스 */
             .dim-box { 
-                height: 45px; 
+                height: 48px; 
                 border-top: 2px solid #000; 
                 display: flex; align-items: center; justify-content: center; 
                 background-color: #fff;
@@ -340,7 +344,6 @@ def get_work_order_html(items):
             img_b64 = image_to_base64(item['img'])
             full_id = item['lot']
             
-            # 스펙 텍스트 정리
             spec_raw = item.get('spec', '')
             if '|' in spec_raw:
                 parts = spec_raw.split('|')
@@ -359,13 +362,12 @@ def get_work_order_html(items):
             w, h = item['w'], item['h']
             elec = item['elec']
             
-            # [디자인] 규격 강조 로직 (사이즈 동일, 진하기만 다름)
-            # 기본: 26px Medium
-            # 강조: 26px Extra Bold + Underline
-            base_css = "font-size: 26px; color: #000; margin: 0 2px;"
-            
-            w_css = base_css + "font-weight: 500;"
-            h_css = base_css + "font-weight: 500;"
+            # [디자인] 규격 숫자 스타일 (동일 크기 + 선택된 방향만 Extra Bold & Underline)
+            # 기본: 28px Bold(700)
+            # 강조: 28px ExtraBold(900) + Underline
+            base_css = "font-size: 28px; color: #000; margin: 0 2px;"
+            w_css = base_css + "font-weight: 700;"
+            h_css = base_css + "font-weight: 700;"
             
             emp_css = base_css + "font-weight: 900; text-decoration: underline;"
             
@@ -374,13 +376,18 @@ def get_work_order_html(items):
             if "세로" in elec or "(H)" in elec or "H" in elec:
                 h_css = emp_css
             
-            dim_html = f"<span style='{w_css}'>{w}</span><span style='font-size:20px; font-weight:bold; margin:0 5px;'>X</span><span style='{h_css}'>{h}</span>"
+            dim_html = f"<span style='{w_css}'>{w}</span><span style='font-size:22px; font-weight:bold; margin:0 5px;'>X</span><span style='{h_css}'>{h}</span>"
 
             html += f"""
             <div class="job-card">
                 <div class="card-header">
-                    <span class="lot-id">{full_id}</span>
-                    <span class="prod-text">[{item['prod']}]</span>
+                    <div class="header-left">
+                        <span class="lot-text">{full_id}</span>
+                        <span class="prod-text">[{item['prod']}]</span>
+                    </div>
+                    <div class="header-right">
+                        {item['cust']} | {datetime.now().strftime('%m-%d')}
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="qr-area"><img src="data:image/png;base64,{img_b64}" style="width:100%;"></div>
@@ -396,7 +403,7 @@ def get_work_order_html(items):
                 </div>
                 <div class="dim-box">
                     {dim_html}
-                    <span style="font-size: 18px; font-weight: 900; margin-left: 15px;">[{item['elec']}]</span>
+                    <span style="font-size: 20px; font-weight: 900; margin-left: 15px;">[{item['elec']}]</span>
                 </div>
             </div>
             """
