@@ -8,8 +8,9 @@ import math
 import time
 import re
 import os
+import requests # 폰트 다운로드용
 from datetime import datetime, timedelta
-from PIL import Image, ImageDraw, ImageFont  # 이미지 생성을 위한 라이브러리
+from PIL import Image, ImageDraw, ImageFont
 
 # ==========================================
 # 🛑 [문지기] 로그인 체크
@@ -56,92 +57,88 @@ def fetch_fabric_stock():
     except: return {}
 
 # ----------------------------------------------------
-# 🖼️ [핵심] 라벨을 1장의 긴 이미지로 만들기 (PIL 사용)
+# 🔡 [폰트] 한글 폰트 자동 로드 함수 (깨짐 방지)
+# ----------------------------------------------------
+@st.cache_resource
+def load_korean_font(size):
+    # 1. 로컬에 폰트 파일이 있는지 확인
+    font_filename = "NanumGothic.ttf"
+    if not os.path.exists(font_filename):
+        # 없으면 구글 폰트에서 다운로드 (나눔고딕)
+        url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Regular.ttf"
+        try:
+            r = requests.get(url)
+            with open(font_filename, 'wb') as f:
+                f.write(r.content)
+        except:
+            return ImageFont.load_default() # 실패시 기본폰트
+            
+    return ImageFont.truetype(font_filename, size)
+
+# ----------------------------------------------------
+# 🖼️ [핵심] 라벨 이미지 생성 (가로 방향 + 한글 지원)
 # ----------------------------------------------------
 def create_label_strip_image(items, rotate=False):
-    # 1. 캔버스 설정 (300 DPI 기준, 40mm x 20mm)
-    # 1mm = approx 11.8 px -> 40mm=472px, 20mm=236px
+    # 캔버스 설정 (300 DPI 기준, 40mm x 20mm)
+    # 40mm = 472px, 20mm = 236px
     LABEL_W = 472
     LABEL_H = 236
     
     total_count = len(items)
     if total_count == 0: return None
 
-    # 전체 캔버스 크기 (세로로 길게 연결)
-    strip_w = LABEL_W
-    strip_h = LABEL_H * total_count
+    # [수정] 전체 캔버스 크기: 가로로 길게 (Horizontal)
+    strip_w = LABEL_W * total_count
+    strip_h = LABEL_H
     
-    # 흰색 배경 생성
     full_img = Image.new('RGB', (strip_w, strip_h), 'white')
     draw = ImageDraw.Draw(full_img)
 
-    # 2. 한글 폰트 로드 (OS별 호환성)
-    font_path = None
-    system_fonts = [
-        "C:/Windows/Fonts/malgun.ttf", # 윈도우
-        "/System/Library/Fonts/AppleSDGothicNeo.ttc", # 맥
-        "/usr/share/fonts/truetype/nanum/NanumGothic.ttf", # 리눅스
-        "arial.ttf" # 기본값
-    ]
-    
-    for path in system_fonts:
-        if os.path.exists(path):
-            font_path = path
-            break
-            
-    try:
-        font_bold = ImageFont.truetype(font_path, 28) if font_path else ImageFont.load_default()
-        font_reg = ImageFont.truetype(font_path, 20) if font_path else ImageFont.load_default()
-        font_small = ImageFont.truetype(font_path, 16) if font_path else ImageFont.load_default()
-    except:
-        font_bold = ImageFont.load_default()
-        font_reg = ImageFont.load_default()
-        font_small = ImageFont.load_default()
+    # 폰트 로드 (크기별)
+    font_bold = load_korean_font(30)
+    font_reg = load_korean_font(22)
+    font_small = load_korean_font(18)
 
-    # 3. 라벨 하나씩 그리기
+    # 라벨 하나씩 그리기
     for i, item in enumerate(items):
-        y_offset = i * LABEL_H
+        # [수정] X축으로 이동 (가로 배치)
+        x_offset = i * LABEL_W
         
-        # (A) 테두리 그리기 (약한 회색)
-        draw.rectangle([0, y_offset, LABEL_W-1, y_offset + LABEL_H-1], outline="#cccccc", width=2)
+        # (A) 테두리 그리기
+        draw.rectangle([x_offset, 0, x_offset + LABEL_W-1, LABEL_H-1], outline="#cccccc", width=2)
         
-        # (B) QR 코드 붙이기
+        # (B) QR 코드
         qr = qrcode.QRCode(box_size=5, border=0)
         qr.add_data(item['lot'])
         qr.make(fit=True)
         qr_img = qr.make_image(fill_color="black", back_color="white").resize((180, 180))
         
-        # QR 위치: 왼쪽 중앙
-        qr_x = 10
-        qr_y = y_offset + (LABEL_H - 180) // 2
+        # QR 위치
+        qr_x = x_offset + 10
+        qr_y = (LABEL_H - 180) // 2
         full_img.paste(qr_img, (qr_x, qr_y))
         
         # (C) 텍스트 쓰기
-        text_x = 200
+        text_start_x = x_offset + 200
         
-        # 1. LOT 번호
-        draw.text((text_x, y_offset + 30), item['lot'], font=font_bold, fill="black")
+        draw.text((text_start_x, 30), item['lot'], font=font_bold, fill="black")
+        draw.text((text_start_x, 80), f"🏢 {item['cust']}", font=font_reg, fill="#333333")
         
-        # 2. 고객사
-        draw.text((text_x, y_offset + 80), f"🏢 {item['cust']}", font=font_reg, fill="#333333")
-        
-        # 3. 규격 (강조 로직)
         dim_text = f"{item['w']} x {item['h']}"
         elec_text = f"[{item['elec']}]"
-        draw.text((text_x, y_offset + 130), dim_text, font=font_reg, fill="black")
-        draw.text((text_x, y_offset + 160), elec_text, font=font_small, fill="#555555")
+        draw.text((text_start_x, 130), dim_text, font=font_reg, fill="black")
+        draw.text((text_start_x, 160), elec_text, font=font_small, fill="#555555")
 
-        # (D) 절취선 (점선 흉내)
+        # (D) 절취선 (세로선)
         if i < total_count - 1:
-            line_y = y_offset + LABEL_H - 1
-            for lx in range(0, LABEL_W, 10):
-                draw.line([(lx, line_y), (lx+5, line_y)], fill="#999999", width=1)
+            line_x = x_offset + LABEL_W - 1
+            for ly in range(0, LABEL_H, 10):
+                draw.line([(line_x, ly), (line_x, ly+5)], fill="#999999", width=1)
 
-    # 4. 회전 옵션 (브라더 프린터용 세로 모드 대응)
+    # 회전 옵션 (필요시)
     if rotate:
         full_img = full_img.rotate(90, expand=True)
 
-    # 5. 결과 반환
     buf = io.BytesIO()
     full_img.save(buf, format="PNG")
     return buf.getvalue()
@@ -155,6 +152,8 @@ def generate_print_html(content_html):
     <html>
     <head>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>인쇄 미리보기</title>
         <script>
             setTimeout(function() {{
                 window.print();
@@ -493,13 +492,13 @@ with tab2:
     else: st.info("⚠️ 현재 발행된 작업이 없습니다.")
 
 # ==========================================
-# 🏷️ [Tab 3] 라벨 인쇄 (이미지 다운로드 추가됨)
+# 🏷️ [Tab 3] 라벨 인쇄 (가로방향 이미지 생성)
 # ==========================================
 with tab3:
     st.header("🏷️ QR 라벨 인쇄")
     
     if st.session_state.generated_qrs:
-        with st.expander("⚙️ 라벨 인쇄 설정 (화면 미리보기용)", expanded=True):
+        with st.expander("⚙️ 라벨 인쇄 설정", expanded=True):
             c_mode, c_rot, c_margin = st.columns([2, 1, 1])
             print_mode = c_mode.radio("🖨️ 인쇄 방식", ["전용 프린터 (40x20mm 1장씩)", "A4 라벨지 (전체 목록)"], horizontal=True, key="radio_label_mode_tab3")
             mode_code = "roll" if "전용" in print_mode else "a4"
@@ -512,20 +511,19 @@ with tab3:
         
         c_print, c_down = st.columns(2)
         
-        # 2. 즉시 인쇄 버튼 (브라우저 인쇄)
+        # 2. 즉시 인쇄 버튼
         if c_print.button("🖨️ 라벨 인쇄 (즉시)", type="primary", key="btn_print_label_tab3"):
             full_html = generate_print_html(content_html_preview)
             components.html(full_html, height=0, width=0)
             
-        # 3. [NEW] 전체 라벨을 1장의 긴 이미지로 다운로드 (라벨프린터 파일첨부용)
-        # 이미지 생성 함수 호출
+        # 3. [NEW] 전체 라벨을 가로로 긴 1장의 이미지로 다운로드
         label_image_data = create_label_strip_image(st.session_state.generated_qrs, rotate=is_rotate)
         
         if label_image_data:
             c_down.download_button(
-                label="💾 전체 라벨을 1장의 이미지(PNG)로 다운로드",
+                label="💾 전체 라벨 이미지(PNG) 다운로드",
                 data=label_image_data,
-                file_name=f"labels_roll_{datetime.now().strftime('%H%M%S')}.png",
+                file_name=f"labels_horizontal_{datetime.now().strftime('%H%M%S')}.png",
                 mime="image/png",
                 key="btn_down_label_img_tab3",
                 help="이 이미지를 다운받아서 라벨 프로그램에 [그림 삽입] 하세요."
@@ -572,7 +570,6 @@ with tab4:
                         "fabric": row.get('fabric_lot_no', '-'), "spec": row.get('spec', ''), "note": row.get('note', ''), "img": img
                     })
                 
-                content_html = ""
                 if "작업지시서" in reprint_type:
                     content_html = get_work_order_html(rep_items)
                     st.components.v1.html(content_html, height=500, scrolling=True)
@@ -588,7 +585,6 @@ with tab4:
                     content_html = get_label_content_html(rep_items, mode=rmode, rotate=rrot)
                     st.components.v1.html(content_html, height=500, scrolling=True)
                     
-                    # [재발행 탭에서도 이미지 다운로드 지원]
                     c_rp_print, c_rp_down = st.columns(2)
                     if c_rp_print.button("🖨️ 라벨 인쇄", type="primary", key="btn_reprint_label_tab4"):
                         full_html = generate_print_html(content_html)
