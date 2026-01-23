@@ -62,6 +62,8 @@ def generate_print_html(content_html):
     <html>
     <head>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>인쇄 미리보기</title>
         <script>
             setTimeout(function() {{
                 window.print();
@@ -75,23 +77,16 @@ def generate_print_html(content_html):
     """
 
 # ----------------------------------------------------
-# 🏷️ [라벨] 40mm x 20mm 전용 HTML (설정 적용)
+# 🏷️ [라벨] 40mm x 20mm 전용 HTML
 # ----------------------------------------------------
 def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
-    # CSS 설정 준비
     transform_css = "transform: rotate(90deg);" if rotate else ""
-    
-    # 90도 회전 시 폭/높이가 바뀌므로 컨테이너 사이즈 대응
-    # 기본: w40 x h20
-    # 회전: w20 x h40 처럼 보여야 함 -> flex 정렬로 처리
     
     css_page = ""
     css_wrap = ""
     
     if mode == "roll":
         # 전용 프린터 (브라더 등)
-        # @page 사이즈는 회전 여부와 관계없이 물리적 용지 사이즈(40x20)로 선언
-        # 브라더 앱에서 '가로/세로' 설정을 맞추면 됨
         css_page = "@page { size: 40mm 20mm; margin: 0; }"
         css_wrap = f"""
             width: 38mm; height: 19mm;
@@ -99,7 +94,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
             display: flex; align-items: center; justify-content: center;
             overflow: hidden;
             border: 1px solid #ddd;
-            margin-top: {margin_top}mm; /* 상단 여백 보정 */
+            margin-top: {margin_top}mm; 
         """
     else:
         # A4 라벨지
@@ -128,15 +123,11 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
                 background: white;
                 box-sizing: border-box;
             }}
-            
-            /* 실제 내용물(Content) */
             .label-content {{
                 width: 38mm; height: 19mm;
                 display: flex; align-items: center;
-                {transform_css} /* 여기서 90도 회전 적용 */
+                {transform_css} 
             }}
-            
-            /* 화면 미리보기용 */
             .preview-container {{ display: flex; flex-wrap: wrap; }}
         </style>
     </head>
@@ -157,7 +148,6 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
             
         dim_html = f"<span style='{w_style}'>{w}</span>x<span style='{h_style}'>{h}</span>"
         
-        # 구조: label-box(외곽, 회전X) -> label-content(내용, 회전O)
         label_div = f"""
         <div class="label-box">
             <div class="label-content">
@@ -178,7 +168,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     return html
 
 # ----------------------------------------------------
-# 📄 [작업지시서] A4 (2x4 배열) - 최적화 버전
+# 📄 [작업지시서] A4 (2x4 배열)
 # ----------------------------------------------------
 def get_work_order_html(items):
     html = """
@@ -195,7 +185,9 @@ def get_work_order_html(items):
             .print-date { text-align: right; font-size: 9pt; color: #555; margin-bottom: 1mm; font-family: monospace; }
             .page-header { text-align: center; font-size: 20pt; font-weight: 900; text-decoration: underline; margin-bottom: 2mm; width: 100%; }
             .page-container { display: flex; flex-wrap: wrap; justify-content: space-between; align-content: flex-start; width: 100%; height: auto; padding: 0; }
+            
             .job-card { width: 49%; height: 62.5mm; border: 2px solid #000; box-sizing: border-box; margin-bottom: 1mm; display: flex; flex-direction: column; overflow: hidden; }
+            
             .header { background-color: #eee; padding: 4px 10px; border-bottom: 1px solid #000; display: flex; justify-content: space-between; align-items: center; height: 24px; }
             .lot-id { font-size: 15px; font-weight: 900; }
             .date-txt { font-size: 11px; }
@@ -346,6 +338,7 @@ with tab1:
         else: spec_lam = "⛔ 접합 생략 (필름 마감)"
         note = st.text_input("비고 (특이사항)", placeholder="작업자 전달 사항")
         count = st.number_input("수량", min_value=1, value=1)
+        
         if st.form_submit_button("➕ 작업 목록 추가", type="primary", use_container_width=True):
             if not customer or not w or not h: st.error("고객사, 가로, 세로 사이즈는 필수입니다.")
             elif not fabric_lot: st.error("원단 정보가 없습니다.")
@@ -363,8 +356,8 @@ with tab1:
         st.markdown(f"### 🛒 발행 대기 목록 ({len(st.session_state.order_list)}건)")
         st.dataframe(pd.DataFrame(st.session_state.order_list)[["고객사", "lot_short", "제품", "규격", "spec_lam", "수량"]], use_container_width=True)
         c1, c2 = st.columns([1, 2])
-        if c1.button("🗑️ 목록 초기화"): st.session_state.order_list = []; st.rerun()
-        if c2.button("🚀 최종 발행 및 저장 (Supabase)", type="primary", use_container_width=True):
+        if c1.button("🗑️ 목록 초기화", key="btn_clear_list_tab1"): st.session_state.order_list = []; st.rerun()
+        if c2.button("🚀 최종 발행 및 저장 (Supabase)", type="primary", use_container_width=True, key="btn_publish_tab1"):
             date_str = datetime.now().strftime("%y%m%d")
             product_type_map = {"스마트글라스": "G", "접합필름": "F", "PDLC원단": "P", "일반유리": "N"}
             new_qrs = []
@@ -404,38 +397,49 @@ with tab2:
     if st.session_state.generated_qrs:
         content_html = get_work_order_html(st.session_state.generated_qrs)
         st.components.v1.html(content_html, height=1000, scrolling=True)
-        if st.button("🖨️ 지시서 인쇄", type="primary"):
+        c_print, c_down = st.columns(2)
+        if c_print.button("🖨️ 지시서 인쇄 (즉시)", type="primary", key="btn_print_order_tab2"):
             full_html = generate_print_html(content_html)
             components.html(full_html, height=0, width=0)
+        # 다운로드 버튼 추가
+        full_html_down = generate_print_html(content_html)
+        c_down.download_button(label="💾 지시서 파일 다운로드 (html)", data=full_html_down, file_name="order_sheet.html", mime="text/html", key="down_order_tab2")
     else: st.info("⚠️ 현재 발행된 작업이 없습니다.")
 
 # ==========================================
-# 🏷️ [Tab 3] 라벨 인쇄 (설정 추가됨)
+# 🏷️ [Tab 3] 라벨 인쇄 (파일 다운로드 추가됨)
 # ==========================================
 with tab3:
     st.header("🏷️ QR 라벨 인쇄")
     
     if st.session_state.generated_qrs:
-        # [설정] 인쇄 옵션 패널
         with st.expander("⚙️ 라벨 인쇄 설정 (프린터/방향)", expanded=True):
             c_mode, c_rot, c_margin = st.columns([2, 1, 1])
-            
-            # 1. 인쇄 방식 선택
-            print_mode = c_mode.radio("🖨️ 인쇄 방식", ["전용 프린터 (40x20mm 1장씩)", "A4 라벨지 (전체 목록)"], horizontal=True)
+            print_mode = c_mode.radio("🖨️ 인쇄 방식", ["전용 프린터 (40x20mm 1장씩)", "A4 라벨지 (전체 목록)"], horizontal=True, key="radio_label_mode_tab3")
             mode_code = "roll" if "전용" in print_mode else "a4"
-            
-            # 2. 회전 (브라더 프린터 대응)
-            is_rotate = c_rot.checkbox("🔄 내용 90도 회전", help="라벨이 세로로 나오는 경우 체크하세요.")
-            
-            # 3. 여백 미세조정
-            margin_top = c_margin.number_input("상단 여백 보정(mm)", value=0, step=1, help="인쇄가 밀릴 경우 조정")
+            is_rotate = c_rot.checkbox("🔄 내용 90도 회전", help="라벨이 세로로 나오는 경우 체크하세요.", key="chk_rotate_tab3")
+            margin_top = c_margin.number_input("상단 여백 보정(mm)", value=0, step=1, help="인쇄가 밀릴 경우 조정", key="num_margin_tab3")
 
         content_html = get_label_content_html(st.session_state.generated_qrs, mode=mode_code, rotate=is_rotate, margin_top=margin_top)
         st.components.v1.html(content_html, height=600, scrolling=True)
         
-        if st.button("🖨️ 라벨 인쇄 (Print)", type="primary"):
+        c_print, c_down = st.columns(2)
+        
+        # 1. 즉시 인쇄 버튼
+        if c_print.button("🖨️ 라벨 인쇄 (즉시)", type="primary", key="btn_print_label_tab3"):
             full_html = generate_print_html(content_html)
             components.html(full_html, height=0, width=0)
+            
+        # 2. [NEW] 파일 다운로드 버튼 (모바일/전용앱용)
+        full_html_down = generate_print_html(content_html)
+        c_down.download_button(
+            label="💾 라벨 파일 다운로드 (html)",
+            data=full_html_down,
+            file_name="label_print.html",
+            mime="text/html",
+            key="btn_down_label_tab3",
+            help="다운로드 후 휴대폰에서 열어서 브라더 프린터 등으로 인쇄하세요."
+        )
     else:
         st.info("👈 먼저 [작업 입력] 탭에서 발행을 진행해주세요.")
 
@@ -459,7 +463,7 @@ with tab4:
             
             if not sel_rows.empty:
                 st.divider()
-                reprint_type = st.radio("재발행 형태", ["📄 작업지시서 (A4)", "🏷️ 라벨 (전용/A4 선택)"], horizontal=True)
+                reprint_type = st.radio("재발행 형태", ["📄 작업지시서 (A4)", "🏷️ 라벨 (전용/A4 선택)"], horizontal=True, key="radio_reprint_type_tab4")
                 
                 rep_items = []
                 for _, row in sel_rows.iterrows():
@@ -478,24 +482,26 @@ with tab4:
                         "fabric": row.get('fabric_lot_no', '-'), "spec": row.get('spec', ''), "note": row.get('note', ''), "img": img
                     })
                 
+                content_html = ""
                 if "작업지시서" in reprint_type:
                     content_html = get_work_order_html(rep_items)
-                    st.components.v1.html(content_html, height=500, scrolling=True)
-                    if st.button("🖨️ 지시서 인쇄", type="primary"):
-                        full_html = generate_print_html(content_html)
-                        components.html(full_html, height=0, width=0)
+                elif "전용" in reprint_type:
+                    # 재발행 시에도 설정값을 적용하고 싶다면 별도 설정창이 필요하지만, 여기선 기본값으로
+                    content_html = get_label_content_html(rep_items, mode="roll") 
                 else:
-                    # 라벨 재발행 시에도 설정 적용
-                    c_m, c_r = st.columns(2)
-                    rpm = c_m.radio("방식", ["전용 프린터", "A4 라벨지"], horizontal=True)
-                    rrot = c_r.checkbox("90도 회전")
-                    rmode = "roll" if "전용" in rpm else "a4"
+                    content_html = get_label_content_html(rep_items, mode="a4")
                     
-                    content_html = get_label_content_html(rep_items, mode=rmode, rotate=rrot)
-                    st.components.v1.html(content_html, height=500, scrolling=True)
-                    if st.button("🖨️ 라벨 인쇄", type="primary"):
-                        full_html = generate_print_html(content_html)
-                        components.html(full_html, height=0, width=0)
+                st.components.v1.html(content_html, height=500, scrolling=True)
+                
+                c_rep_p, c_rep_d = st.columns(2)
+                if c_rep_p.button("🖨️ 재발행 인쇄", type="primary", key="btn_reprint_print_tab4"):
+                    full_html = generate_print_html(content_html)
+                    components.html(full_html, height=0, width=0)
+                
+                # 재발행 다운로드 버튼
+                full_html_down = generate_print_html(content_html)
+                c_rep_d.download_button(label="💾 파일 다운로드", data=full_html_down, file_name="reprint.html", mime="text/html", key="btn_reprint_down_tab4")
+
     else: st.info("조회된 데이터가 없습니다.")
 
 with tab5:
@@ -565,7 +571,7 @@ with tab6:
             with delete_tab:
                 st.warning(f"선택된 {len(selected_rows)}건 삭제")
                 if st.toggle("🚨 관리자 삭제 모드 켜기"):
-                    if st.button("🗑️ 삭제 실행", type="primary"):
+                    if st.button("🗑️ 삭제 실행", type="primary", key="btn_delete_log_tab6"):
                         delete_lots = selected_rows['lot_no'].tolist()
                         supabase.table("work_orders").delete().in_("lot_no", delete_lots).execute()
                         st.toast("삭제 완료!"); time.sleep(1); st.rerun()
@@ -588,6 +594,6 @@ with tab9:
     st.header("📱 현장 접속 QR")
     content_html = get_access_qr_content_html(APP_URL, "big")
     st.components.v1.html(content_html, height=600)
-    if st.button("🖨️ 접속 QR 인쇄"):
+    if st.button("🖨️ 접속 QR 인쇄", key="btn_print_access_qr_tab9"):
         full_html = generate_print_html(content_html)
         components.html(full_html, height=0, width=0)
