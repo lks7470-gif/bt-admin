@@ -147,6 +147,9 @@ def get_label_content_html(items):
 # [Admin.py] 작업지시서 HTML 생성 함수
 # 수정사항: 제목 복원, 제품명 삭제, 숫자 크기 통일(강조만 Bold)
 
+# [Admin.py] 작업지시서 HTML 생성 함수 (최종_v3)
+# 수정사항: 상단 출력일시 추가, 하단 경고문구 추가, 레이아웃 높이 미세 조정
+
 def get_work_order_html(items):
     html = """
     <html>
@@ -165,25 +168,32 @@ def get_work_order_html(items):
             
             body { font-family: 'Noto Sans KR', sans-serif; }
             
-            /* 페이지 제목 스타일 */
+            /* [NEW] 상단 출력일시 스타일 */
+            .print-date {
+                text-align: right;
+                font-size: 10pt;
+                color: #333;
+                margin-bottom: 2mm;
+                font-family: monospace;
+            }
+
+            /* 페이지 제목 */
             .page-header {
                 text-align: center;
                 font-size: 22pt;
                 font-weight: 900;
                 text-decoration: underline;
-                margin-bottom: 5mm;
+                margin-bottom: 3mm; /* 간격 줄임 */
                 width: 100%;
-                padding-top: 5mm;
             }
 
-            /* 전체 페이지 컨테이너 (그리드 레이아웃) */
+            /* 전체 페이지 컨테이너 */
             .page-container {
                 display: flex;
                 flex-wrap: wrap;
                 justify-content: space-between;
                 align-content: flex-start;
                 width: 100%;
-                /* 제목 공간을 제외한 높이 설정 (대략 260~270mm) */
                 height: auto; 
                 padding: 0;
             }
@@ -191,10 +201,10 @@ def get_work_order_html(items):
             /* 개별 작업 카드 (2x4 배열) */
             .job-card {
                 width: 49%;        
-                height: 65mm;      /* 제목 공간 확보를 위해 높이 약간 조절 */
+                height: 62mm;      /* [조정] 위아래 정보 추가로 높이를 65->62mm로 살짝 줄임 */
                 border: 2px solid #000;
                 box-sizing: border-box;
-                margin-bottom: 3mm; 
+                margin-bottom: 2mm; 
                 display: flex;
                 flex-direction: column;
                 overflow: hidden;
@@ -202,13 +212,13 @@ def get_work_order_html(items):
 
             .header { 
                 background-color: #eee; 
-                padding: 5px 10px; 
+                padding: 3px 10px; /* 패딩 미세 조정 */
                 border-bottom: 1px solid #000; 
                 display: flex; justify-content: space-between; align-items: center;
-                height: 25px;
+                height: 22px;
             }
-            .lot-id { font-size: 16px; font-weight: 900; }
-            .date-txt { font-size: 12px; }
+            .lot-id { font-size: 15px; font-weight: 900; }
+            .date-txt { font-size: 11px; }
 
             .info-container { 
                 display: flex; 
@@ -217,32 +227,43 @@ def get_work_order_html(items):
             }
             
             .qr-box { 
-                width: 90px; 
+                width: 85px; /* QR 박스 너비 미세 조정 */
                 border-right: 1px solid #000; 
                 display: flex; align-items: center; justify-content: center;
                 padding: 5px;
             }
             
-            .spec-box { flex: 1; padding: 5px 8px; }
+            .spec-box { flex: 1; padding: 4px 6px; }
             .spec-table { width: 100%; border-collapse: collapse; }
-            .spec-table td { padding: 2px; font-size: 11px; vertical-align: middle; }
-            .label { font-weight: bold; width: 60px; color: #555; }
-            .value { font-weight: bold; font-size: 13px; color: #000; }
+            .spec-table td { padding: 1px; font-size: 11px; vertical-align: middle; } /* 패딩 줄임 */
+            .label { font-weight: bold; width: 55px; color: #555; }
+            .value { font-weight: bold; font-size: 12px; color: #000; }
             
             .check-box { 
-                display: inline-block; width: 12px; height: 12px; 
-                border: 1px solid #000; text-align: center; line-height: 10px; margin-right: 3px; font-size: 10px;
+                display: inline-block; width: 10px; height: 10px; 
+                border: 1px solid #000; text-align: center; line-height: 9px; margin-right: 3px; font-size: 9px;
             }
 
             /* 하단 규격 박스 */
             .dim-box { 
-                height: 40px; 
+                height: 38px; 
                 background-color: #fff;
                 display: flex; 
                 align-items: center; 
                 justify-content: center; 
-                font-size: 20px; /* 제품명이 빠져서 글씨를 좀 키웠습니다 */
-                font-weight: 400; /* 기본 두께 */
+                font-size: 20px; 
+                font-weight: 400; 
+            }
+            
+            /* [NEW] 하단 경고 문구 스타일 */
+            .footer-warning {
+                width: 100%;
+                text-align: center;
+                font-size: 11pt;
+                font-weight: bold;
+                margin-top: 5mm;
+                padding-top: 2mm;
+                border-top: 2px double #000;
             }
         </style>
     </head>
@@ -254,7 +275,11 @@ def get_work_order_html(items):
     for i in range(0, len(items), chunk_size):
         chunk = items[i:i + chunk_size]
         
-        # [복원] 페이지마다 제목 출력
+        # [NEW] 1. 상단 출력일시
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+        html += f'<div class="print-date">출력일시: {now_str}</div>'
+
+        # 2. 제목
         html += '<div class="page-header">작업 지시서 (Work Order)</div>'
         
         html += '<div class="page-container">'
@@ -284,15 +309,13 @@ def get_work_order_html(items):
             note_text = item.get('note', item.get('비고', '-'))
             if not note_text: note_text = "-"
 
-            # [수정] 규격 글자 크기 통일 & 굵기 강조
+            # 규격 글자 크기 통일 & 굵기 강조
             w, h = item['w'], item['h']
             elec = item['elec']
             
-            # 기본 스타일: 굵기 보통(400)
             w_style = "font-weight: 400;" 
             h_style = "font-weight: 400;"
             
-            # 강조 스타일: 굵기만 변경 (사이즈 확대 X)
             if "가로" in elec: w_style = "font-weight: 900;"
             if "세로" in elec: h_style = "font-weight: 900;"
                 
@@ -312,7 +335,7 @@ def get_work_order_html(items):
                     <div class="spec-box">
                         <table class="spec-table">
                             <tr><td class="label">🧵 원단</td><td class="value">{fabric_full}</td></tr>
-                            <tr><td colspan="2"><hr style="margin: 3px 0; border-top: 1px dashed #ccc;"></td></tr>
+                            <tr><td colspan="2"><hr style="margin: 2px 0; border-top: 1px dashed #ccc;"></td></tr>
                             <tr><td class="label">✂️ 커팅</td><td class="value">{cut_cond}</td></tr>
                             <tr><td class="label">🔥 접합</td>
                                 <td class="value" style="{lam_style}">
@@ -332,32 +355,14 @@ def get_work_order_html(items):
         
         html += '</div>' # page-container 끝
         
+        # [NEW] 3. 하단 경고 문구
+        html += '<div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>'
+
         # 다음 페이지가 있으면 페이지 넘김
         if i + chunk_size < len(items):
             html += '<div class="page-break"></div>'
             
     html += "</body></html>"
-    return html
-
-# ----------------------------------------------------
-# 📱 접속 QR HTML
-# ----------------------------------------------------
-def get_access_qr_content_html(url, mode="big"):
-    qr = qrcode.QRCode(box_size=10, border=1)
-    qr.add_data(url)
-    qr.make(fit=True)
-    img_b64 = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
-    
-    if mode == "big":
-        html = f"""<div style="text-align:center; padding-top:50mm;"><div style="border:5px solid black; padding:50px; display:inline-block; border-radius:30px;"><div style="font-size:40pt; font-weight:900; margin-bottom:30px;">🏭 접속 QR</div><img src="data:image/png;base64,{img_b64}" style="width:400px; height:400px;"><div style="font-size:15pt; margin-top:20px; font-family:monospace;">{url}</div></div></div>"""
-    else:
-        html = '<table style="width:100%; border-collapse:collapse;">'
-        for r in range(4):
-            html += '<tr>'
-            for c in range(2):
-                html += f"""<td style="border:1px dashed #999; padding:10px; text-align:center;"><div style="font-weight:bold; font-size:16pt;">시스템 접속</div><img src="data:image/png;base64,{img_b64}" style="width:100px;"></td>"""
-            html += '</tr>'
-        html += "</table>"
     return html
 
 # ==========================================
