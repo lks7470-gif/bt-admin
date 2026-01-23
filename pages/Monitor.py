@@ -31,11 +31,11 @@ st.markdown("""
     [data-testid="stSidebar"], [data-testid="collapsedControl"], header, footer { display: none !important; }
     .block-container { padding-top: 1rem; padding-bottom: 3rem; max-width: 99% !important; }
     
-    /* 2. 상단 집계 박스 스타일 (7개 배치 최적화) */
+    /* 2. 상단 집계 박스 스타일 (7단계) */
     .metric-container { display: flex; gap: 10px; margin-bottom: 25px; justify-content: center; }
     .metric-box { 
         background: #111; border: 1px solid #333; border-radius: 10px; 
-        width: 13.5%; /* 7개 박스가 한 줄에 들어가도록 너비 조정 */
+        width: 13.5%; /* 7개 박스 균등 분할 */
         padding: 12px 5px; text-align: center; box-shadow: 0 4px 15px rgba(255,255,255,0.05); 
     }
     .metric-title { font-size: 14px; color: #888; margin-bottom: 5px; font-weight: bold; white-space: nowrap; }
@@ -119,7 +119,7 @@ def load_data():
 df, df_log = load_data()
 ITEMS_PER_PAGE = 8
 
-# 카운터 초기화 (7단계)
+# 집계 카운터 초기화
 cnt_ready = 0
 cnt_full = 0
 cnt_half = 0
@@ -130,18 +130,18 @@ cnt_done = 0
 
 if not df.empty:
     # ------------------------------------------------
-    # 📊 정밀 집계 로직
+    # 📊 상단 박스 집계 로직
     # ------------------------------------------------
     for _, row in df.iterrows():
         s = str(row['status'])
         
         if "불량" in s:
-            pass # 불량은 별도 집계 안함(또는 완료에 포함 등 정책결정)
+            pass 
         elif "완료" in s or "출고" in s:
             cnt_done += 1
         elif "접합대기" in s:
             cnt_lam_wait += 1
-        elif "접합" in s and "대기" not in s: # 접합중
+        elif "접합" in s: # 접합 진행중 (완료X, 대기X)
             cnt_lam_ing += 1
         elif "전극" in s:
             cnt_elec += 1
@@ -185,7 +185,7 @@ with c3:
 st.markdown(f'<div class="page-indicator">PAGE {st.session_state.page_index + 1} / {total_pages}</div>', unsafe_allow_html=True)
 
 # ------------------------------------------------
-# 📊 상단 집계 박스 (7개)
+# 📊 상단 집계 박스 (7개 구분)
 # ------------------------------------------------
 st.markdown(f"""
 <div class="metric-container">
@@ -221,7 +221,7 @@ if not df_view.empty:
         # 단품 여부 확인
         is_short_product = "단품" in status_txt_db or "생략" in str(spec) or "No Lam" in str(spec)
 
-        # 로그 기반 상세 상태 추적
+        # 로그 기반 상세 상태 추적 (DB 상태값이 없을 경우 대비)
         if not df_log.empty:
             my_logs = df_log[df_log['lot_no'] == lot]
             if not my_logs.empty:
@@ -263,7 +263,7 @@ if not df_view.empty:
                         txt = "🔥 접합 진행중"
                         badge = "badge-orange"; bar = "bg-o"
         
-        # DB 상태값 오버라이드 (접합대기 상태 강제 표시)
+        # DB 상태값 최우선 오버라이드 (완료/대기/진행중 구분)
         if "접합대기" in status_txt_db:
             step_pct = 70
             txt = "⏳ 접합 대기"
