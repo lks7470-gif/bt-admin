@@ -136,8 +136,7 @@ def get_label_content_html(items):
     return html
 
 # ----------------------------------------------------
-# 📄 [작업지시서] A4 (2x4 배열)
-# 수정: 하단 경고문구 줄 삭제 및 위치 조정
+# 📄 [작업지시서] A4 (2x4 배열) - 공간 확장 버전
 # ----------------------------------------------------
 def get_work_order_html(items):
     html = """
@@ -168,45 +167,57 @@ def get_work_order_html(items):
             }
             .job-card {
                 width: 49%; 
-                height: 60mm; /* 한 장에 8개 들어가도록 높이 고정 */
+                /* [수정] 높이 확대: 60mm -> 64mm (A4 꽉 채움) */
+                height: 64mm; 
                 border: 2px solid #000; box-sizing: border-box;
                 margin-bottom: 2mm; display: flex; flex-direction: column; overflow: hidden;
             }
             .header { 
-                background-color: #eee; padding: 2px 10px;
-                border-bottom: 1px solid #000; display: flex; justify-content: space-between; align-items: center; height: 20px;
+                background-color: #eee; 
+                /* [수정] 헤더 여백 증가 */
+                padding: 4px 10px;
+                border-bottom: 1px solid #000; display: flex; justify-content: space-between; align-items: center; 
+                height: 24px;
             }
-            .lot-id { font-size: 14px; font-weight: 900; }
-            .date-txt { font-size: 10px; }
+            .lot-id { font-size: 15px; font-weight: 900; }
+            .date-txt { font-size: 11px; }
+            
             .info-container { display: flex; flex: 1; border-bottom: 1px solid #000; }
             .qr-box { 
-                width: 80px; border-right: 1px solid #000; 
+                width: 85px; border-right: 1px solid #000; 
                 display: flex; align-items: center; justify-content: center; padding: 2px;
             }
-            .spec-box { flex: 1; padding: 2px 5px; }
+            
+            /* [수정] 내부 여백을 넉넉하게 */
+            .spec-box { flex: 1; padding: 5px 8px; }
             .spec-table { width: 100%; border-collapse: collapse; }
-            .spec-table td { padding: 1px; font-size: 10px; vertical-align: middle; }
+            
+            /* [수정] 줄 간격(padding) 확대: 1px -> 3px */
+            .spec-table td { padding: 3px 1px; font-size: 11px; vertical-align: middle; }
+            
             .label { font-weight: bold; width: 50px; color: #555; }
-            .value { font-weight: bold; font-size: 11px; color: #000; }
+            .value { font-weight: bold; font-size: 12px; color: #000; }
             .check-box { 
                 display: inline-block; width: 10px; height: 10px; 
                 border: 1px solid #000; text-align: center; line-height: 9px; margin-right: 3px; font-size: 9px;
             }
             .dim-box { 
-                height: 35px; background-color: #fff;
+                /* [수정] 하단 박스 높이 확대 */
+                height: 40px; 
+                background-color: #fff;
                 display: flex; align-items: center; justify-content: center; 
-                font-size: 18px; font-weight: 400; 
+                font-size: 19px; font-weight: 400; 
             }
             
-            /* [수정 완료] 경고 문구: 상단 줄 삭제, 위치 하단으로 */
+            /* [수정] 경고 문구: 상단 여백을 줄여서 위로 당김 */
             .footer-warning {
                 width: 100%; 
                 text-align: center; 
                 font-size: 10pt; 
                 font-weight: bold;
-                margin-top: 10mm; /* 적당한 간격 */
+                margin-top: 5mm; /* 간격을 10mm -> 5mm로 줄임 */
                 color: #333;
-                border: none; /* 줄 삭제 */
+                border: none;
             }
         </style>
     </head>
@@ -269,7 +280,7 @@ def get_work_order_html(items):
                     <div class="spec-box">
                         <table class="spec-table">
                             <tr><td class="label">🧵 원단</td><td class="value">{fabric_full}</td></tr>
-                            <tr><td colspan="2"><hr style="margin: 2px 0; border-top: 1px dashed #ccc;"></td></tr>
+                            <tr><td colspan="2"><hr style="margin: 3px 0; border-top: 1px dashed #ccc;"></td></tr>
                             <tr><td class="label">✂️ 커팅</td><td class="value">{cut_cond}</td></tr>
                             <tr><td class="label">🔥 접합</td>
                                 <td class="value" style="{lam_style}">
@@ -287,7 +298,6 @@ def get_work_order_html(items):
             """
         html += '</div>'
         
-        # [수정] 줄 없이 문구만 표시
         html += '<div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>'
 
         if i + chunk_size < len(items):
@@ -297,7 +307,7 @@ def get_work_order_html(items):
     return html
 
 # ----------------------------------------------------
-# 📱 [복구] 접속 QR HTML 함수
+# 📱 접속 QR HTML 함수
 # ----------------------------------------------------
 def get_access_qr_content_html(url, mode="big"):
     qr = qrcode.QRCode(box_size=10, border=1)
@@ -639,7 +649,7 @@ with tab7:
     if b: r=supabase.table("work_orders").select("*").eq("lot_no",l).execute(); st.write(r.data)
 
 # ==========================================
-# 🚨 [Tab 8] 불량 현황 (Empty 처리 수정)
+# 🚨 [Tab 8] 불량 현황
 # ==========================================
 with tab8: 
     st.markdown("### 🚨 불량 현황")
@@ -650,7 +660,6 @@ with tab8:
         if not df_defects.empty:
             st.dataframe(df_defects, use_container_width=True)
         else:
-            # [수정] 빈 데이터일 때 안내 문구 표시
             st.info("✅ 현재 등록된 불량 내역이 없습니다.")
             
     except Exception as e:
