@@ -136,7 +136,7 @@ def get_label_content_html(items):
     return html
 
 # ----------------------------------------------------
-# 📄 [작업지시서] A4 (2x4 배열) - 공간 확장 버전
+# 📄 [작업지시서] A4 (2x4 배열) - 높이 정밀 튜닝
 # ----------------------------------------------------
 def get_work_order_html(items):
     html = """
@@ -165,17 +165,19 @@ def get_work_order_html(items):
                 display: flex; flex-wrap: wrap; justify-content: space-between;
                 align-content: flex-start; width: 100%; height: auto; padding: 0;
             }
+            
+            /* [수정] 카드 높이 미세 조정: 64mm -> 62.5mm */
+            /* 4줄 기준 6mm 여유 확보 -> 경고 문구가 딱 들어옴 */
             .job-card {
                 width: 49%; 
-                /* [수정] 높이 확대: 60mm -> 64mm (A4 꽉 채움) */
-                height: 64mm; 
+                height: 62.5mm; 
                 border: 2px solid #000; box-sizing: border-box;
-                margin-bottom: 2mm; display: flex; flex-direction: column; overflow: hidden;
+                margin-bottom: 1mm; /* 간격도 1mm로 줄임 */
+                display: flex; flex-direction: column; overflow: hidden;
             }
+            
             .header { 
-                background-color: #eee; 
-                /* [수정] 헤더 여백 증가 */
-                padding: 4px 10px;
+                background-color: #eee; padding: 4px 10px;
                 border-bottom: 1px solid #000; display: flex; justify-content: space-between; align-items: center; 
                 height: 24px;
             }
@@ -187,35 +189,31 @@ def get_work_order_html(items):
                 width: 85px; border-right: 1px solid #000; 
                 display: flex; align-items: center; justify-content: center; padding: 2px;
             }
-            
-            /* [수정] 내부 여백을 넉넉하게 */
-            .spec-box { flex: 1; padding: 5px 8px; }
+            .spec-box { flex: 1; padding: 4px 8px; }
             .spec-table { width: 100%; border-collapse: collapse; }
-            
-            /* [수정] 줄 간격(padding) 확대: 1px -> 3px */
-            .spec-table td { padding: 3px 1px; font-size: 11px; vertical-align: middle; }
-            
+            .spec-table td { padding: 2px 1px; font-size: 11px; vertical-align: middle; }
             .label { font-weight: bold; width: 50px; color: #555; }
             .value { font-weight: bold; font-size: 12px; color: #000; }
             .check-box { 
                 display: inline-block; width: 10px; height: 10px; 
                 border: 1px solid #000; text-align: center; line-height: 9px; margin-right: 3px; font-size: 9px;
             }
+            
+            /* 하단 박스 */
             .dim-box { 
-                /* [수정] 하단 박스 높이 확대 */
-                height: 40px; 
+                height: 38px; 
                 background-color: #fff;
                 display: flex; align-items: center; justify-content: center; 
                 font-size: 19px; font-weight: 400; 
             }
             
-            /* [수정] 경고 문구: 상단 여백을 줄여서 위로 당김 */
+            /* 경고 문구: 여백 최적화 */
             .footer-warning {
                 width: 100%; 
                 text-align: center; 
                 font-size: 10pt; 
                 font-weight: bold;
-                margin-top: 5mm; /* 간격을 10mm -> 5mm로 줄임 */
+                margin-top: 5mm; 
                 color: #333;
                 border: none;
             }
