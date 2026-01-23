@@ -190,85 +190,136 @@ def generate_print_html(content_html):
 # ----------------------------------------------------
 # 🏷️ [라벨] 화면 미리보기용 HTML
 # ----------------------------------------------------
-def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
-    transform_css = "transform: rotate(90deg);" if rotate else ""
-    
-    css_page = ""
-    css_wrap = ""
-    
-    if mode == "roll":
-        css_page = "@page { size: 40mm 20mm; margin: 0; }"
-        css_wrap = f"""
-            width: 38mm; height: 19mm;
-            page-break-after: always;
-            display: flex; align-items: center; justify-content: center;
-            overflow: hidden;
-            border: 1px solid #ddd;
-            margin-top: {margin_top}mm; 
-        """
-    else:
-        css_page = "@page { size: A4; margin: 5mm; }"
-        css_wrap = """
-            width: 42mm; height: 22mm;
-            display: inline-flex; align-items: center; justify-content: center;
-            margin: 2px;
-            border: 1px dashed #ccc;
-            float: left;
-        """
-
-    html = f"""
-    <!DOCTYPE html>
+def get_work_order_html(items):
+    html = """
     <html>
     <head>
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;900&display=swap');
-            @media print {{
-                {css_page}
-                body {{ margin: 0; padding: 0; }}
-            }}
-            .label-box {{
-                {css_wrap}
-                font-family: 'Roboto', sans-serif;
-                background: white;
-                box-sizing: border-box;
-            }}
-            .label-content {{
-                width: 38mm; height: 19mm;
-                display: flex; align-items: center;
-                {transform_css} 
-            }}
-            .txt-bold {{ font-weight: 900; font-size: 11pt; color: black; line-height: 1.2; }}
-            .preview-container {{ display: flex; flex-wrap: wrap; }}
+            @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+            @media print { 
+                @page { size: A4; margin: 5mm; } 
+                body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; }
+                .page-break { page-break-after: always; }
+            }
+            body { font-family: 'Noto Sans KR', sans-serif; color: #000; }
+            .page-header { text-align: center; font-size: 22pt; font-weight: 900; text-decoration: underline; margin-bottom: 3mm; width: 100%; }
+            .page-container { display: flex; flex-wrap: wrap; justify-content: space-between; align-content: flex-start; width: 100%; height: auto; padding: 0; }
+            
+            .job-card { width: 49%; height: 65mm; border: 3px solid #000; box-sizing: border-box; margin-bottom: 2mm; display: flex; flex-direction: column; overflow: hidden; }
+            
+            /* [수정] 헤더 레이아웃: flex로 좌우 배치 및 정렬 */
+            .header { 
+                background-color: #ddd; padding: 5px 10px; border-bottom: 2px solid #000; 
+                display: flex; justify-content: space-between; align-items: center; 
+                height: 38px; overflow: hidden; white-space: nowrap;
+            }
+            .header-left { display: flex; align-items: center; gap: 8px; overflow: hidden; }
+            
+            .lot-id { font-size: 18px; font-weight: 900; }
+            /* [수정] 제품명 겹침 방지를 위해 사이즈 조절 및 여백 확보 */
+            .prod-large { font-size: 20px; font-weight: 900; color: #000; }
+            
+            .date-txt { font-size: 12px; font-weight: 700; margin-left: 10px; }
+            
+            .info-container { display: flex; flex: 1; border-bottom: 2px solid #000; }
+            .qr-box { width: 90px; border-right: 2px solid #000; display: flex; align-items: center; justify-content: center; padding: 2px; }
+            .spec-box { flex: 1; padding: 4px 8px; }
+            .spec-table { width: 100%; border-collapse: collapse; }
+            .spec-table td { padding: 2px 1px; font-size: 12px; vertical-align: middle; font-weight: 700; }
+            .label { font-weight: 900; width: 60px; color: #333; }
+            .value { font-weight: 900; font-size: 13px; color: #000; }
+            
+            .dim-box { 
+                height: 55px; background-color: #fff; 
+                display: flex; align-items: center; justify-content: center; 
+                border-top: 2px solid #000;
+            }
+            .footer-warning { width: 100%; text-align: center; font-size: 11pt; font-weight: 900; margin-top: 5mm; color: #000; }
         </style>
     </head>
     <body>
-    <div class="preview-container">
     """
     
-    for item in items:
-        img_b64 = image_to_base64(item['img'])
-        lot_id = item['lot']       
-        cust_name = item['cust']   
-        w, h, elec = item['w'], item['h'], item['elec']
+    chunk_size = 8
+    for i in range(0, len(items), chunk_size):
+        chunk = items[i:i + chunk_size]
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+        html += f'<div style="text-align:right; font-weight:bold;">출력: {now_str}</div>'
+        html += '<div class="page-header">작업 지시서 (Work Order)</div>'
+        html += '<div class="page-container">'
         
-        label_div = f"""
-        <div class="label-box">
-            <div class="label-content">
-                <div style="width: 38%; text-align: center; padding-left: 1mm;">
-                    <img src="data:image/png;base64,{img_b64}" style="width: 95%; display: block;">
+        for item in chunk:
+            img_b64 = image_to_base64(item['img'])
+            full_id = item['lot']
+            fabric_full = item.get('fabric', '-') 
+            spec_raw = item.get('spec', '')
+            if '|' in spec_raw:
+                parts = spec_raw.split('|')
+                cut_cond = parts[0].strip()
+                lam_cond = parts[1].strip() if len(parts) > 1 else '-'
+            else:
+                cut_cond = item.get('spec_cut', spec_raw)
+                lam_cond = item.get('spec_lam', '-')
+            
+            is_lam = True
+            if "생략" in lam_cond or "없음" in lam_cond or "단품" in lam_cond or lam_cond == "-": is_lam = False
+            lam_style = "color: #000;" if is_lam else "color: #aaa; text-decoration: line-through;"
+            note_text = item.get('note', item.get('비고', '-'))
+            if not note_text: note_text = "-"
+
+            w, h = item['w'], item['h']
+            elec = item['elec']
+            
+            # [핵심 수정] 가로/세로 숫자 스타일 지정
+            # 기본(Inactive): 500(Medium) + 회색 + 34px
+            # 강조(Active): 900(Extra Bold) + 검정 + 밑줄 + 34px
+            
+            base_size = "34px"
+            inactive_style = f"font-size: {base_size}; font-weight: 500; color: #555;"
+            active_style = f"font-size: {base_size}; font-weight: 900; color: #000; text-decoration: underline;"
+            
+            w_style = inactive_style
+            h_style = inactive_style
+            
+            if "가로" in elec or "(W)" in elec or "W" in elec:
+                w_style = active_style
+            if "세로" in elec or "(H)" in elec or "H" in elec:
+                h_style = active_style
+                
+            dim_html = f"<span style='{w_style}'>{w}</span> <span style='font-size:24px; font-weight:bold; color:#000;'>X</span> <span style='{h_style}'>{h}</span>"
+
+            html += f"""
+            <div class="job-card">
+                <div class="header">
+                    <div class="header-left">
+                        <span class="lot-id">{full_id}</span>
+                        <span class="prod-large">[{item['prod']}]</span>
+                    </div>
+                    <span class="date-txt">{item['cust']} | {datetime.now().strftime('%m-%d')}</span>
                 </div>
-                <div style="width: 62%; padding-left: 1.5mm; display: flex; flex-direction: column; justify-content: center;">
-                    <div class="txt-bold">{lot_id}</div>
-                    <div class="txt-bold" style="margin-top:2px;">{cust_name}</div>
-                    <div class="txt-bold" style="margin-top:2px;">{w} x {h}</div>
-                    <div class="txt-bold" style="margin-top:2px;">[{elec}]</div>
+                <div class="info-container">
+                    <div class="qr-box"><img src="data:image/png;base64,{img_b64}" style="width:100%;"></div>
+                    <div class="spec-box">
+                        <table class="spec-table">
+                            <tr><td class="label">🧵 원단</td><td class="value">{fabric_full}</td></tr>
+                            <tr><td colspan="2"><hr style="margin: 3px 0; border-top: 2px dashed #888;"></td></tr>
+                            <tr><td class="label">✂️ 커팅</td><td class="value">{cut_cond}</td></tr>
+                            <tr><td class="label">🔥 접합</td><td class="value" style="{lam_style}">{lam_cond}</td></tr>
+                            <tr><td class="label" style="color:red;">⚠️ 특이</td><td class="value" style="color:red; font-size:14px;">{note_text}</td></tr>
+                        </table>
+                    </div>
+                </div>
+                <div class="dim-box">
+                    {dim_html}
+                    <span style="margin-left: 20px; font-size: 30px; font-weight: 900;">[{item['elec']}]</span>
                 </div>
             </div>
-        </div>
-        """
-        html += label_div
-        
-    html += "</div></body></html>"
+            """
+        html += '</div>'
+        html += '<div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>'
+        if i + chunk_size < len(items): html += '<div class="page-break"></div>'
+            
+    html += "</body></html>"
     return html
 
 # ----------------------------------------------------
