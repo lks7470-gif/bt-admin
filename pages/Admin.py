@@ -75,31 +75,38 @@ def generate_print_html(content_html):
     """
 
 # ----------------------------------------------------
-# 🏷️ [라벨] 인쇄 모드 지원 (전용 프린터 vs A4)
+# 🏷️ [라벨] 40mm x 20mm 전용 HTML (설정 적용)
 # ----------------------------------------------------
-def get_label_content_html(items, mode="roll"):
-    # mode="roll": 40x20mm 1장씩 (라벨프린터용)
-    # mode="a4": A4 용지에 바둑판 배열
+def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
+    # CSS 설정 준비
+    transform_css = "transform: rotate(90deg);" if rotate else ""
+    
+    # 90도 회전 시 폭/높이가 바뀌므로 컨테이너 사이즈 대응
+    # 기본: w40 x h20
+    # 회전: w20 x h40 처럼 보여야 함 -> flex 정렬로 처리
     
     css_page = ""
     css_wrap = ""
     
     if mode == "roll":
-        # 전용 프린터용 스타일
+        # 전용 프린터 (브라더 등)
+        # @page 사이즈는 회전 여부와 관계없이 물리적 용지 사이즈(40x20)로 선언
+        # 브라더 앱에서 '가로/세로' 설정을 맞추면 됨
         css_page = "@page { size: 40mm 20mm; margin: 0; }"
-        css_wrap = """
+        css_wrap = f"""
             width: 38mm; height: 19mm;
-            page-break-after: always; /* 1장 찍고 커팅/다음장 */
-            display: flex; align-items: center;
+            page-break-after: always;
+            display: flex; align-items: center; justify-content: center;
             overflow: hidden;
-            border: 1px solid #ddd; /* 테두리 약하게 */
+            border: 1px solid #ddd;
+            margin-top: {margin_top}mm; /* 상단 여백 보정 */
         """
     else:
-        # A4 라벨지용 스타일 (4열 배열)
+        # A4 라벨지
         css_page = "@page { size: A4; margin: 5mm; }"
         css_wrap = """
-            width: 45mm; height: 25mm; /* A4용은 약간 여유있게 */
-            display: inline-flex; align-items: center;
+            width: 42mm; height: 22mm;
+            display: inline-flex; align-items: center; justify-content: center;
             margin: 2px;
             border: 1px dashed #ccc;
             float: left;
@@ -115,12 +122,20 @@ def get_label_content_html(items, mode="roll"):
                 {css_page}
                 body {{ margin: 0; padding: 0; }}
             }}
-            .label-wrap {{
+            .label-box {{
                 {css_wrap}
                 font-family: 'Roboto', sans-serif;
                 background: white;
                 box-sizing: border-box;
             }}
+            
+            /* 실제 내용물(Content) */
+            .label-content {{
+                width: 38mm; height: 19mm;
+                display: flex; align-items: center;
+                {transform_css} /* 여기서 90도 회전 적용 */
+            }}
+            
             /* 화면 미리보기용 */
             .preview-container {{ display: flex; flex-wrap: wrap; }}
         </style>
@@ -142,15 +157,18 @@ def get_label_content_html(items, mode="roll"):
             
         dim_html = f"<span style='{w_style}'>{w}</span>x<span style='{h_style}'>{h}</span>"
         
+        # 구조: label-box(외곽, 회전X) -> label-content(내용, 회전O)
         label_div = f"""
-        <div class="label-wrap">
-            <div style="width: 38%; text-align: center; padding-left: 1mm;">
-                <img src="data:image/png;base64,{img_b64}" style="width: 95%; display: block;">
-            </div>
-            <div style="width: 62%; padding-left: 1.5mm; display: flex; flex-direction: column; justify-content: center;">
-                <div style="font-size: 10pt; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 1px; color: #333;">{lot_id}</div>
-                <div style="font-size: 7pt; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">🏢 {cust_name}</div>
-                <div style="font-size: 8pt; margin-top: 1px;">📏 {dim_html}</div>
+        <div class="label-box">
+            <div class="label-content">
+                <div style="width: 38%; text-align: center; padding-left: 1mm;">
+                    <img src="data:image/png;base64,{img_b64}" style="width: 95%; display: block;">
+                </div>
+                <div style="width: 62%; padding-left: 1.5mm; display: flex; flex-direction: column; justify-content: center;">
+                    <div style="font-size: 10pt; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 1px; color: #333;">{lot_id}</div>
+                    <div style="font-size: 7pt; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">🏢 {cust_name}</div>
+                    <div style="font-size: 8pt; margin-top: 1px;">📏 {dim_html}</div>
+                </div>
             </div>
         </div>
         """
@@ -160,7 +178,7 @@ def get_label_content_html(items, mode="roll"):
     return html
 
 # ----------------------------------------------------
-# 📄 [작업지시서] A4 (2x4 배열) - 높이 재조정 (완전 해결)
+# 📄 [작업지시서] A4 (2x4 배열) - 최적화 버전
 # ----------------------------------------------------
 def get_work_order_html(items):
     html = """
@@ -168,74 +186,29 @@ def get_work_order_html(items):
     <head>
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
-            
             @media print { 
                 @page { size: A4; margin: 5mm; } 
                 body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; }
                 .page-break { page-break-after: always; }
             }
-            
             body { font-family: 'Noto Sans KR', sans-serif; }
-            
-            .print-date {
-                text-align: right; font-size: 9pt; color: #555;
-                margin-bottom: 1mm; font-family: monospace;
-            }
-            .page-header {
-                text-align: center; font-size: 20pt; font-weight: 900;
-                text-decoration: underline; margin-bottom: 2mm; width: 100%;
-            }
-            .page-container {
-                display: flex; flex-wrap: wrap; justify-content: space-between;
-                align-content: flex-start; width: 100%; height: auto; padding: 0;
-            }
-            
-            /* [수정] 높이 60mm로 고정하여 밀림 방지 */
-            .job-card {
-                width: 49%; 
-                height: 60mm; 
-                border: 2px solid #000; box-sizing: border-box;
-                margin-bottom: 1.5mm; 
-                display: flex; flex-direction: column; overflow: hidden;
-            }
-            
-            .header { 
-                background-color: #eee; padding: 2px 10px;
-                border-bottom: 1px solid #000; display: flex; justify-content: space-between; align-items: center; 
-                height: 22px;
-            }
-            .lot-id { font-size: 14px; font-weight: 900; }
-            .date-txt { font-size: 10px; }
-            
+            .print-date { text-align: right; font-size: 9pt; color: #555; margin-bottom: 1mm; font-family: monospace; }
+            .page-header { text-align: center; font-size: 20pt; font-weight: 900; text-decoration: underline; margin-bottom: 2mm; width: 100%; }
+            .page-container { display: flex; flex-wrap: wrap; justify-content: space-between; align-content: flex-start; width: 100%; height: auto; padding: 0; }
+            .job-card { width: 49%; height: 62.5mm; border: 2px solid #000; box-sizing: border-box; margin-bottom: 1mm; display: flex; flex-direction: column; overflow: hidden; }
+            .header { background-color: #eee; padding: 4px 10px; border-bottom: 1px solid #000; display: flex; justify-content: space-between; align-items: center; height: 24px; }
+            .lot-id { font-size: 15px; font-weight: 900; }
+            .date-txt { font-size: 11px; }
             .info-container { display: flex; flex: 1; border-bottom: 1px solid #000; }
-            .qr-box { 
-                width: 80px; border-right: 1px solid #000; 
-                display: flex; align-items: center; justify-content: center; padding: 2px;
-            }
-            .spec-box { flex: 1; padding: 3px 6px; }
+            .qr-box { width: 85px; border-right: 1px solid #000; display: flex; align-items: center; justify-content: center; padding: 2px; }
+            .spec-box { flex: 1; padding: 4px 8px; }
             .spec-table { width: 100%; border-collapse: collapse; }
-            .spec-table td { padding: 1px; font-size: 10px; vertical-align: middle; }
+            .spec-table td { padding: 2px 1px; font-size: 11px; vertical-align: middle; }
             .label { font-weight: bold; width: 50px; color: #555; }
-            .value { font-weight: bold; font-size: 11px; color: #000; }
-            
-            /* 하단 박스 */
-            .dim-box { 
-                height: 35px; 
-                background-color: #fff;
-                display: flex; align-items: center; justify-content: center; 
-                font-size: 19px; font-weight: 400; 
-            }
-            
-            /* 경고 문구: 여백 최적화 */
-            .footer-warning {
-                width: 100%; 
-                text-align: center; 
-                font-size: 10pt; 
-                font-weight: bold;
-                margin-top: 3mm; /* 밀림 방지를 위해 간격 최소화 */
-                color: #333;
-                border: none;
-            }
+            .value { font-weight: bold; font-size: 12px; color: #000; }
+            .check-box { display: inline-block; width: 10px; height: 10px; border: 1px solid #000; text-align: center; line-height: 9px; margin-right: 3px; font-size: 9px; }
+            .dim-box { height: 38px; background-color: #fff; display: flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 400; }
+            .footer-warning { width: 100%; text-align: center; font-size: 10pt; font-weight: bold; margin-top: 5mm; color: #333; border: none; }
         </style>
     </head>
     <body>
@@ -244,7 +217,6 @@ def get_work_order_html(items):
     chunk_size = 8
     for i in range(0, len(items), chunk_size):
         chunk = items[i:i + chunk_size]
-        
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
         html += f'<div class="print-date">출력일시: {now_str}</div>'
         html += '<div class="page-header">작업 지시서 (Work Order)</div>'
@@ -253,10 +225,8 @@ def get_work_order_html(items):
         for item in chunk:
             img_b64 = image_to_base64(item['img'])
             full_id = item['lot']
-            
             fabric_full = item.get('fabric', '-') 
             spec_raw = item.get('spec', '')
-            
             if '|' in spec_raw:
                 parts = spec_raw.split('|')
                 cut_cond = parts[0].strip()
@@ -266,24 +236,18 @@ def get_work_order_html(items):
                 lam_cond = item.get('spec_lam', '-')
             
             is_lam = True
-            if "생략" in lam_cond or "없음" in lam_cond or "단품" in lam_cond or lam_cond == "-":
-                is_lam = False
-            
+            if "생략" in lam_cond or "없음" in lam_cond or "단품" in lam_cond or lam_cond == "-": is_lam = False
             lam_check_mark = "V" if is_lam else "&nbsp;"
             lam_style = "color: #000;" if is_lam else "color: #ccc; text-decoration: line-through;"
-            
             note_text = item.get('note', item.get('비고', '-'))
             if not note_text: note_text = "-"
 
             w, h = item['w'], item['h']
             elec = item['elec']
-            
             w_style = "font-weight: 400;" 
             h_style = "font-weight: 400;"
-            
             if "가로" in elec: w_style = "font-weight: 900;"
             if "세로" in elec: h_style = "font-weight: 900;"
-                
             dim_html = f"<span style='{w_style}'>{w}</span> x <span style='{h_style}'>{h}</span>"
 
             html += f"""
@@ -297,28 +261,19 @@ def get_work_order_html(items):
                     <div class="spec-box">
                         <table class="spec-table">
                             <tr><td class="label">🧵 원단</td><td class="value">{fabric_full}</td></tr>
-                            <tr><td colspan="2"><hr style="margin: 2px 0; border-top: 1px dashed #ccc;"></td></tr>
+                            <tr><td colspan="2"><hr style="margin: 3px 0; border-top: 1px dashed #ccc;"></td></tr>
                             <tr><td class="label">✂️ 커팅</td><td class="value">{cut_cond}</td></tr>
-                            <tr><td class="label">🔥 접합</td>
-                                <td class="value" style="{lam_style}">
-                                    <span class="check-box">{lam_check_mark}</span>{lam_cond}
-                                </td>
-                            </tr>
+                            <tr><td class="label">🔥 접합</td><td class="value" style="{lam_style}"><span class="check-box">{lam_check_mark}</span>{lam_cond}</td></tr>
                             <tr><td class="label" style="color:red;">⚠️ 특이</td><td class="value" style="color:red;">{note_text}</td></tr>
                         </table>
                     </div>
                 </div>
-                <div class="dim-box">
-                    {dim_html} / {item['elec']}
-                </div>
+                <div class="dim-box">{dim_html} / {item['elec']}</div>
             </div>
             """
         html += '</div>'
-        
         html += '<div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>'
-
-        if i + chunk_size < len(items):
-            html += '<div class="page-break"></div>'
+        if i + chunk_size < len(items): html += '<div class="page-break"></div>'
             
     html += "</body></html>"
     return html
@@ -351,24 +306,17 @@ st.sidebar.title("👨‍💼 지시서 설정")
 if not st.session_state.fabric_db: st.session_state.fabric_db = fetch_fabric_stock()
 if st.sidebar.button("🔄 재고 정보 새로고침", use_container_width=True): st.session_state.fabric_db = fetch_fabric_stock(); st.toast("✅ 완료")
 
-# 탭 구성
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["📝 작업 입력", "📄 지시서 인쇄", "🏷️ 라벨 인쇄", "🔄 QR 재발행", "🧵 원단 재고", "📊 발행 이력", "🔍 제품 추적", "🚨 불량 현황", "📱 접속 QR"])
 
-# ==========================================
-# 📝 [Tab 1] 신규 작업 지시 (원단 선택 연동)
-# ==========================================
+# [Tab 1] 작업 입력
 with tab1:
     st.markdown("### 📝 신규 작업 지시 등록")
-    if 'fabric_db' not in st.session_state or not st.session_state.fabric_db:
-        st.session_state.fabric_db = fetch_fabric_stock()
-
+    if 'fabric_db' not in st.session_state or not st.session_state.fabric_db: st.session_state.fabric_db = fetch_fabric_stock()
     with st.form("order_form"):
         c1, c2 = st.columns([1, 1])
         customer = c1.text_input("고객사 (Customer)", placeholder="예: A건설")
         product = c2.selectbox("제품 종류", ["스마트글라스", "접합필름", "PDLC원단", "일반유리"])
-        
         st.divider()
-        
         c_mat1, c_mat2 = st.columns(2)
         stock_options = ["➕ 직접 입력 (미등록 원단)"] 
         if st.session_state.fabric_db:
@@ -376,9 +324,7 @@ with tab1:
                 remain = info['total_len'] - info['used_len']
                 display_text = f"{lot} | {info['name']} (잔량:{remain:.1f}m)"
                 stock_options.append(display_text)
-        
         selected_stock = c_mat1.selectbox("🧵 사용할 원단 선택", stock_options)
-        
         if "직접 입력" in selected_stock:
             fabric_lot = c_mat1.text_input("원단 LOT 번호 입력", placeholder="Roll-2312a-KR")
             default_short = ""
@@ -386,43 +332,29 @@ with tab1:
             fabric_lot = selected_stock.split(" | ")[0]
             c_mat1.info(f"✅ 선택됨: {fabric_lot}")
             default_short = fabric_lot[:4].upper()
-
         fabric_short = c_mat2.text_input("🆔 ID용 약어 (4자리)", value=default_short, max_chars=4, help="QR 코드에 들어갈 식별 코드 (예: HCLA)")
-
         st.divider()
-
         c3, c4, c5 = st.columns([1, 1, 1])
         w = c3.number_input("가로 (W)", min_value=0, step=10)
         h = c4.number_input("세로 (H)", min_value=0, step=10)
         elec_type = c5.selectbox("전극 위치", ["없음", "가로(W) 양쪽", "세로(H) 양쪽", "가로(W) 상단", "세로(H) 우측"])
-
         st.caption("🔧 공정 조건 설정")
         cc1, cc2 = st.columns(2)
         spec_cut = cc1.text_input("✂️ 커팅 조건", placeholder="예: Full(50/80/20)")
-        
         is_lamination = cc2.checkbox("🔥 접합(Lamination) 포함", value=True)
-        if is_lamination:
-            spec_lam = cc2.text_input("🔥 접합 조건", placeholder="예: 1단계(60도/30분)")
-        else:
-            spec_lam = "⛔ 접합 생략 (필름 마감)"
-        
+        if is_lamination: spec_lam = cc2.text_input("🔥 접합 조건", placeholder="예: 1단계(60도/30분)")
+        else: spec_lam = "⛔ 접합 생략 (필름 마감)"
         note = st.text_input("비고 (특이사항)", placeholder="작업자 전달 사항")
         count = st.number_input("수량", min_value=1, value=1)
-
         if st.form_submit_button("➕ 작업 목록 추가", type="primary", use_container_width=True):
-            if not customer or not w or not h:
-                st.error("고객사, 가로, 세로 사이즈는 필수입니다.")
-            elif not fabric_lot:
-                st.error("원단 정보가 없습니다.")
+            if not customer or not w or not h: st.error("고객사, 가로, 세로 사이즈는 필수입니다.")
+            elif not fabric_lot: st.error("원단 정보가 없습니다.")
             else:
                 final_short = fabric_short if fabric_short else fabric_lot[:4].upper().ljust(4, 'X')
                 st.session_state.order_list.append({
                     "고객사": customer, "제품": product, "규격": f"{w}x{h}",
-                    "w": w, "h": h, "전극": elec_type,
-                    "spec_cut": spec_cut, "spec_lam": spec_lam, "is_lam": is_lamination,
-                    "spec": f"{spec_cut} | {spec_lam}", 
-                    "비고": note, "수량": count,
-                    "lot_no": fabric_lot, "lot_short": final_short  
+                    "w": w, "h": h, "전극": elec_type, "spec_cut": spec_cut, "spec_lam": spec_lam, "is_lam": is_lamination,
+                    "spec": f"{spec_cut} | {spec_lam}", "비고": note, "수량": count, "lot_no": fabric_lot, "lot_short": final_short  
                 })
                 st.success(f"리스트 추가됨! (ID: {final_short})")
 
@@ -430,55 +362,43 @@ with tab1:
         st.divider()
         st.markdown(f"### 🛒 발행 대기 목록 ({len(st.session_state.order_list)}건)")
         st.dataframe(pd.DataFrame(st.session_state.order_list)[["고객사", "lot_short", "제품", "규격", "spec_lam", "수량"]], use_container_width=True)
-
         c1, c2 = st.columns([1, 2])
         if c1.button("🗑️ 목록 초기화"): st.session_state.order_list = []; st.rerun()
-
         if c2.button("🚀 최종 발행 및 저장 (Supabase)", type="primary", use_container_width=True):
             date_str = datetime.now().strftime("%y%m%d")
             product_type_map = {"스마트글라스": "G", "접합필름": "F", "PDLC원단": "P", "일반유리": "N"}
             new_qrs = []
             cnt = 0
-
             for item in st.session_state.order_list:
                 film_part = str(item['lot_short']).upper()
                 prod_char = product_type_map.get(item['제품'], "X")
-
                 for _ in range(item['수량']):
                     seq_str = f"{cnt:02d}"
                     final_lot_id = f"{film_part}{date_str}{prod_char}{seq_str}"
                     cnt = (cnt + 1) % 100
-                    
                     init_status = "작업대기" if item['is_lam'] else "작업대기(단품)"
-
                     try:
                         supabase.table("work_orders").insert({
                             "lot_no": final_lot_id, "customer": item['고객사'], "product": item['제품'],
                             "dimension": f"{item['규격']} [{item['전극']}]", "spec": item['spec'],
                             "status": init_status, "note": item['비고'], "fabric_lot_no": item['lot_no']
                         }).execute()
-                        
                         qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=1)
                         qr.add_data(final_lot_id)
                         qr.make(fit=True)
                         img = qr.make_image(fill_color="black", back_color="white")
-                        
                         new_qrs.append({
                             "lot": final_lot_id, "w": item['w'], "h": item['h'], "elec": item['전극'], 
                             "prod": item['제품'], "cust": item['고객사'], "img": img,
                             "fabric": item['lot_no'], "spec_cut": item['spec_cut'], "spec_lam": item['spec_lam'], 
                             "is_lam": item['is_lam'], "note": item['비고']
                         })
-                    except Exception as e:
-                        st.error(f"저장 중 오류 발생: {e}")
-
+                    except Exception as e: st.error(f"저장 중 오류 발생: {e}")
             st.session_state.generated_qrs = new_qrs
             st.session_state.order_list = []
             st.success(f"✅ 총 {len(new_qrs)}건 발행 완료!"); time.sleep(1); st.rerun()
 
-# ==========================================
-# 📄 [Tab 2] 작업 지시서 인쇄
-# ==========================================
+# [Tab 2] 지시서 인쇄
 with tab2:
     st.header("📄 작업 지시서 인쇄")
     if st.session_state.generated_qrs:
@@ -487,32 +407,39 @@ with tab2:
         if st.button("🖨️ 지시서 인쇄", type="primary"):
             full_html = generate_print_html(content_html)
             components.html(full_html, height=0, width=0)
-    else:
-        st.info("⚠️ 현재 발행된 작업이 없습니다.")
+    else: st.info("⚠️ 현재 발행된 작업이 없습니다.")
 
 # ==========================================
 # 🏷️ [Tab 3] 라벨 인쇄 (설정 추가됨)
 # ==========================================
 with tab3:
     st.header("🏷️ QR 라벨 인쇄")
+    
     if st.session_state.generated_qrs:
-        
-        # [NEW] 인쇄 모드 선택 기능
-        print_mode = st.radio("🖨️ 인쇄 방식 선택", ["전용 라벨 프린터 (40x20mm 1장씩)", "A4 라벨지 (전체 목록형)"], horizontal=True)
-        mode_code = "roll" if "전용" in print_mode else "a4"
-        
-        content_html = get_label_content_html(st.session_state.generated_qrs, mode=mode_code)
+        # [설정] 인쇄 옵션 패널
+        with st.expander("⚙️ 라벨 인쇄 설정 (프린터/방향)", expanded=True):
+            c_mode, c_rot, c_margin = st.columns([2, 1, 1])
+            
+            # 1. 인쇄 방식 선택
+            print_mode = c_mode.radio("🖨️ 인쇄 방식", ["전용 프린터 (40x20mm 1장씩)", "A4 라벨지 (전체 목록)"], horizontal=True)
+            mode_code = "roll" if "전용" in print_mode else "a4"
+            
+            # 2. 회전 (브라더 프린터 대응)
+            is_rotate = c_rot.checkbox("🔄 내용 90도 회전", help="라벨이 세로로 나오는 경우 체크하세요.")
+            
+            # 3. 여백 미세조정
+            margin_top = c_margin.number_input("상단 여백 보정(mm)", value=0, step=1, help="인쇄가 밀릴 경우 조정")
+
+        content_html = get_label_content_html(st.session_state.generated_qrs, mode=mode_code, rotate=is_rotate, margin_top=margin_top)
         st.components.v1.html(content_html, height=600, scrolling=True)
         
-        if st.button("🖨️ 라벨 인쇄", type="primary"):
+        if st.button("🖨️ 라벨 인쇄 (Print)", type="primary"):
             full_html = generate_print_html(content_html)
             components.html(full_html, height=0, width=0)
     else:
         st.info("👈 먼저 [작업 입력] 탭에서 발행을 진행해주세요.")
 
-# ==========================================
-# 🔄 [Tab 4] QR 재발행
-# ==========================================
+# [Tab 4] QR 재발행
 with tab4:
     st.header("🔄 QR 재발행")
     with st.form("reprint"):
@@ -532,8 +459,7 @@ with tab4:
             
             if not sel_rows.empty:
                 st.divider()
-                # [수정] 재발행 시에도 라벨 인쇄 옵션 선택 가능
-                reprint_type = st.radio("재발행 형태", ["📄 작업지시서 (A4)", "🏷️ 라벨 (전용 프린터)", "🏷️ 라벨 (A4 목록)"], horizontal=True)
+                reprint_type = st.radio("재발행 형태", ["📄 작업지시서 (A4)", "🏷️ 라벨 (전용/A4 선택)"], horizontal=True)
                 
                 rep_items = []
                 for _, row in sel_rows.iterrows():
@@ -546,35 +472,32 @@ with tab4:
                             nums = re.findall(r'\d+', dim_str); 
                             if len(nums) >= 2: w, h = nums[0], nums[1]
                     except: pass
-                    
                     qr = qrcode.QRCode(box_size=5, border=1); qr.add_data(row['lot_no']); qr.make(fit=True); img = qr.make_image(fill_color="black", back_color="white")
-                    
                     rep_items.append({
-                        "lot": row['lot_no'], "w": w, "h": h, "elec": elec, 
-                        "cust": row['customer'], "prod": row['product'], 
-                        "fabric": row.get('fabric_lot_no', '-'), "spec": row.get('spec', ''), 
-                        "note": row.get('note', ''), "img": img
+                        "lot": row['lot_no'], "w": w, "h": h, "elec": elec, "cust": row['customer'], "prod": row['product'], 
+                        "fabric": row.get('fabric_lot_no', '-'), "spec": row.get('spec', ''), "note": row.get('note', ''), "img": img
                     })
                 
-                content_html = ""
                 if "작업지시서" in reprint_type:
                     content_html = get_work_order_html(rep_items)
-                elif "전용" in reprint_type:
-                    content_html = get_label_content_html(rep_items, mode="roll")
+                    st.components.v1.html(content_html, height=500, scrolling=True)
+                    if st.button("🖨️ 지시서 인쇄", type="primary"):
+                        full_html = generate_print_html(content_html)
+                        components.html(full_html, height=0, width=0)
                 else:
-                    content_html = get_label_content_html(rep_items, mode="a4")
+                    # 라벨 재발행 시에도 설정 적용
+                    c_m, c_r = st.columns(2)
+                    rpm = c_m.radio("방식", ["전용 프린터", "A4 라벨지"], horizontal=True)
+                    rrot = c_r.checkbox("90도 회전")
+                    rmode = "roll" if "전용" in rpm else "a4"
                     
-                st.components.v1.html(content_html, height=500, scrolling=True)
-                
-                if st.button("🖨️ 선택 항목 재발행", type="primary"):
-                    full_html = generate_print_html(content_html)
-                    components.html(full_html, height=0, width=0)
-    else:
-        st.info("조회된 데이터가 없습니다.")
+                    content_html = get_label_content_html(rep_items, mode=rmode, rotate=rrot)
+                    st.components.v1.html(content_html, height=500, scrolling=True)
+                    if st.button("🖨️ 라벨 인쇄", type="primary"):
+                        full_html = generate_print_html(content_html)
+                        components.html(full_html, height=0, width=0)
+    else: st.info("조회된 데이터가 없습니다.")
 
-# ==========================================
-# 🧵 [Tab 5] 원단 재고
-# ==========================================
 with tab5:
     with st.form("fabric_in"):
         st.markdown("##### 📥 원단 입고 등록")
@@ -585,56 +508,34 @@ with tab5:
     st.divider()
     res=supabase.table("fabric_stock").select("*").execute(); st.data_editor(pd.DataFrame(res.data),hide_index=True, use_container_width=True)
 
-# ==========================================
-# 📊 [Tab 6] 통합 관제
-# ==========================================
 with tab6:
     st.title("📊 생산 현황 및 이력 관리")
     try:
         res = supabase.table("work_orders").select("*").order("created_at", desc=True).limit(200).execute()
         df_log = pd.DataFrame(res.data)
     except Exception as e: st.error(f"조회 실패: {e}"); df_log = pd.DataFrame()
-
     if not df_log.empty:
         if "created_at" in df_log.columns: df_log["created_at"] = pd.to_datetime(df_log["created_at"])
-        
         status_counts = df_log['status'].value_counts()
         k1, k2, k3, k4 = st.columns(4)
         wait_cnt = status_counts.get("작업대기", 0) + status_counts.get("작업대기(단품)", 0)
         k1.metric("⚪ 작업 대기", f"{wait_cnt}건")
-        
         ing_cnt = sum([v for k, v in status_counts.items() if not any(x in k for x in ["작업대기", "완료", "End", "불량"])])
         k2.metric("🔵 공정 진행중", f"{ing_cnt}건")
-        
         done_cnt = status_counts.get("완료", 0) + status_counts.get("End", 0)
         k3.metric("🟢 생산 완료", f"{done_cnt}건")
-        
         defect_cnt = df_log[df_log['status'].str.contains("불량|보류", na=False)].shape[0]
         k4.metric("🔴 불량/이슈", f"{defect_cnt}건")
-
         st.divider()
         st.markdown("### 📋 발행 이력 조회")
-        
         c_filter1, c_filter2 = st.columns(2)
         filter_status = c_filter1.multiselect("상태별 필터", options=df_log['status'].unique())
         filter_lot = c_filter2.text_input("LOT 번호 검색", placeholder="SG-...")
-        
         df_view = df_log.copy()
         if filter_status: df_view = df_view[df_view['status'].isin(filter_status)]
         if filter_lot: df_view = df_view[df_view['lot_no'].str.contains(filter_lot, case=False)]
         df_view.insert(0, "선택", False)
-        
-        edited_log = st.data_editor(
-            df_view, hide_index=True, use_container_width=True,
-            column_config={
-                "선택": st.column_config.CheckboxColumn(width="small"),
-                "created_at": st.column_config.DatetimeColumn("발행일시", format="MM-DD HH:mm"),
-                "lot_no": st.column_config.TextColumn("LOT 번호", width="medium"),
-                "status": st.column_config.TextColumn("현재 상태"),
-                "spec": st.column_config.TextColumn("스펙 요약", width="medium"),
-            }, key="history_editor"
-        )
-
+        edited_log = st.data_editor(df_view, hide_index=True, use_container_width=True, column_config={"선택": st.column_config.CheckboxColumn(width="small"), "created_at": st.column_config.DatetimeColumn("발행일시", format="MM-DD HH:mm"), "lot_no": st.column_config.TextColumn("LOT 번호", width="medium"), "status": st.column_config.TextColumn("현재 상태"), "spec": st.column_config.TextColumn("스펙 요약", width="medium")}, key="history_editor")
         selected_rows = edited_log[edited_log["선택"]]
         if not selected_rows.empty:
             st.markdown("---")
@@ -651,7 +552,6 @@ with tab6:
                         if "Full" in p: full_cut = p.replace("Full", "").strip("()")
                         elif "Half" in p: half_cut = p.replace("Half", "").strip("()")
                         elif "단계" in p or "℃" in p or "생략" in p or "없음" in p: lam_cond = p
-                
                 with st.container(border=True):
                     st.markdown(f"#### 📌 LOT: `{row['lot_no']}`")
                     c_cut1, c_cut2 = st.columns(2)
@@ -662,7 +562,6 @@ with tab6:
                     if "생략" in lam_cond or "없음" in lam_cond: st.warning(f"⛔ {lam_cond}")
                     else: st.write(lam_cond.replace("->", " → "))
                     st.caption(f"🧵 원단 정보: {row.get('fabric_lot_no', '-')}")
-
             with delete_tab:
                 st.warning(f"선택된 {len(selected_rows)}건 삭제")
                 if st.toggle("🚨 관리자 삭제 모드 켜기"):
@@ -670,33 +569,21 @@ with tab6:
                         delete_lots = selected_rows['lot_no'].tolist()
                         supabase.table("work_orders").delete().in_("lot_no", delete_lots).execute()
                         st.toast("삭제 완료!"); time.sleep(1); st.rerun()
-    else:
-        st.info("조회된 데이터가 없습니다.")
+    else: st.info("조회된 데이터가 없습니다.")
 
 with tab7:
     with st.form("track"): c1,c2=st.columns([4,1]); l=c1.text_input("LOT"); b=c2.form_submit_button("조회")
     if b: r=supabase.table("work_orders").select("*").eq("lot_no",l).execute(); st.write(r.data)
 
-# ==========================================
-# 🚨 [Tab 8] 불량 현황
-# ==========================================
 with tab8: 
     st.markdown("### 🚨 불량 현황")
     try:
         res = supabase.table("defects").select("*").execute()
         df_defects = pd.DataFrame(res.data)
-        
-        if not df_defects.empty:
-            st.dataframe(df_defects, use_container_width=True)
-        else:
-            st.info("✅ 현재 등록된 불량 내역이 없습니다.")
-            
-    except Exception as e:
-        st.error(f"데이터 조회 중 오류가 발생했습니다: {e}")
+        if not df_defects.empty: st.dataframe(df_defects, use_container_width=True)
+        else: st.info("✅ 현재 등록된 불량 내역이 없습니다.")
+    except Exception as e: st.error(f"데이터 조회 중 오류가 발생했습니다: {e}")
 
-# ==========================================
-# 📱 [Tab 9] 접속 QR
-# ==========================================
 with tab9:
     st.header("📱 현장 접속 QR")
     content_html = get_access_qr_content_html(APP_URL, "big")
