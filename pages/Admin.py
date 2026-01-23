@@ -136,7 +136,7 @@ def get_label_content_html(items):
     return html
 
 # ----------------------------------------------------
-# 📄 [작업지시서] A4 (2x4 배열) HTML
+# 📄 [작업지시서] A4 (2x4 배열) HTML - 높이 최적화 적용
 # ----------------------------------------------------
 def get_work_order_html(items):
     html = """
@@ -154,50 +154,51 @@ def get_work_order_html(items):
             body { font-family: 'Noto Sans KR', sans-serif; }
             
             .print-date {
-                text-align: right; font-size: 10pt; color: #333;
-                margin-bottom: 2mm; font-family: monospace;
+                text-align: right; font-size: 9pt; color: #555;
+                margin-bottom: 1mm; font-family: monospace;
             }
             .page-header {
-                text-align: center; font-size: 22pt; font-weight: 900;
-                text-decoration: underline; margin-bottom: 3mm; width: 100%;
+                text-align: center; font-size: 20pt; font-weight: 900;
+                text-decoration: underline; margin-bottom: 2mm; width: 100%;
             }
             .page-container {
                 display: flex; flex-wrap: wrap; justify-content: space-between;
                 align-content: flex-start; width: 100%; height: auto; padding: 0;
             }
             .job-card {
-                width: 49%; height: 62mm;
+                width: 49%; 
+                height: 60mm; /* [수정] 62mm -> 60mm로 줄여서 한 장에 쏙 들어가게 함 */
                 border: 2px solid #000; box-sizing: border-box;
                 margin-bottom: 2mm; display: flex; flex-direction: column; overflow: hidden;
             }
             .header { 
-                background-color: #eee; padding: 3px 10px;
-                border-bottom: 1px solid #000; display: flex; justify-content: space-between; align-items: center; height: 22px;
+                background-color: #eee; padding: 2px 10px;
+                border-bottom: 1px solid #000; display: flex; justify-content: space-between; align-items: center; height: 20px;
             }
-            .lot-id { font-size: 15px; font-weight: 900; }
-            .date-txt { font-size: 11px; }
+            .lot-id { font-size: 14px; font-weight: 900; }
+            .date-txt { font-size: 10px; }
             .info-container { display: flex; flex: 1; border-bottom: 1px solid #000; }
             .qr-box { 
-                width: 85px; border-right: 1px solid #000; 
-                display: flex; align-items: center; justify-content: center; padding: 5px;
+                width: 80px; border-right: 1px solid #000; 
+                display: flex; align-items: center; justify-content: center; padding: 2px;
             }
-            .spec-box { flex: 1; padding: 4px 6px; }
+            .spec-box { flex: 1; padding: 2px 5px; }
             .spec-table { width: 100%; border-collapse: collapse; }
-            .spec-table td { padding: 1px; font-size: 11px; vertical-align: middle; }
-            .label { font-weight: bold; width: 55px; color: #555; }
-            .value { font-weight: bold; font-size: 12px; color: #000; }
+            .spec-table td { padding: 1px; font-size: 10px; vertical-align: middle; }
+            .label { font-weight: bold; width: 50px; color: #555; }
+            .value { font-weight: bold; font-size: 11px; color: #000; }
             .check-box { 
                 display: inline-block; width: 10px; height: 10px; 
                 border: 1px solid #000; text-align: center; line-height: 9px; margin-right: 3px; font-size: 9px;
             }
             .dim-box { 
-                height: 38px; background-color: #fff;
+                height: 35px; background-color: #fff;
                 display: flex; align-items: center; justify-content: center; 
-                font-size: 20px; font-weight: 400; 
+                font-size: 18px; font-weight: 400; 
             }
             .footer-warning {
-                width: 100%; text-align: center; font-size: 11pt; font-weight: bold;
-                margin-top: 5mm; padding-top: 2mm; border-top: 2px double #000;
+                width: 100%; text-align: center; font-size: 10pt; font-weight: bold;
+                margin-top: 2mm; padding-top: 2mm; border-top: 2px double #000;
             }
         </style>
     </head>
@@ -241,7 +242,6 @@ def get_work_order_html(items):
             w, h = item['w'], item['h']
             elec = item['elec']
             
-            # [수정] 100과 150 사이즈 폰트 크기 같게, 굵기만 변경
             w_style = "font-weight: 400;" 
             h_style = "font-weight: 400;"
             
@@ -287,7 +287,7 @@ def get_work_order_html(items):
     return html
 
 # ----------------------------------------------------
-# 📱 [복구됨] 접속 QR HTML 함수 (NameError 해결)
+# 📱 [복구] 접속 QR HTML 함수 (NameError 해결)
 # ----------------------------------------------------
 def get_access_qr_content_html(url, mode="big"):
     qr = qrcode.QRCode(box_size=10, border=1)
@@ -630,7 +630,7 @@ with tab7:
 with tab8: res=supabase.table("defects").select("*").execute(); st.dataframe(pd.DataFrame(res.data), use_container_width=True)
 
 # ==========================================
-# 📱 [Tab 9] 접속 QR (NameError 해결됨)
+# 📱 [Tab 9] 접속 QR (정상 복구됨)
 # ==========================================
 with tab9:
     st.header("📱 현장 접속 QR")
