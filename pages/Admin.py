@@ -254,10 +254,15 @@ if st.sidebar.button("🔄 재고 정보 새로고침", use_container_width=True
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["📝 작업 입력", "📄 지시서 인쇄", "🏷️ 라벨 인쇄", "🔄 QR 재발행", "🧵 원단 재고", "📊 발행 이력", "🔍 제품 추적", "🚨 불량 현황", "📱 접속 QR"])
 
 # ==========================================
-# 📝 [Tab 1] 신규 작업 지시 생성 (입력)
+# 📝 [Tab 1] 신규 작업 지시 생성 (재고 연동됨)
 # ==========================================
 with tab1:
     st.markdown("### 📝 신규 작업 지시 등록")
+    
+    # 1. 재고 DB 불러오기 (없으면 빈 딕셔너리)
+    if 'fabric_db' not in st.session_state or not st.session_state.fabric_db:
+        st.session_state.fabric_db = fetch_fabric_stock()
+
     with st.form("order_form"):
         c1, c2 = st.columns([1, 1])
         customer = c1.text_input("고객사 (Customer)", placeholder="예: A건설")
@@ -265,10 +270,38 @@ with tab1:
         
         st.divider()
         
-        # (2) 원자재 정보 & 약어
+        # ----------------------------------------------------------------
+        # 🧵 원자재 정보 (재고 리스트 연동 수정)
+        # ----------------------------------------------------------------
         c_mat1, c_mat2 = st.columns(2)
-        fabric_lot = c_mat1.text_input("원단 LOT 번호 (Full)", placeholder="Roll-2312a-KR")
-        default_short = fabric_lot[:4].upper() if fabric_lot else ""
+        
+        # (A) 재고 리스트 만들기: "LOT번호 | 제품명 (잔량: xxx m)"
+        stock_options = ["➕ 직접 입력 (미등록 원단)"] 
+        if st.session_state.fabric_db:
+            for lot, info in st.session_state.fabric_db.items():
+                remain = info['total_len'] - info['used_len']
+                # 잔량이 0보다 큰 것만 보여주기 (옵션)
+                display_text = f"{lot} | {info['name']} (잔량:{remain:.1f}m)"
+                stock_options.append(display_text)
+        
+        # (B) 선택 상자
+        selected_stock = c_mat1.selectbox("🧵 사용할 원단 선택", stock_options)
+        
+        # (C) 선택에 따른 값 처리
+        if "직접 입력" in selected_stock:
+            # 직접 입력 모드일 때만 텍스트 입력창 활성화
+            fabric_lot = c_mat1.text_input("원단 LOT 번호 입력", placeholder="Roll-2312a-KR")
+            default_short = ""
+        else:
+            # 리스트에서 선택했을 때 -> 파이프(|)로 쪼개서 LOT 번호만 추출
+            # 예: "Roll-001 | 제품A (잔량:50m)" -> "Roll-001"
+            fabric_lot = selected_stock.split(" | ")[0]
+            # 선택된 정보를 화면에 보여줌 (읽기 전용처럼 보이게)
+            c_mat1.info(f"✅ 선택됨: {fabric_lot}")
+            default_short = fabric_lot[:4].upper()
+
+        # (D) ID 약어 입력 (자동 채움)
+        # 이미 값이 있다면 유지, 없다면 추출한 4자리 사용
         fabric_short = c_mat2.text_input("🆔 ID용 약어 (4자리)", value=default_short, max_chars=4, help="QR 코드에 들어갈 식별 코드 (예: HCLA)")
 
         st.divider()
@@ -284,12 +317,10 @@ with tab1:
         cc1, cc2 = st.columns(2)
         spec_cut = cc1.text_input("✂️ 커팅 조건", placeholder="예: Full(50/80/20)")
         
-        # [수정] 접합 유무 체크 로직 강화
         is_lamination = cc2.checkbox("🔥 접합(Lamination) 포함", value=True)
         if is_lamination:
             spec_lam = cc2.text_input("🔥 접합 조건", placeholder="예: 1단계(60도/30분)")
         else:
-            # 체크 해제 시 자동으로 단품 출고 문구 삽입
             spec_lam = "⛔ 접합 생략 (필름 마감)"
         
         note = st.text_input("비고 (특이사항)", placeholder="작업자 전달 사항")
@@ -299,28 +330,30 @@ with tab1:
         if st.form_submit_button("➕ 작업 목록 추가", type="primary", use_container_width=True):
             if not customer or not w or not h:
                 st.error("고객사, 가로, 세로 사이즈는 필수입니다.")
+            elif not fabric_lot:
+                st.error("원단 정보가 없습니다. 원단을 선택하거나 직접 입력해주세요.")
             else:
                 final_short = fabric_short if fabric_short else fabric_lot[:4].upper().ljust(4, 'X')
+                
                 st.session_state.order_list.append({
                     "고객사": customer, "제품": product, "규격": f"{w}x{h}",
                     "w": w, "h": h, "전극": elec_type,
                     "spec_cut": spec_cut, "spec_lam": spec_lam, "is_lam": is_lamination,
-                    "spec": f"{spec_cut} | {spec_lam}", # DB 저장용 통합 스펙
+                    "spec": f"{spec_cut} | {spec_lam}", 
                     "비고": note, "수량": count,
-                    "lot_no": fabric_lot,     # 전체 번호
-                    "lot_short": final_short  # 4자리 약어
+                    "lot_no": fabric_lot,     
+                    "lot_short": final_short  
                 })
-                # 단품 출고 시 알림 메시지 다르게
+                
                 msg = f"리스트 추가됨! (ID 약어: {final_short})"
-                if not is_lamination:
-                    msg += " - ⚡ 접합 공정 생략(단품)"
+                if not is_lamination: msg += " - ⚡ 접합 공정 생략"
                 st.success(msg)
 
     # 3. 대기 목록 확인 및 최종 발행
     if st.session_state.order_list:
         st.divider()
         st.markdown(f"### 🛒 발행 대기 목록 ({len(st.session_state.order_list)}건)")
-        st.dataframe(pd.DataFrame(st.session_state.order_list)[["고객사", "lot_short", "제품", "규격", "spec_lam", "수량"]], use_container_width=True)
+        st.dataframe(pd.DataFrame(st.session_state.order_list)[["고객사", "lot_short", "제품", "규격", "lot_no", "수량"]], use_container_width=True)
 
         c1, c2 = st.columns([1, 2])
         if c1.button("🗑️ 목록 초기화"): st.session_state.order_list = []; st.rerun()
@@ -341,22 +374,24 @@ with tab1:
                     final_lot_id = f"{film_part}{date_str}{prod_char}{seq_str}"
                     cnt = (cnt + 1) % 100
                     
-                    # [핵심] 상태값 결정: 접합 없으면 '작업대기(단품)'으로 시작
-                    init_status = "작업대기"
-                    if not item['is_lam']:
-                        init_status = "작업대기(단품)"
+                    init_status = "작업대기" if item['is_lam'] else "작업대기(단품)"
 
                     try:
+                        # 1. 작업 지시서 저장
                         supabase.table("work_orders").insert({
                             "lot_no": final_lot_id,
                             "customer": item['고객사'],
                             "product": item['제품'],
                             "dimension": f"{item['규격']} [{item['전극']}]",
                             "spec": item['spec'],
-                            "status": init_status, # <-- 여기 상태값이 바뀝니다
+                            "status": init_status,
                             "note": item['비고'],
                             "fabric_lot_no": item['lot_no']
                         }).execute()
+                        
+                        # [추가 기능] 원단 사용량 차감 (선택 사항)
+                        # 여기서는 복잡해질 수 있어 일단 로그만 남깁니다. 
+                        # 추후 자동으로 Tab 5의 재고를 깎는 기능도 넣을 수 있습니다.
 
                         # QR 생성
                         qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=1)
