@@ -8,7 +8,7 @@ import math
 import time
 import re
 import os
-import requests # 폰트 다운로드용
+import requests 
 from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
 
@@ -67,20 +67,20 @@ def check_process_sequence(lot_no, current_step):
     
     return True, "OK"
 
-# 2. 이미지 처리 함수
+# 2. 이미지 변환
 def image_to_base64(img):
     buffered = io.BytesIO()
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
-# 3. 원단 재고 조회
+# 3. 재고 조회
 def fetch_fabric_stock():
     try:
         response = supabase.table("fabric_stock").select("*").execute()
         return {row['lot_no']: row for row in response.data}
     except: return {}
 
-# 4. 폰트 로드 (Bold)
+# 4. 폰트 로드
 @st.cache_resource
 def load_korean_font(size):
     font_filename = "NanumGothic-Bold.ttf"
@@ -96,8 +96,8 @@ def load_korean_font(size):
 
 # 5. 라벨 이미지 생성 (가로 띠)
 def create_label_strip_image(items, rotate=False):
-    LABEL_W = 472 # 40mm
-    LABEL_H = 236 # 20mm
+    LABEL_W = 472 
+    LABEL_H = 236 
     
     total_count = len(items)
     if total_count == 0: return None
@@ -113,7 +113,6 @@ def create_label_strip_image(items, rotate=False):
 
     for i, item in enumerate(items):
         x_offset = i * LABEL_W
-        
         draw.rectangle([x_offset, 0, x_offset + LABEL_W-1, LABEL_H-1], outline="#cccccc", width=2)
         
         qr = qrcode.QRCode(box_size=5, border=0)
@@ -126,7 +125,6 @@ def create_label_strip_image(items, rotate=False):
         full_img.paste(qr_img, (qr_x, qr_y))
         
         text_x = x_offset + 210
-        
         draw.text((text_x, 25), item['lot'], font=font_large, fill="black")
         
         cust_font = font_large if len(item['cust']) < 5 else font_medium
@@ -150,7 +148,7 @@ def create_label_strip_image(items, rotate=False):
     full_img.save(buf, format="PNG")
     return buf.getvalue()
 
-# 6. 인쇄 스크립트 래퍼
+# 6. 인쇄 스크립트
 def generate_print_html(content_html):
     return f"""
     <!DOCTYPE html>
@@ -171,7 +169,7 @@ def generate_print_html(content_html):
     </html>
     """
 
-# 7. 라벨 미리보기 HTML 생성 (NameError 해결의 핵심!)
+# 7. 라벨 미리보기 HTML
 def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     transform_css = "transform: rotate(90deg);" if rotate else ""
     
@@ -253,7 +251,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     html += "</div></body></html>"
     return html
 
-# 8. 작업지시서 HTML 생성 (방향 강조 기능 포함)
+# 8. [핵심 수정] 작업지시서 A4 2x4 HTML (깔끔한 디자인 + 강조)
 def get_work_order_html(items):
     html = """
     <html>
@@ -266,36 +264,65 @@ def get_work_order_html(items):
                 .page-break { page-break-after: always; }
             }
             body { font-family: 'Noto Sans KR', sans-serif; color: #000; }
-            .page-header { text-align: center; font-size: 22pt; font-weight: 900; text-decoration: underline; margin-bottom: 3mm; width: 100%; }
-            .page-container { display: flex; flex-wrap: wrap; justify-content: space-between; align-content: flex-start; width: 100%; height: auto; padding: 0; }
             
-            .job-card { width: 49%; height: 65mm; border: 3px solid #000; box-sizing: border-box; margin-bottom: 2mm; display: flex; flex-direction: column; overflow: hidden; }
+            .print-date { text-align: right; font-size: 10px; color: #555; margin-bottom: 2px; }
+            .page-header { text-align: center; font-size: 20pt; font-weight: 900; text-decoration: underline; margin-bottom: 3mm; }
             
-            .header { 
-                background-color: #ddd; padding: 5px 10px; border-bottom: 2px solid #000; 
+            /* 그리드 컨테이너: 2열 자동 배치 */
+            .page-container { 
+                display: flex; flex-wrap: wrap; 
+                justify-content: space-between; 
+                align-content: flex-start; 
+                width: 100%; 
+            }
+            
+            /* 카드 스타일 (높이 65mm로 조정하여 A4에 4줄 들어가게) */
+            .job-card { 
+                width: 49%; height: 65mm; 
+                border: 2px solid #000; 
+                box-sizing: border-box; 
+                margin-bottom: 3mm; 
+                display: flex; flex-direction: column; 
+            }
+            
+            /* 헤더: LOT번호, 제품명, 날짜 */
+            .card-header { 
+                background-color: #e0e0e0; 
+                padding: 4px 8px; 
+                border-bottom: 1px solid #000; 
                 display: flex; justify-content: space-between; align-items: center; 
-                height: 38px; overflow: hidden; white-space: nowrap;
+                height: 28px;
             }
-            .header-left { display: flex; align-items: center; gap: 8px; overflow: hidden; }
+            .lot-text { font-size: 14px; font-weight: 900; }
+            .prod-text { font-size: 13px; font-weight: 700; color: #333; }
             
-            .lot-id { font-size: 18px; font-weight: 900; }
-            .prod-large { font-size: 20px; font-weight: 900; color: #000; }
-            .date-txt { font-size: 12px; font-weight: 700; margin-left: 10px; }
+            /* 본문: QR과 스펙 */
+            .card-body { display: flex; flex: 1; overflow: hidden; }
             
-            .info-container { display: flex; flex: 1; border-bottom: 2px solid #000; }
-            .qr-box { width: 90px; border-right: 2px solid #000; display: flex; align-items: center; justify-content: center; padding: 2px; }
-            .spec-box { flex: 1; padding: 4px 8px; }
-            .spec-table { width: 100%; border-collapse: collapse; }
-            .spec-table td { padding: 2px 1px; font-size: 12px; vertical-align: middle; font-weight: 700; }
-            .label { font-weight: 900; width: 60px; color: #333; }
-            .value { font-weight: 900; font-size: 13px; color: #000; }
-            
-            .dim-box { 
-                height: 55px; background-color: #fff; 
+            .qr-area { 
+                width: 85px; 
                 display: flex; align-items: center; justify-content: center; 
-                border-top: 2px solid #000;
+                border-right: 1px solid #000; 
+                padding: 2px;
             }
-            .footer-warning { width: 100%; text-align: center; font-size: 11pt; font-weight: 900; margin-top: 5mm; color: #000; }
+            .spec-area { flex: 1; padding: 4px 8px; }
+            
+            /* 스펙 테이블 */
+            .spec-table { width: 100%; border-collapse: collapse; }
+            .spec-table td { padding: 1px 0; font-size: 11px; vertical-align: middle; }
+            .lbl { font-weight: 900; width: 45px; color: #333; }
+            .val { font-weight: 700; color: #000; }
+            
+            /* 하단 규격 박스 */
+            .dim-box { 
+                height: 45px; 
+                border-top: 2px solid #000; 
+                display: flex; align-items: center; justify-content: center; 
+                background-color: #fff;
+            }
+            
+            /* 바닥 경고문 */
+            .footer-warning { width: 100%; text-align: center; font-size: 9pt; font-weight: 700; margin-top: 5mm; color: #555; }
         </style>
     </head>
     <body>
@@ -305,14 +332,15 @@ def get_work_order_html(items):
     for i in range(0, len(items), chunk_size):
         chunk = items[i:i + chunk_size]
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-        html += f'<div style="text-align:right; font-weight:bold;">출력: {now_str}</div>'
+        html += f'<div class="print-date">출력일시: {now_str}</div>'
         html += '<div class="page-header">작업 지시서 (Work Order)</div>'
         html += '<div class="page-container">'
         
         for item in chunk:
             img_b64 = image_to_base64(item['img'])
             full_id = item['lot']
-            fabric_full = item.get('fabric', '-') 
+            
+            # 스펙 텍스트 정리
             spec_raw = item.get('spec', '')
             if '|' in spec_raw:
                 parts = spec_raw.split('|')
@@ -331,48 +359,44 @@ def get_work_order_html(items):
             w, h = item['w'], item['h']
             elec = item['elec']
             
-            # [디자인 적용] 가로/세로 숫자 스타일
-            # 기본(Inactive): Medium(500) + 회색
-            # 강조(Active): Extra Bold(900) + 검정 + 밑줄
+            # [디자인] 규격 강조 로직 (사이즈 동일, 진하기만 다름)
+            # 기본: 26px Medium
+            # 강조: 26px Extra Bold + Underline
+            base_css = "font-size: 26px; color: #000; margin: 0 2px;"
             
-            base_size = "34px"
-            inactive_style = f"font-size: {base_size}; font-weight: 500; color: #555;"
-            active_style = f"font-size: {base_size}; font-weight: 900; color: #000; text-decoration: underline;"
+            w_css = base_css + "font-weight: 500;"
+            h_css = base_css + "font-weight: 500;"
             
-            w_style = inactive_style
-            h_style = inactive_style
+            emp_css = base_css + "font-weight: 900; text-decoration: underline;"
             
             if "가로" in elec or "(W)" in elec or "W" in elec:
-                w_style = active_style
+                w_css = emp_css
             if "세로" in elec or "(H)" in elec or "H" in elec:
-                h_style = active_style
-                
-            dim_html = f"<span style='{w_style}'>{w}</span> <span style='font-size:24px; font-weight:bold; color:#000;'>X</span> <span style='{h_style}'>{h}</span>"
+                h_css = emp_css
+            
+            dim_html = f"<span style='{w_css}'>{w}</span><span style='font-size:20px; font-weight:bold; margin:0 5px;'>X</span><span style='{h_css}'>{h}</span>"
 
             html += f"""
             <div class="job-card">
-                <div class="header">
-                    <div class="header-left">
-                        <span class="lot-id">{full_id}</span>
-                        <span class="prod-large">[{item['prod']}]</span>
-                    </div>
-                    <span class="date-txt">{item['cust']} | {datetime.now().strftime('%m-%d')}</span>
+                <div class="card-header">
+                    <span class="lot-id">{full_id}</span>
+                    <span class="prod-text">[{item['prod']}]</span>
                 </div>
-                <div class="info-container">
-                    <div class="qr-box"><img src="data:image/png;base64,{img_b64}" style="width:100%;"></div>
-                    <div class="spec-box">
+                <div class="card-body">
+                    <div class="qr-area"><img src="data:image/png;base64,{img_b64}" style="width:100%;"></div>
+                    <div class="spec-area">
                         <table class="spec-table">
-                            <tr><td class="label">🧵 원단</td><td class="value">{fabric_full}</td></tr>
-                            <tr><td colspan="2"><hr style="margin: 3px 0; border-top: 2px dashed #888;"></td></tr>
-                            <tr><td class="label">✂️ 커팅</td><td class="value">{cut_cond}</td></tr>
-                            <tr><td class="label">🔥 접합</td><td class="value" style="{lam_style}">{lam_cond}</td></tr>
-                            <tr><td class="label" style="color:red;">⚠️ 특이</td><td class="value" style="color:red; font-size:14px;">{note_text}</td></tr>
+                            <tr><td class="lbl">🧵 원단</td><td class="val">{item.get('fabric','-')}</td></tr>
+                            <tr><td colspan="2"><hr style="margin: 2px 0; border-top: 1px dashed #ccc;"></td></tr>
+                            <tr><td class="lbl">✂️ 커팅</td><td class="val">{cut_cond}</td></tr>
+                            <tr><td class="lbl">🔥 접합</td><td class="val" style="{lam_style}">{lam_cond}</td></tr>
+                            <tr><td class="lbl" style="color:red;">⚠️ 특이</td><td class="val" style="color:red;">{note_text}</td></tr>
                         </table>
                     </div>
                 </div>
                 <div class="dim-box">
                     {dim_html}
-                    <span style="margin-left: 20px; font-size: 30px; font-weight: 900;">[{item['elec']}]</span>
+                    <span style="font-size: 18px; font-weight: 900; margin-left: 15px;">[{item['elec']}]</span>
                 </div>
             </div>
             """
@@ -383,7 +407,7 @@ def get_work_order_html(items):
     html += "</body></html>"
     return html
 
-# 9. 접속 QR 생성
+# 9. 접속 QR
 def get_access_qr_content_html(url, mode="big"):
     qr = qrcode.QRCode(box_size=10, border=1)
     qr.add_data(url)
