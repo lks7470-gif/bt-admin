@@ -32,7 +32,7 @@ except Exception as e:
     st.stop()
 
 # ==============================================================================
-# 🛡️ [핵심 기능] 공정 순서 위반 방지 함수 (여기 추가됨!)
+# 🛡️ [핵심 기능] 공정 순서 위반 방지 함수
 # ==============================================================================
 def check_process_sequence(lot_no, current_step):
     """
@@ -215,7 +215,7 @@ def generate_print_html(content_html):
     """
 
 # ----------------------------------------------------
-# 🏷️ [라벨] 화면 미리보기용 HTML (스타일 일치)
+# 🏷️ [라벨] 화면 미리보기용 HTML
 # ----------------------------------------------------
 def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     transform_css = "transform: rotate(90deg);" if rotate else ""
@@ -299,7 +299,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     return html
 
 # ----------------------------------------------------
-# 📄 [작업지시서] A4 (2x4 배열) - 초대형/초강력 버전
+# 📄 [작업지시서] A4 (2x4 배열)
 # ----------------------------------------------------
 def get_work_order_html(items):
     html = """
@@ -436,7 +436,7 @@ if st.sidebar.button("🔄 재고 정보 새로고침", use_container_width=True
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["📝 작업 입력", "📄 지시서 인쇄", "🏷️ 라벨 인쇄", "🔄 QR 재발행", "🧵 원단 재고", "📊 발행 이력", "🔍 제품 추적", "🚨 불량 현황", "📱 접속 QR"])
 
-# [Tab 1] 작업 입력
+# [Tab 1] 작업 입력 (입력 제한 해제됨)
 with tab1:
     st.markdown("### 📝 신규 작업 지시 등록")
     if 'fabric_db' not in st.session_state or not st.session_state.fabric_db: st.session_state.fabric_db = fetch_fabric_stock()
@@ -453,19 +453,25 @@ with tab1:
                 display_text = f"{lot} | {info['name']} (잔량:{remain:.1f}m)"
                 stock_options.append(display_text)
         selected_stock = c_mat1.selectbox("🧵 사용할 원단 선택", stock_options)
+        
+        # [수정] 원단 로트 번호 자동 추출 (숫자 포함)
         if "직접 입력" in selected_stock:
             fabric_lot = c_mat1.text_input("원단 LOT 번호 입력", placeholder="Roll-2312a-KR")
             default_short = ""
         else:
             fabric_lot = selected_stock.split(" | ")[0]
             c_mat1.info(f"✅ 선택됨: {fabric_lot}")
-            default_short = fabric_lot[:4].upper()
-        fabric_short = c_mat2.text_input("🆔 ID용 약어 (4자리)", value=default_short, max_chars=4, help="QR 코드에 들어갈 식별 코드 (예: HCLA)")
+            # [수정] 자동으로 4자리 추출 시, 문자/숫자 상관없이 4글자 가져오기
+            default_short = fabric_lot[:4].upper() 
+
+        # [핵심 수정] 4자리 입력 필드: 영문/숫자/혼합 모두 가능하도록 안내 및 제한 해제
+        fabric_short = c_mat2.text_input("🆔 식별코드 (4자리)", value=default_short, max_chars=4, help="영문, 숫자, 혼합 모두 가능 (예: A123, 2301, TEST)")
+        
         st.divider()
         c3, c4, c5 = st.columns([1, 1, 1])
         w = c3.number_input("가로 (W)", min_value=0, step=10)
         h = c4.number_input("세로 (H)", min_value=0, step=10)
-        elec_type = c5.selectbox("전극 위치", ["없음", "가로(W) 양쪽", "세로(H) 양쪽", "가로(W) 상단", "세로(H) 우측"])
+        elec_type = c5.selectbox("전극 위치", ["없음", "가로(W) 양쪽", "세로(H) 양쪽", "가로(W)", "세로(H)"])
         st.caption("🔧 공정 조건 설정")
         cc1, cc2 = st.columns(2)
         spec_cut = cc1.text_input("✂️ 커팅 조건", placeholder="예: Full(50/80/20)")
@@ -479,7 +485,11 @@ with tab1:
             if not customer or not w or not h: st.error("고객사, 가로, 세로 사이즈는 필수입니다.")
             elif not fabric_lot: st.error("원단 정보가 없습니다.")
             else:
-                final_short = fabric_short if fabric_short else fabric_lot[:4].upper().ljust(4, 'X')
+                # [수정] 식별 코드(ID) 처리: 문자/숫자 그대로 사용, 4자리 미만이면 뒤에 X 채움
+                input_short = str(fabric_short).strip().upper()
+                final_short = input_short if input_short else fabric_lot[:4].upper()
+                final_short = final_short.ljust(4, 'X') # 4자리 맞추기
+
                 st.session_state.order_list.append({
                     "고객사": customer, "제품": product, "규격": f"{w}x{h}",
                     "w": w, "h": h, "전극": elec_type, "spec_cut": spec_cut, "spec_lam": spec_lam, "is_lam": is_lamination,
@@ -542,7 +552,7 @@ with tab2:
     else: st.info("⚠️ 현재 발행된 작업이 없습니다.")
 
 # ==========================================
-# 🏷️ [Tab 3] 라벨 인쇄 (초강력 가독성)
+# 🏷️ [Tab 3] 라벨 인쇄
 # ==========================================
 with tab3:
     st.header("🏷️ QR 라벨 인쇄")
@@ -555,18 +565,15 @@ with tab3:
             is_rotate = c_rot.checkbox("🔄 내용 90도 회전", help="라벨이 세로로 나오는 경우 체크하세요.", key="chk_rotate_tab3")
             margin_top = c_margin.number_input("상단 여백 보정(mm)", value=0, step=1, help="인쇄가 밀릴 경우 조정", key="num_margin_tab3")
 
-        # 1. 화면 미리보기
         content_html_preview = get_label_content_html(st.session_state.generated_qrs, mode=mode_code, rotate=is_rotate, margin_top=margin_top)
         st.components.v1.html(content_html_preview, height=600, scrolling=True)
         
         c_print, c_down = st.columns(2)
         
-        # 2. 즉시 인쇄 버튼
         if c_print.button("🖨️ 라벨 인쇄 (즉시)", type="primary", key="btn_print_label_tab3"):
             full_html = generate_print_html(content_html_preview)
             components.html(full_html, height=0, width=0)
             
-        # 3. [NEW] 전체 라벨 이미지(가로) + Bold 폰트 적용
         label_image_data = create_label_strip_image(st.session_state.generated_qrs, rotate=is_rotate)
         
         if label_image_data:
