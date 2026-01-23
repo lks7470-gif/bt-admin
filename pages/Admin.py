@@ -75,37 +75,60 @@ def generate_print_html(content_html):
     """
 
 # ----------------------------------------------------
-# 🏷️ [라벨] 40mm x 20mm 전용 HTML
+# 🏷️ [라벨] 인쇄 모드 지원 (전용 프린터 vs A4)
 # ----------------------------------------------------
-def get_label_content_html(items):
-    html = """
+def get_label_content_html(items, mode="roll"):
+    # mode="roll": 40x20mm 1장씩 (라벨프린터용)
+    # mode="a4": A4 용지에 바둑판 배열
+    
+    css_page = ""
+    css_wrap = ""
+    
+    if mode == "roll":
+        # 전용 프린터용 스타일
+        css_page = "@page { size: 40mm 20mm; margin: 0; }"
+        css_wrap = """
+            width: 38mm; height: 19mm;
+            page-break-after: always; /* 1장 찍고 커팅/다음장 */
+            display: flex; align-items: center;
+            overflow: hidden;
+            border: 1px solid #ddd; /* 테두리 약하게 */
+        """
+    else:
+        # A4 라벨지용 스타일 (4열 배열)
+        css_page = "@page { size: A4; margin: 5mm; }"
+        css_wrap = """
+            width: 45mm; height: 25mm; /* A4용은 약간 여유있게 */
+            display: inline-flex; align-items: center;
+            margin: 2px;
+            border: 1px dashed #ccc;
+            float: left;
+        """
+
+    html = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap');
-            @media print {
-                @page { size: 40mm 20mm; margin: 0; }
-                body { margin: 0; padding: 0; }
-                .label-wrap {
-                    width: 38mm; height: 19mm;
-                    page-break-after: always;
-                    display: flex; align-items: center;
-                    overflow: hidden;
-                    font-family: 'Roboto', sans-serif;
-                }
-            }
-            .label-wrap {
-                width: 200px; height: 100px;
-                border: 1px solid #ddd; margin: 5px;
-                display: inline-flex; align-items: center;
-                background: white; font-family: sans-serif;
-                box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-            }
+            @media print {{
+                {css_page}
+                body {{ margin: 0; padding: 0; }}
+            }}
+            .label-wrap {{
+                {css_wrap}
+                font-family: 'Roboto', sans-serif;
+                background: white;
+                box-sizing: border-box;
+            }}
+            /* 화면 미리보기용 */
+            .preview-container {{ display: flex; flex-wrap: wrap; }}
         </style>
     </head>
     <body>
+    <div class="preview-container">
     """
+    
     for item in items:
         img_b64 = image_to_base64(item['img'])
         lot_id = item['lot']       
@@ -132,11 +155,12 @@ def get_label_content_html(items):
         </div>
         """
         html += label_div
-    html += "</body></html>"
+        
+    html += "</div></body></html>"
     return html
 
 # ----------------------------------------------------
-# 📄 [작업지시서] A4 (2x4 배열) - 높이 정밀 튜닝
+# 📄 [작업지시서] A4 (2x4 배열) - 높이 재조정 (완전 해결)
 # ----------------------------------------------------
 def get_work_order_html(items):
     html = """
@@ -166,42 +190,37 @@ def get_work_order_html(items):
                 align-content: flex-start; width: 100%; height: auto; padding: 0;
             }
             
-            /* [수정] 카드 높이 미세 조정: 64mm -> 62.5mm */
-            /* 4줄 기준 6mm 여유 확보 -> 경고 문구가 딱 들어옴 */
+            /* [수정] 높이 60mm로 고정하여 밀림 방지 */
             .job-card {
                 width: 49%; 
-                height: 62.5mm; 
+                height: 60mm; 
                 border: 2px solid #000; box-sizing: border-box;
-                margin-bottom: 1mm; /* 간격도 1mm로 줄임 */
+                margin-bottom: 1.5mm; 
                 display: flex; flex-direction: column; overflow: hidden;
             }
             
             .header { 
-                background-color: #eee; padding: 4px 10px;
+                background-color: #eee; padding: 2px 10px;
                 border-bottom: 1px solid #000; display: flex; justify-content: space-between; align-items: center; 
-                height: 24px;
+                height: 22px;
             }
-            .lot-id { font-size: 15px; font-weight: 900; }
-            .date-txt { font-size: 11px; }
+            .lot-id { font-size: 14px; font-weight: 900; }
+            .date-txt { font-size: 10px; }
             
             .info-container { display: flex; flex: 1; border-bottom: 1px solid #000; }
             .qr-box { 
-                width: 85px; border-right: 1px solid #000; 
+                width: 80px; border-right: 1px solid #000; 
                 display: flex; align-items: center; justify-content: center; padding: 2px;
             }
-            .spec-box { flex: 1; padding: 4px 8px; }
+            .spec-box { flex: 1; padding: 3px 6px; }
             .spec-table { width: 100%; border-collapse: collapse; }
-            .spec-table td { padding: 2px 1px; font-size: 11px; vertical-align: middle; }
+            .spec-table td { padding: 1px; font-size: 10px; vertical-align: middle; }
             .label { font-weight: bold; width: 50px; color: #555; }
-            .value { font-weight: bold; font-size: 12px; color: #000; }
-            .check-box { 
-                display: inline-block; width: 10px; height: 10px; 
-                border: 1px solid #000; text-align: center; line-height: 9px; margin-right: 3px; font-size: 9px;
-            }
+            .value { font-weight: bold; font-size: 11px; color: #000; }
             
             /* 하단 박스 */
             .dim-box { 
-                height: 38px; 
+                height: 35px; 
                 background-color: #fff;
                 display: flex; align-items: center; justify-content: center; 
                 font-size: 19px; font-weight: 400; 
@@ -213,7 +232,7 @@ def get_work_order_html(items):
                 text-align: center; 
                 font-size: 10pt; 
                 font-weight: bold;
-                margin-top: 5mm; 
+                margin-top: 3mm; /* 밀림 방지를 위해 간격 최소화 */
                 color: #333;
                 border: none;
             }
@@ -278,7 +297,7 @@ def get_work_order_html(items):
                     <div class="spec-box">
                         <table class="spec-table">
                             <tr><td class="label">🧵 원단</td><td class="value">{fabric_full}</td></tr>
-                            <tr><td colspan="2"><hr style="margin: 3px 0; border-top: 1px dashed #ccc;"></td></tr>
+                            <tr><td colspan="2"><hr style="margin: 2px 0; border-top: 1px dashed #ccc;"></td></tr>
                             <tr><td class="label">✂️ 커팅</td><td class="value">{cut_cond}</td></tr>
                             <tr><td class="label">🔥 접합</td>
                                 <td class="value" style="{lam_style}">
@@ -472,13 +491,19 @@ with tab2:
         st.info("⚠️ 현재 발행된 작업이 없습니다.")
 
 # ==========================================
-# 🏷️ [Tab 3] 라벨 인쇄
+# 🏷️ [Tab 3] 라벨 인쇄 (설정 추가됨)
 # ==========================================
 with tab3:
-    st.header("🏷️ QR 라벨 인쇄 (40x20mm)")
+    st.header("🏷️ QR 라벨 인쇄")
     if st.session_state.generated_qrs:
-        content_html = get_label_content_html(st.session_state.generated_qrs)
+        
+        # [NEW] 인쇄 모드 선택 기능
+        print_mode = st.radio("🖨️ 인쇄 방식 선택", ["전용 라벨 프린터 (40x20mm 1장씩)", "A4 라벨지 (전체 목록형)"], horizontal=True)
+        mode_code = "roll" if "전용" in print_mode else "a4"
+        
+        content_html = get_label_content_html(st.session_state.generated_qrs, mode=mode_code)
         st.components.v1.html(content_html, height=600, scrolling=True)
+        
         if st.button("🖨️ 라벨 인쇄", type="primary"):
             full_html = generate_print_html(content_html)
             components.html(full_html, height=0, width=0)
@@ -507,7 +532,8 @@ with tab4:
             
             if not sel_rows.empty:
                 st.divider()
-                reprint_type = st.radio("재발행 형태", ["📄 작업지시서 (A4)", "🏷️ 라벨 (40x20mm)"], horizontal=True)
+                # [수정] 재발행 시에도 라벨 인쇄 옵션 선택 가능
+                reprint_type = st.radio("재발행 형태", ["📄 작업지시서 (A4)", "🏷️ 라벨 (전용 프린터)", "🏷️ 라벨 (A4 목록)"], horizontal=True)
                 
                 rep_items = []
                 for _, row in sel_rows.iterrows():
@@ -530,16 +556,21 @@ with tab4:
                         "note": row.get('note', ''), "img": img
                     })
                 
+                content_html = ""
                 if "작업지시서" in reprint_type:
                     content_html = get_work_order_html(rep_items)
+                elif "전용" in reprint_type:
+                    content_html = get_label_content_html(rep_items, mode="roll")
                 else:
-                    content_html = get_label_content_html(rep_items)
+                    content_html = get_label_content_html(rep_items, mode="a4")
                     
                 st.components.v1.html(content_html, height=500, scrolling=True)
                 
                 if st.button("🖨️ 선택 항목 재발행", type="primary"):
                     full_html = generate_print_html(content_html)
                     components.html(full_html, height=0, width=0)
+    else:
+        st.info("조회된 데이터가 없습니다.")
 
 # ==========================================
 # 🧵 [Tab 5] 원단 재고
