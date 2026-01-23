@@ -142,83 +142,195 @@ def get_label_content_html(items):
 # ----------------------------------------------------
 # 📄 [작업지시서] A4 공간 활용형 HTML
 # ----------------------------------------------------
+# [Admin.py] 작업지시서 HTML 생성 함수 (2x4 배열 + 강조 + 특이사항)
+
 def get_work_order_html(items):
+    # CSS 스타일: A4 꽉 채우기 & 2단 그리드
     html = """
     <html>
     <head>
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
-            @media print { @page { size: A4; margin: 10mm; } }
-            body { font-family: 'Noto Sans KR', sans-serif; padding: 20px; }
-            .job-card { border: 2px solid #000; margin-bottom: 20px; page-break-inside: avoid; }
-            .header { background-color: #eee; padding: 10px; border-bottom: 1px solid #000; display: flex; justify-content: space-between; align-items: center; }
-            .lot-id { font-size: 24px; font-weight: 900; }
-            .info-container { display: flex; border-bottom: 1px solid #000; }
-            .qr-box { width: 120px; padding: 10px; border-right: 1px solid #000; display: flex; align-items: center; justify-content: center; }
-            .spec-box { flex: 1; padding: 10px; }
+            
+            @media print { 
+                @page { 
+                    size: A4; 
+                    margin: 5mm; /* 여백 최소화 */
+                } 
+                body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; }
+                .page-break { page-break-after: always; }
+            }
+            
+            body { font-family: 'Noto Sans KR', sans-serif; }
+            
+            /* 전체 페이지 컨테이너 (그리드 레이아웃) */
+            .page-container {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: space-between; /* 좌우 간격 균등 */
+                align-content: flex-start;
+                width: 100%;
+                height: 287mm; /* A4 높이(297) - 여백(10) */
+                padding: 0;
+            }
+
+            /* 개별 작업 카드 (2x4 배열) */
+            .job-card {
+                width: 49%;        /* 가로 2개 (여백 포함) */
+                height: 70mm;      /* 세로 4개 (287 / 4 ≈ 71mm 이므로 70mm로 안전하게) */
+                border: 2px solid #000;
+                box-sizing: border-box;
+                margin-bottom: 2mm; 
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+
+            /* 카드 내부 스타일 */
+            .header { 
+                background-color: #eee; 
+                padding: 5px 10px; 
+                border-bottom: 1px solid #000; 
+                display: flex; justify-content: space-between; align-items: center;
+                height: 25px;
+            }
+            .lot-id { font-size: 16px; font-weight: 900; }
+            .date-txt { font-size: 12px; }
+
+            .info-container { 
+                display: flex; 
+                flex: 1; /* 남은 높이 채우기 */
+                border-bottom: 1px solid #000;
+            }
+            
+            .qr-box { 
+                width: 90px; 
+                border-right: 1px solid #000; 
+                display: flex; align-items: center; justify-content: center;
+                padding: 5px;
+            }
+            
+            .spec-box { 
+                flex: 1; 
+                padding: 5px 8px; 
+            }
+            
             .spec-table { width: 100%; border-collapse: collapse; }
-            .spec-table td { padding: 4px; font-size: 14px; }
-            .label { font-weight: bold; width: 80px; color: #555; }
-            .value { font-weight: bold; font-size: 16px; color: #000; }
-            .check-box { display: inline-block; width: 15px; height: 15px; border: 1px solid #000; text-align: center; line-height: 12px; margin-right: 5px; }
-            .dim-box { padding: 15px; text-align: center; font-size: 22px; font-weight: bold; }
-            .page-header { text-align:center; font-size:20pt; font-weight:900; margin-bottom:20px; text-decoration:underline; }
+            .spec-table td { padding: 2px; font-size: 11px; vertical-align: middle; }
+            .label { font-weight: bold; width: 60px; color: #555; }
+            .value { font-weight: bold; font-size: 13px; color: #000; }
+            
+            /* 체크박스 스타일 */
+            .check-box { 
+                display: inline-block; width: 12px; height: 12px; 
+                border: 1px solid #000; text-align: center; line-height: 10px; margin-right: 3px; font-size: 10px;
+            }
+
+            /* 하단 규격 박스 */
+            .dim-box { 
+                height: 35px; 
+                background-color: #fff;
+                display: flex; 
+                align-items: center; 
+                justify-content: center; 
+                font-size: 16px; 
+                font-weight: bold; 
+            }
         </style>
     </head>
     <body>
     """
     
-    html += f'<div class="page-header">작업 지시서 (Work Order)</div>'
-    
-    for item in items:
-        img_b64 = image_to_base64(item['img'])
-        full_id = item['lot']
+    # 8개씩 끊어서 페이지 나누기 (Pagination)
+    chunk_size = 8
+    for i in range(0, len(items), chunk_size):
+        chunk = items[i:i + chunk_size]
         
-        fabric_full = item.get('fabric', '-') 
-        spec_raw = item.get('spec', '')
+        # 페이지 시작
+        html += '<div class="page-container">'
         
-        # Spec 파싱
-        if '|' in spec_raw:
-            parts = spec_raw.split('|')
-            cut_cond = parts[0].strip()
-            lam_cond = parts[1].strip() if len(parts) > 1 else '-'
-        else:
-            cut_cond = item.get('spec_cut', spec_raw)
-            lam_cond = item.get('spec_lam', '-')
-        
-        # [핵심 로직] 접합 생략 여부 판단
-        is_lam = True
-        if "생략" in lam_cond or "없음" in lam_cond or "단품" in lam_cond or lam_cond == "-":
-            is_lam = False
-        
-        lam_check_mark = "V" if is_lam else "&nbsp;"
-        lam_style = "color: #000;" if is_lam else "color: #ccc; text-decoration: line-through;"
-        
-        html += f"""
-        <div class="job-card">
-            <div class="header">
-                <span class="lot-id">{full_id}</span>
-                <span>{item['cust']} | {datetime.now().strftime('%Y-%m-%d')}</span>
-            </div>
-            <div class="info-container">
-                <div class="qr-box"><img src="data:image/png;base64,{img_b64}" width="100"></div>
-                <div class="spec-box">
-                    <table class="spec-table">
-                        <tr><td class="label">🧵 원단명</td><td class="value">{fabric_full}</td></tr>
-                        <tr><td colspan="2"><hr style="margin: 5px 0; border-top: 1px dashed #ccc;"></td></tr>
-                        <tr><td class="label">✂️ 커팅</td><td class="value">{cut_cond}</td></tr>
-                        <tr><td class="label">🔥 접합</td>
-                            <td class="value" style="{lam_style}">
-                                <span class="check-box">{lam_check_mark}</span>{lam_cond}
-                            </td>
-                        </tr>
-                    </table>
+        for item in chunk:
+            img_b64 = image_to_base64(item['img'])
+            full_id = item['lot']
+            
+            # 정보 파싱
+            fabric_full = item.get('fabric', '-') 
+            spec_raw = item.get('spec', '')
+            
+            if '|' in spec_raw:
+                parts = spec_raw.split('|')
+                cut_cond = parts[0].strip()
+                lam_cond = parts[1].strip() if len(parts) > 1 else '-'
+            else:
+                cut_cond = item.get('spec_cut', spec_raw)
+                lam_cond = item.get('spec_lam', '-')
+            
+            # 접합 생략 여부 확인
+            is_lam = True
+            if "생략" in lam_cond or "없음" in lam_cond or "단품" in lam_cond or lam_cond == "-":
+                is_lam = False
+            
+            lam_check_mark = "V" if is_lam else "&nbsp;"
+            lam_style = "color: #000;" if is_lam else "color: #ccc; text-decoration: line-through;"
+            
+            # [추가] 특이사항 가져오기
+            # item 딕셔너리에 'note'나 '비고' 키가 있다고 가정 (Admin.py 저장 로직 참고)
+            note_text = item.get('note', item.get('비고', '-'))
+            if not note_text: note_text = "-"
+
+            # [수정] 규격 강조 로직 (라벨과 동일하게 적용)
+            w, h = item['w'], item['h']
+            elec = item['elec']
+            
+            w_style = "font-weight: 400;" 
+            h_style = "font-weight: 400;"
+            
+            # 전극 방향에 따라 굵기(900)와 크기(1.2배) 조정
+            if "가로" in elec: w_style = "font-weight: 900; font-size: 1.2em;"
+            if "세로" in elec: h_style = "font-weight: 900; font-size: 1.2em;"
+                
+            dim_html = f"<span style='{w_style}'>{w}</span> x <span style='{h_style}'>{h}</span>"
+
+            # 카드 HTML 조립
+            html += f"""
+            <div class="job-card">
+                <div class="header">
+                    <span class="lot-id">{full_id}</span>
+                    <span class="date-txt">{item['cust']} | {datetime.now().strftime('%m-%d')}</span>
+                </div>
+                
+                <div class="info-container">
+                    <div class="qr-box">
+                        <img src="data:image/png;base64,{img_b64}" style="width:100%;">
+                    </div>
+                    <div class="spec-box">
+                        <table class="spec-table">
+                            <tr><td class="label">🧵 원단</td><td class="value">{fabric_full}</td></tr>
+                            <tr><td colspan="2"><hr style="margin: 3px 0; border-top: 1px dashed #ccc;"></td></tr>
+                            <tr><td class="label">✂️ 커팅</td><td class="value">{cut_cond}</td></tr>
+                            <tr><td class="label">🔥 접합</td>
+                                <td class="value" style="{lam_style}">
+                                    <span class="check-box">{lam_check_mark}</span>{lam_cond}
+                                </td>
+                            </tr>
+                            <tr><td class="label" style="color:red;">⚠️ 특이</td><td class="value" style="color:red;">{note_text}</td></tr>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="dim-box">
+                    {item['prod']} / {dim_html} / {item['elec']}
                 </div>
             </div>
-            <div class="dim-box">{item['prod']} / {item['w']} x {item['h']} / {item['elec']}</div>
-        </div>
-        """
+            """
         
+        # 페이지 끝 (8개 채웠거나 마지막이면 닫기)
+        html += '</div>'
+        
+        # 다음 페이지가 있으면 강제 페이지 넘김
+        if i + chunk_size < len(items):
+            html += '<div class="page-break"></div>'
+            
     html += "</body></html>"
     return html
 
