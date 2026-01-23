@@ -251,7 +251,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     html += "</div></body></html>"
     return html
 
-# 8. [핵심] 작업지시서 A4 2x4 HTML (사이즈 동일, 진하기만 다름)
+# 8. [핵심 수정] 작업지시서 A4 2x4 HTML (높이 62.5mm로 축소하여 8장 딱 맞춤)
 def get_work_order_html(items):
     html = """
     <html>
@@ -273,52 +273,59 @@ def get_work_order_html(items):
                 justify-content: space-between; 
                 align-content: flex-start; 
                 width: 100%; 
+                height: auto;
+                padding: 0;
             }
             
+            /* [수정] 카드 높이를 65mm -> 62.5mm로 줄여서 4줄이 안 밀리게 함 */
             .job-card { 
-                width: 49%; height: 65mm; 
+                width: 49%; 
+                height: 62.5mm; 
                 border: 2px solid #000; 
                 box-sizing: border-box; 
-                margin-bottom: 3mm; 
+                margin-bottom: 1mm; 
                 display: flex; flex-direction: column; 
+                overflow: hidden;
             }
             
+            /* 헤더 높이 줄임 */
             .card-header { 
                 background-color: #e0e0e0; 
-                padding: 4px 8px; 
+                padding: 2px 8px; 
                 border-bottom: 1px solid #000; 
                 display: flex; justify-content: space-between; align-items: center; 
-                height: 30px;
+                height: 24px; 
                 white-space: nowrap; overflow: hidden;
             }
             .header-left { display: flex; align-items: center; gap: 6px; }
-            .lot-text { font-size: 14px; font-weight: 900; color: #000; }
-            .prod-text { font-size: 13px; font-weight: 900; color: #333; }
-            .header-right { font-size: 11px; font-weight: 700; color: #333; text-align: right; }
+            .lot-text { font-size: 13px; font-weight: 900; color: #000; }
+            .prod-text { font-size: 12px; font-weight: 900; color: #333; }
+            .header-right { font-size: 10px; font-weight: 700; color: #333; text-align: right; }
             
             .card-body { display: flex; flex: 1; overflow: hidden; }
             
             .qr-area { 
-                width: 85px; 
+                width: 80px; 
                 display: flex; align-items: center; justify-content: center; 
                 border-right: 1px solid #000; 
                 padding: 2px;
             }
-            .spec-area { flex: 1; padding: 4px 8px; }
+            .spec-area { flex: 1; padding: 2px 6px; }
             
             .spec-table { width: 100%; border-collapse: collapse; }
             .spec-table td { padding: 1px 0; font-size: 11px; vertical-align: middle; }
             .lbl { font-weight: 900; width: 45px; color: #333; }
             .val { font-weight: 700; color: #000; }
             
+            /* 규격 박스 높이 조정 */
             .dim-box { 
-                height: 48px; 
+                height: 40px; 
                 border-top: 2px solid #000; 
                 display: flex; align-items: center; justify-content: center; 
                 background-color: #fff;
             }
             
-            .footer-warning { width: 100%; text-align: center; font-size: 9pt; font-weight: 700; margin-top: 5mm; color: #555; }
+            .footer-warning { width: 100%; text-align: center; font-size: 9pt; font-weight: 700; margin-top: 5mm; color: #555; border: none; }
         </style>
     </head>
     <body>
@@ -354,24 +361,20 @@ def get_work_order_html(items):
             w, h = item['w'], item['h']
             elec = item['elec']
             
-            # [디자인 수정] 규격 숫자 스타일 (크기 동일, 굵기만 다르게)
-            # 기본: 30px, Medium(500), 회색
-            # 강조: 30px, Black(900), 검정, 밑줄
-            
-            base_size = "30px"
+            # [디자인] 규격 숫자 (동일 크기 + 선택된 방향만 굵게)
+            base_size = "28px"
             inactive_css = f"font-size: {base_size}; font-weight: 500; color: #555; margin: 0 2px;"
             active_css = f"font-size: {base_size}; font-weight: 900; color: #000; text-decoration: underline; margin: 0 2px;"
             
             w_css = inactive_css
             h_css = inactive_css
             
-            # 방향에 따른 강조 로직
             if "가로" in elec or "(W)" in elec or "W" in elec.upper():
                 w_css = active_css
             if "세로" in elec or "(H)" in elec or "H" in elec.upper():
                 h_css = active_css
             
-            dim_html = f"<span style='{w_css}'>{w}</span><span style='font-size:22px; font-weight:bold; margin:0 5px;'>X</span><span style='{h_css}'>{h}</span>"
+            dim_html = f"<span style='{w_css}'>{w}</span><span style='font-size:20px; font-weight:bold; margin:0 5px;'>X</span><span style='{h_css}'>{h}</span>"
 
             html += f"""
             <div class="job-card">
@@ -398,7 +401,7 @@ def get_work_order_html(items):
                 </div>
                 <div class="dim-box">
                     {dim_html}
-                    <span style="font-size: 20px; font-weight: 900; margin-left: 15px;">[{item['elec']}]</span>
+                    <span style="font-size: 18px; font-weight: 900; margin-left: 15px;">[{item['elec']}]</span>
                 </div>
             </div>
             """
