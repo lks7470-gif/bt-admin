@@ -272,7 +272,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     return html
 
 # ----------------------------------------------------
-# 📄 [작업지시서] A4 (2x4 배열) - 방향별 숫자 강조 적용
+# 📄 [작업지시서] A4 (2x4 배열) - 사이즈 동일, 방향만 약간 진하게
 # ----------------------------------------------------
 def get_work_order_html(items):
     html = """
@@ -345,18 +345,19 @@ def get_work_order_html(items):
             w, h = item['w'], item['h']
             elec = item['elec']
             
-            # [핵심 수정] 방향에 따라 해당 숫자만 '초대형/초진하게' 표시
-            # 기본 스타일: 덜 진하게, 작게 (대비 효과)
-            w_style = "font-size: 28px; font-weight: 500; color: #555;"
-            h_style = "font-size: 28px; font-weight: 500; color: #555;"
+            # [수정] 가로/세로 사이즈 동일하게, 선택된 방향만 약간 더 진하게
+            # 기본 스타일 (둘 다 크고 진하게 - Bold 700)
+            base_style = "font-size: 34px; font-weight: 700; color: #000;"
+            w_style = base_style
+            h_style = base_style
             
-            # 강조 스타일: 아주 크고, 아주 진하고, 검정색
-            emp_style = "font-size: 38px; font-weight: 900; color: #000; text-decoration: underline;"
+            # 강조 스타일 (약간 더 진하게 - Extra Bold 900)
+            emp_weight = "font-weight: 900;"
             
             if "가로" in elec or "(W)" in elec:
-                w_style = emp_style
+                w_style = w_style.replace("font-weight: 700;", emp_weight)
             if "세로" in elec or "(H)" in elec:
-                h_style = emp_style
+                h_style = h_style.replace("font-weight: 700;", emp_weight)
                 
             dim_html = f"<span style='{w_style}'>{w}</span> <span style='font-size:24px; font-weight:bold;'>X</span> <span style='{h_style}'>{h}</span>"
 
@@ -441,20 +442,14 @@ with tab1:
                 display_text = f"{lot} | {info['name']} (잔량:{remain:.1f}m)"
                 stock_options.append(display_text)
         selected_stock = c_mat1.selectbox("🧵 사용할 원단 선택", stock_options)
-        
-        # [수정] 원단 로트 번호 자동 추출 (숫자 포함)
         if "직접 입력" in selected_stock:
             fabric_lot = c_mat1.text_input("원단 LOT 번호 입력", placeholder="Roll-2312a-KR")
             default_short = ""
         else:
             fabric_lot = selected_stock.split(" | ")[0]
             c_mat1.info(f"✅ 선택됨: {fabric_lot}")
-            # [수정] 자동으로 4자리 추출 시, 문자/숫자 상관없이 4글자 가져오기
-            default_short = fabric_lot[:4].upper() 
-
-        # [핵심 수정] 4자리 입력 필드: 영문/숫자/혼합 모두 가능하도록 안내 및 제한 해제
+            default_short = fabric_lot[:4].upper()
         fabric_short = c_mat2.text_input("🆔 식별코드 (4자리)", value=default_short, max_chars=4, help="영문, 숫자, 혼합 모두 가능 (예: A123, 2301, TEST)")
-        
         st.divider()
         c3, c4, c5 = st.columns([1, 1, 1])
         w = c3.number_input("가로 (W)", min_value=0, step=10)
@@ -473,10 +468,9 @@ with tab1:
             if not customer or not w or not h: st.error("고객사, 가로, 세로 사이즈는 필수입니다.")
             elif not fabric_lot: st.error("원단 정보가 없습니다.")
             else:
-                # [수정] 식별 코드(ID) 처리: 문자/숫자 그대로 사용, 4자리 미만이면 뒤에 X 채움
                 input_short = str(fabric_short).strip().upper()
                 final_short = input_short if input_short else fabric_lot[:4].upper()
-                final_short = final_short.ljust(4, 'X') # 4자리 맞추기
+                final_short = final_short.ljust(4, 'X') 
 
                 st.session_state.order_list.append({
                     "고객사": customer, "제품": product, "규격": f"{w}x{h}",
