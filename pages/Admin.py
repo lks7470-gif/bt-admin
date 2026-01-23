@@ -57,68 +57,59 @@ def fetch_fabric_stock():
     except: return {}
 
 # ----------------------------------------------------
-# 🔡 [폰트] 한글 폰트 자동 로드 함수 (깨짐 방지)
+# 🔡 [폰트] 한글 폰트 자동 로드 함수
 # ----------------------------------------------------
 @st.cache_resource
 def load_korean_font(size):
-    # 1. 로컬에 폰트 파일이 있는지 확인
     font_filename = "NanumGothic.ttf"
     if not os.path.exists(font_filename):
-        # 없으면 구글 폰트에서 다운로드 (나눔고딕)
         url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Regular.ttf"
         try:
             r = requests.get(url)
             with open(font_filename, 'wb') as f:
                 f.write(r.content)
         except:
-            return ImageFont.load_default() # 실패시 기본폰트
+            return ImageFont.load_default()
             
     return ImageFont.truetype(font_filename, size)
 
 # ----------------------------------------------------
-# 🖼️ [핵심] 라벨 이미지 생성 (가로 방향 + 한글 지원)
+# 🖼️ [핵심] 라벨 이미지 생성 (가로 방향 + 한글)
 # ----------------------------------------------------
 def create_label_strip_image(items, rotate=False):
-    # 캔버스 설정 (300 DPI 기준, 40mm x 20mm)
-    # 40mm = 472px, 20mm = 236px
-    LABEL_W = 472
-    LABEL_H = 236
+    LABEL_W = 472 # 40mm
+    LABEL_H = 236 # 20mm
     
     total_count = len(items)
     if total_count == 0: return None
 
-    # [수정] 전체 캔버스 크기: 가로로 길게 (Horizontal)
     strip_w = LABEL_W * total_count
     strip_h = LABEL_H
     
     full_img = Image.new('RGB', (strip_w, strip_h), 'white')
     draw = ImageDraw.Draw(full_img)
 
-    # 폰트 로드 (크기별)
     font_bold = load_korean_font(30)
     font_reg = load_korean_font(22)
     font_small = load_korean_font(18)
 
-    # 라벨 하나씩 그리기
     for i, item in enumerate(items):
-        # [수정] X축으로 이동 (가로 배치)
         x_offset = i * LABEL_W
         
-        # (A) 테두리 그리기
+        # 테두리
         draw.rectangle([x_offset, 0, x_offset + LABEL_W-1, LABEL_H-1], outline="#cccccc", width=2)
         
-        # (B) QR 코드
+        # QR
         qr = qrcode.QRCode(box_size=5, border=0)
         qr.add_data(item['lot'])
         qr.make(fit=True)
         qr_img = qr.make_image(fill_color="black", back_color="white").resize((180, 180))
         
-        # QR 위치
         qr_x = x_offset + 10
         qr_y = (LABEL_H - 180) // 2
         full_img.paste(qr_img, (qr_x, qr_y))
         
-        # (C) 텍스트 쓰기
+        # 텍스트
         text_start_x = x_offset + 200
         
         draw.text((text_start_x, 30), item['lot'], font=font_bold, fill="black")
@@ -129,13 +120,12 @@ def create_label_strip_image(items, rotate=False):
         draw.text((text_start_x, 130), dim_text, font=font_reg, fill="black")
         draw.text((text_start_x, 160), elec_text, font=font_small, fill="#555555")
 
-        # (D) 절취선 (세로선)
+        # 절취선
         if i < total_count - 1:
             line_x = x_offset + LABEL_W - 1
             for ly in range(0, LABEL_H, 10):
                 draw.line([(line_x, ly), (line_x, ly+5)], fill="#999999", width=1)
 
-    # 회전 옵션 (필요시)
     if rotate:
         full_img = full_img.rotate(90, expand=True)
 
@@ -256,7 +246,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     return html
 
 # ----------------------------------------------------
-# 📄 [작업지시서] A4 (2x4 배열)
+# 📄 [작업지시서] A4 (2x4 배열) - 초대형/초강력 버전
 # ----------------------------------------------------
 def get_work_order_html(items):
     html = """
@@ -269,24 +259,42 @@ def get_work_order_html(items):
                 body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; }
                 .page-break { page-break-after: always; }
             }
-            body { font-family: 'Noto Sans KR', sans-serif; }
-            .print-date { text-align: right; font-size: 9pt; color: #555; margin-bottom: 1mm; font-family: monospace; }
-            .page-header { text-align: center; font-size: 20pt; font-weight: 900; text-decoration: underline; margin-bottom: 2mm; width: 100%; }
+            body { font-family: 'Noto Sans KR', sans-serif; color: #000; }
+            
+            .page-header { text-align: center; font-size: 22pt; font-weight: 900; text-decoration: underline; margin-bottom: 3mm; width: 100%; }
             .page-container { display: flex; flex-wrap: wrap; justify-content: space-between; align-content: flex-start; width: 100%; height: auto; padding: 0; }
-            .job-card { width: 49%; height: 62.5mm; border: 2px solid #000; box-sizing: border-box; margin-bottom: 1mm; display: flex; flex-direction: column; overflow: hidden; }
-            .header { background-color: #eee; padding: 4px 10px; border-bottom: 1px solid #000; display: flex; justify-content: space-between; align-items: center; height: 24px; }
-            .lot-id { font-size: 15px; font-weight: 900; }
-            .date-txt { font-size: 11px; }
-            .info-container { display: flex; flex: 1; border-bottom: 1px solid #000; }
-            .qr-box { width: 85px; border-right: 1px solid #000; display: flex; align-items: center; justify-content: center; padding: 2px; }
+            
+            /* 카드 높이 약간 증가 (큰 글씨 수용) */
+            .job-card { width: 49%; height: 65mm; border: 3px solid #000; box-sizing: border-box; margin-bottom: 2mm; display: flex; flex-direction: column; overflow: hidden; }
+            
+            /* 헤더: 더 진하고 높게 */
+            .header { background-color: #ddd; padding: 5px 10px; border-bottom: 2px solid #000; display: flex; justify-content: space-between; align-items: center; height: 35px; }
+            .lot-id { font-size: 18px; font-weight: 900; }
+            /* 제품명 초대형 스타일 */
+            .prod-large { font-size: 24px; font-weight: 900; margin-left: 10px; color: #000; }
+            .date-txt { font-size: 13px; font-weight: 700; }
+            
+            .info-container { display: flex; flex: 1; border-bottom: 2px solid #000; }
+            .qr-box { width: 90px; border-right: 2px solid #000; display: flex; align-items: center; justify-content: center; padding: 2px; }
             .spec-box { flex: 1; padding: 4px 8px; }
             .spec-table { width: 100%; border-collapse: collapse; }
-            .spec-table td { padding: 2px 1px; font-size: 11px; vertical-align: middle; }
-            .label { font-weight: bold; width: 50px; color: #555; }
-            .value { font-weight: bold; font-size: 12px; color: #000; }
-            .check-box { display: inline-block; width: 10px; height: 10px; border: 1px solid #000; text-align: center; line-height: 9px; margin-right: 3px; font-size: 9px; }
-            .dim-box { height: 38px; background-color: #fff; display: flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 400; }
-            .footer-warning { width: 100%; text-align: center; font-size: 10pt; font-weight: bold; margin-top: 5mm; color: #333; border: none; }
+            .spec-table td { padding: 2px 1px; font-size: 12px; vertical-align: middle; font-weight: 700; }
+            .label { font-weight: 900; width: 60px; color: #333; }
+            .value { font-weight: 900; font-size: 13px; color: #000; }
+            
+            /* [핵심 수정] 하단 규격 박스: 초대형, 초강력 */
+            .dim-box { 
+                height: 55px; /* 높이 증가 */
+                background-color: #fff; 
+                display: flex; align-items: center; justify-content: center; 
+                /* 폰트 사이즈 대폭 증가 및 최고 두께 설정 */
+                font-size: 32px; 
+                font-weight: 900; 
+                color: #000;
+                border-top: 2px solid #000;
+            }
+            
+            .footer-warning { width: 100%; text-align: center; font-size: 11pt; font-weight: 900; margin-top: 5mm; color: #000; }
         </style>
     </head>
     <body>
@@ -296,7 +304,7 @@ def get_work_order_html(items):
     for i in range(0, len(items), chunk_size):
         chunk = items[i:i + chunk_size]
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-        html += f'<div class="print-date">출력일시: {now_str}</div>'
+        html += f'<div style="text-align:right; font-weight:bold;">출력: {now_str}</div>'
         html += '<div class="page-header">작업 지시서 (Work Order)</div>'
         html += '<div class="page-container">'
         
@@ -315,23 +323,22 @@ def get_work_order_html(items):
             
             is_lam = True
             if "생략" in lam_cond or "없음" in lam_cond or "단품" in lam_cond or lam_cond == "-": is_lam = False
-            lam_check_mark = "V" if is_lam else "&nbsp;"
-            lam_style = "color: #000;" if is_lam else "color: #ccc; text-decoration: line-through;"
+            lam_style = "color: #000;" if is_lam else "color: #aaa; text-decoration: line-through;"
             note_text = item.get('note', item.get('비고', '-'))
             if not note_text: note_text = "-"
 
             w, h = item['w'], item['h']
             elec = item['elec']
-            w_style = "font-weight: 400;" 
-            h_style = "font-weight: 400;"
-            if "가로" in elec: w_style = "font-weight: 900;"
-            if "세로" in elec: h_style = "font-weight: 900;"
-            dim_html = f"<span style='{w_style}'>{w}</span> x <span style='{h_style}'>{h}</span>"
+            # 규격 및 방향 텍스트 (스타일은 부모 dim-box에서 상속받아 초대형/진하게 적용됨)
+            dim_html = f"{w} X {h}"
 
             html += f"""
             <div class="job-card">
                 <div class="header">
-                    <span class="lot-id">{full_id}</span>
+                    <div style="display:flex; align-items:flex-end;">
+                        <span class="lot-id">{full_id}</span>
+                        <span class="prod-large">[{item['prod']}]</span>
+                    </div>
                     <span class="date-txt">{item['cust']} | {datetime.now().strftime('%m-%d')}</span>
                 </div>
                 <div class="info-container">
@@ -339,14 +346,19 @@ def get_work_order_html(items):
                     <div class="spec-box">
                         <table class="spec-table">
                             <tr><td class="label">🧵 원단</td><td class="value">{fabric_full}</td></tr>
-                            <tr><td colspan="2"><hr style="margin: 3px 0; border-top: 1px dashed #ccc;"></td></tr>
+                            <tr><td colspan="2"><hr style="margin: 3px 0; border-top: 2px dashed #888;"></td></tr>
                             <tr><td class="label">✂️ 커팅</td><td class="value">{cut_cond}</td></tr>
-                            <tr><td class="label">🔥 접합</td><td class="value" style="{lam_style}"><span class="check-box">{lam_check_mark}</span>{lam_cond}</td></tr>
-                            <tr><td class="label" style="color:red;">⚠️ 특이</td><td class="value" style="color:red;">{note_text}</td></tr>
+                            <tr><td class="label">🔥 접합</td><td class="value" style="{lam_style}">
+                                {lam_cond}
+                            </td></tr>
+                            <tr><td class="label" style="color:red;">⚠️ 특이</td><td class="value" style="color:red; font-size:14px;">{note_text}</td></tr>
                         </table>
                     </div>
                 </div>
-                <div class="dim-box">{dim_html} / {item['elec']}</div>
+                <div class="dim-box">
+                    <span>{dim_html}</span>
+                    <span style="margin-left: 20px;">[{item['elec']}]</span>
+                </div>
             </div>
             """
         html += '</div>'
@@ -492,7 +504,7 @@ with tab2:
     else: st.info("⚠️ 현재 발행된 작업이 없습니다.")
 
 # ==========================================
-# 🏷️ [Tab 3] 라벨 인쇄 (가로방향 이미지 생성)
+# 🏷️ [Tab 3] 라벨 인쇄
 # ==========================================
 with tab3:
     st.header("🏷️ QR 라벨 인쇄")
@@ -505,18 +517,15 @@ with tab3:
             is_rotate = c_rot.checkbox("🔄 내용 90도 회전", help="라벨이 세로로 나오는 경우 체크하세요.", key="chk_rotate_tab3")
             margin_top = c_margin.number_input("상단 여백 보정(mm)", value=0, step=1, help="인쇄가 밀릴 경우 조정", key="num_margin_tab3")
 
-        # 1. 화면 미리보기
         content_html_preview = get_label_content_html(st.session_state.generated_qrs, mode=mode_code, rotate=is_rotate, margin_top=margin_top)
         st.components.v1.html(content_html_preview, height=600, scrolling=True)
         
         c_print, c_down = st.columns(2)
         
-        # 2. 즉시 인쇄 버튼
         if c_print.button("🖨️ 라벨 인쇄 (즉시)", type="primary", key="btn_print_label_tab3"):
             full_html = generate_print_html(content_html_preview)
             components.html(full_html, height=0, width=0)
             
-        # 3. [NEW] 전체 라벨을 가로로 긴 1장의 이미지로 다운로드
         label_image_data = create_label_strip_image(st.session_state.generated_qrs, rotate=is_rotate)
         
         if label_image_data:
