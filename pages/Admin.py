@@ -136,7 +136,7 @@ def get_label_content_html(items):
     return html
 
 # ----------------------------------------------------
-# 📄 [작업지시서] A4 (2x4 배열) HTML - 높이 최적화 적용
+# 📄 [작업지시서] A4 (2x4 배열) - 하단 경고문구 수정됨
 # ----------------------------------------------------
 def get_work_order_html(items):
     html = """
@@ -167,7 +167,7 @@ def get_work_order_html(items):
             }
             .job-card {
                 width: 49%; 
-                height: 60mm; /* [수정] 62mm -> 60mm로 줄여서 한 장에 쏙 들어가게 함 */
+                height: 60mm; 
                 border: 2px solid #000; box-sizing: border-box;
                 margin-bottom: 2mm; display: flex; flex-direction: column; overflow: hidden;
             }
@@ -196,9 +196,16 @@ def get_work_order_html(items):
                 display: flex; align-items: center; justify-content: center; 
                 font-size: 18px; font-weight: 400; 
             }
+            
+            /* [수정] 경고 문구 스타일: 줄 제거 및 위치 내림 */
             .footer-warning {
-                width: 100%; text-align: center; font-size: 10pt; font-weight: bold;
-                margin-top: 2mm; padding-top: 2mm; border-top: 2px double #000;
+                width: 100%; 
+                text-align: center; 
+                font-size: 10pt; 
+                font-weight: bold;
+                margin-top: 15mm; /* [핵심] 위쪽 여백을 15mm로 늘려 더 아래로 내림 */
+                padding-top: 2mm; 
+                /* border-top 제거됨 */
             }
         </style>
     </head>
@@ -278,6 +285,8 @@ def get_work_order_html(items):
             </div>
             """
         html += '</div>'
+        
+        # [수정] 줄(bar) 없이 문구만 출력
         html += '<div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>'
 
         if i + chunk_size < len(items):
@@ -287,7 +296,7 @@ def get_work_order_html(items):
     return html
 
 # ----------------------------------------------------
-# 📱 [복구] 접속 QR HTML 함수 (NameError 해결)
+# 📱 접속 QR HTML 함수
 # ----------------------------------------------------
 def get_access_qr_content_html(url, mode="big"):
     qr = qrcode.QRCode(box_size=10, border=1)
@@ -318,7 +327,7 @@ if st.sidebar.button("🔄 재고 정보 새로고침", use_container_width=True
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["📝 작업 입력", "📄 지시서 인쇄", "🏷️ 라벨 인쇄", "🔄 QR 재발행", "🧵 원단 재고", "📊 발행 이력", "🔍 제품 추적", "🚨 불량 현황", "📱 접속 QR"])
 
 # ==========================================
-# 📝 [Tab 1] 신규 작업 지시 (원단 선택 연동)
+# 📝 [Tab 1] 신규 작업 지시
 # ==========================================
 with tab1:
     st.markdown("### 📝 신규 작업 지시 등록")
@@ -627,10 +636,27 @@ with tab6:
 with tab7:
     with st.form("track"): c1,c2=st.columns([4,1]); l=c1.text_input("LOT"); b=c2.form_submit_button("조회")
     if b: r=supabase.table("work_orders").select("*").eq("lot_no",l).execute(); st.write(r.data)
-with tab8: res=supabase.table("defects").select("*").execute(); st.dataframe(pd.DataFrame(res.data), use_container_width=True)
 
 # ==========================================
-# 📱 [Tab 9] 접속 QR (정상 복구됨)
+# 🚨 [Tab 8] 불량 현황 (Empty 처리 수정)
+# ==========================================
+with tab8: 
+    st.markdown("### 🚨 불량 현황")
+    try:
+        res = supabase.table("defects").select("*").execute()
+        df_defects = pd.DataFrame(res.data)
+        
+        if not df_defects.empty:
+            st.dataframe(df_defects, use_container_width=True)
+        else:
+            # [수정] 빈 데이터일 때 안내 문구 표시
+            st.info("✅ 현재 등록된 불량 내역이 없습니다.")
+            
+    except Exception as e:
+        st.error(f"데이터 조회 중 오류가 발생했습니다: {e}")
+
+# ==========================================
+# 📱 [Tab 9] 접속 QR
 # ==========================================
 with tab9:
     st.header("📱 현장 접속 QR")
