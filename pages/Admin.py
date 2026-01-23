@@ -272,7 +272,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     return html
 
 # ----------------------------------------------------
-# 📄 [작업지시서] A4 (2x4 배열) - 글자겹침 해결 및 강조 수정
+# 📄 [작업지시서] A4 (2x4 배열) - 사이즈 동일, 방향만 Extra Bold
 # ----------------------------------------------------
 def get_work_order_html(items):
     html = """
@@ -351,7 +351,7 @@ def get_work_order_html(items):
             w, h = item['w'], item['h']
             elec = item['elec']
             
-            # [핵심 수정] 가로/세로 숫자 스타일 지정
+            # [수정] 가로/세로 숫자 스타일 지정
             base_size = "34px"
             inactive_style = f"font-size: {base_size}; font-weight: 500; color: #555;"
             active_style = f"font-size: {base_size}; font-weight: 900; color: #000; text-decoration: underline;"
@@ -400,27 +400,6 @@ def get_work_order_html(items):
     html += "</body></html>"
     return html
 
-# ----------------------------------------------------
-# 📱 접속 QR HTML 함수
-# ----------------------------------------------------
-def get_access_qr_content_html(url, mode="big"):
-    qr = qrcode.QRCode(box_size=10, border=1)
-    qr.add_data(url)
-    qr.make(fit=True)
-    img_b64 = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
-    
-    if mode == "big":
-        html = f"""<div style="text-align:center; padding-top:50mm;"><div style="border:5px solid black; padding:50px; display:inline-block; border-radius:30px;"><div style="font-size:40pt; font-weight:900; margin-bottom:30px;">🏭 접속 QR</div><img src="data:image/png;base64,{img_b64}" style="width:400px; height:400px;"><div style="font-size:15pt; margin-top:20px; font-family:monospace;">{url}</div></div></div>"""
-    else:
-        html = '<table style="width:100%; border-collapse:collapse;">'
-        for r in range(4):
-            html += '<tr>'
-            for c in range(2):
-                html += f"""<td style="border:1px dashed #999; padding:10px; text-align:center;"><div style="font-weight:bold; font-size:16pt;">시스템 접속</div><img src="data:image/png;base64,{img_b64}" style="width:100px;"></td>"""
-            html += '</tr>'
-        html += "</table>"
-    return html
-
 # ==========================================
 # 🖥️ 관리자 UI 메인
 # ==========================================
@@ -430,7 +409,7 @@ if st.sidebar.button("🔄 재고 정보 새로고침", use_container_width=True
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["📝 작업 입력", "📄 지시서 인쇄", "🏷️ 라벨 인쇄", "🔄 QR 재발행", "🧵 원단 재고", "📊 발행 이력", "🔍 제품 추적", "🚨 불량 현황", "📱 접속 QR"])
 
-# [Tab 1] 작업 입력
+# [Tab 1] 작업 입력 (혼합 문자 허용 및 안내 수정)
 with tab1:
     st.markdown("### 📝 신규 작업 지시 등록")
     if 'fabric_db' not in st.session_state or not st.session_state.fabric_db: st.session_state.fabric_db = fetch_fabric_stock()
@@ -475,11 +454,11 @@ with tab1:
         note = st.text_input("비고 (특이사항)", placeholder="작업자 전달 사항")
         count = st.number_input("수량", min_value=1, value=1)
         
-        # [수정] 버튼 키값 고유화 (DuplicateElementId 에러 방지)
         if st.form_submit_button("➕ 작업 목록 추가", type="primary", use_container_width=True):
             if not customer or not w or not h: st.error("고객사, 가로, 세로 사이즈는 필수입니다.")
             elif not fabric_lot: st.error("원단 정보가 없습니다.")
             else:
+                # [수정] 식별 코드(ID) 처리: 문자/숫자 그대로 사용, 4자리 미만이면 뒤에 X 채움
                 input_short = str(fabric_short).strip().upper()
                 final_short = input_short if input_short else fabric_lot[:4].upper()
                 final_short = final_short.ljust(4, 'X') 
@@ -496,7 +475,6 @@ with tab1:
         st.markdown(f"### 🛒 발행 대기 목록 ({len(st.session_state.order_list)}건)")
         st.dataframe(pd.DataFrame(st.session_state.order_list)[["고객사", "lot_short", "제품", "규격", "spec_lam", "수량"]], use_container_width=True)
         c1, c2 = st.columns([1, 2])
-        # [수정] 버튼 키값 고유화 (DuplicateElementId 에러 방지)
         if c1.button("🗑️ 목록 초기화", key="btn_clear_list_tab1"): st.session_state.order_list = []; st.rerun()
         if c2.button("🚀 최종 발행 및 저장 (Supabase)", type="primary", use_container_width=True, key="btn_publish_tab1"):
             date_str = datetime.now().strftime("%y%m%d")
@@ -539,7 +517,6 @@ with tab2:
         content_html = get_work_order_html(st.session_state.generated_qrs)
         st.components.v1.html(content_html, height=1000, scrolling=True)
         c_print, c_down = st.columns(2)
-        # [수정] 버튼 키값 고유화 (DuplicateElementId 에러 방지)
         if c_print.button("🖨️ 지시서 인쇄 (즉시)", type="primary", key="btn_print_order_tab2"):
             full_html = generate_print_html(content_html)
             components.html(full_html, height=0, width=0)
@@ -566,7 +543,6 @@ with tab3:
         
         c_print, c_down = st.columns(2)
         
-        # [수정] 버튼 키값 고유화 (DuplicateElementId 에러 방지)
         if c_print.button("🖨️ 라벨 인쇄 (즉시)", type="primary", key="btn_print_label_tab3"):
             full_html = generate_print_html(content_html_preview)
             components.html(full_html, height=0, width=0)
@@ -627,7 +603,6 @@ with tab4:
                 if "작업지시서" in reprint_type:
                     content_html = get_work_order_html(rep_items)
                     st.components.v1.html(content_html, height=500, scrolling=True)
-                    # [수정] 버튼 키값 고유화 (DuplicateElementId 에러 방지)
                     if st.button("🖨️ 지시서 인쇄", type="primary", key="btn_reprint_order_tab4"):
                         full_html = generate_print_html(content_html)
                         components.html(full_html, height=0, width=0)
@@ -641,7 +616,6 @@ with tab4:
                     st.components.v1.html(content_html, height=500, scrolling=True)
                     
                     c_rp_print, c_rp_down = st.columns(2)
-                    # [수정] 버튼 키값 고유화 (DuplicateElementId 에러 방지)
                     if c_rp_print.button("🖨️ 라벨 인쇄", type="primary", key="btn_reprint_label_tab4"):
                         full_html = generate_print_html(content_html)
                         components.html(full_html, height=0, width=0)
@@ -724,7 +698,6 @@ with tab6:
             with delete_tab:
                 st.warning(f"선택된 {len(selected_rows)}건 삭제")
                 if st.toggle("🚨 관리자 삭제 모드 켜기"):
-                    # [수정] 버튼 키값 고유화 (DuplicateElementId 에러 방지)
                     if st.button("🗑️ 삭제 실행", type="primary", key="btn_delete_log_tab6"):
                         delete_lots = selected_rows['lot_no'].tolist()
                         supabase.table("work_orders").delete().in_("lot_no", delete_lots).execute()
@@ -748,7 +721,6 @@ with tab9:
     st.header("📱 현장 접속 QR")
     content_html = get_access_qr_content_html(APP_URL, "big")
     st.components.v1.html(content_html, height=600)
-    # [수정] 버튼 키값 고유화 (DuplicateElementId 에러 방지)
     if st.button("🖨️ 접속 QR 인쇄", key="btn_print_access_qr_tab9"):
         full_html = generate_print_html(content_html)
         components.html(full_html, height=0, width=0)
