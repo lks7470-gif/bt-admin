@@ -36,7 +36,13 @@ st.markdown("""
     .metric-box { background: #111; border: 1px solid #333; border-radius: 12px; width: 18%; padding: 15px; text-align: center; box-shadow: 0 4px 15px rgba(255,255,255,0.05); }
     .metric-title { font-size: 16px; color: #888; margin-bottom: 5px; font-weight: bold; }
     .metric-num { font-size: 48px; font-weight: 900; line-height: 1; }
-    .tx-white { color: #fff; } .tx-blue { color: #00e5ff; } .tx-green { color: #00e676; } .tx-orange { color: #ff9100; } .tx-purple { color: #d500f9; }
+    
+    /* 텍스트 컬러 유틸리티 */
+    .tx-white { color: #fff; } 
+    .tx-blue { color: #00e5ff; } 
+    .tx-green { color: #00e676; } 
+    .tx-orange { color: #ff9100; } 
+    .tx-purple { color: #d500f9; } /* 하프커팅용 보라색 */
     
     /* 3. 테이블 스타일 */
     .smart-table { width: 100%; border-collapse: separate; border-spacing: 0 10px; }
@@ -73,7 +79,7 @@ st.markdown("""
     .mini-progress-fill { height: 100%; border-radius: 3px; transition: width 0.5s; }
     .bg-w { background: #555; } 
     .bg-b { background: linear-gradient(90deg, #00e5ff, #2979ff); } 
-    .bg-p { background: linear-gradient(90deg, #d500f9, #aa00ff); } /* 하프커팅용 */
+    .bg-p { background: linear-gradient(90deg, #d500f9, #aa00ff); } /* 하프커팅용 보라색바 */
     .bg-g { background: linear-gradient(90deg, #00e676, #00c853); } 
     .bg-o { background: linear-gradient(90deg, #ff9100, #ff3d00); } 
     .bg-r { background: linear-gradient(90deg, #ff5252, #d50000); }
@@ -107,6 +113,7 @@ df, df_log = load_data()
 ITEMS_PER_PAGE = 8
 
 if not df.empty:
+    # 카운트 집계 (키워드 기반)
     cnt_ready = len(df[df['status'].str.contains("대기", na=False)])
     cnt_cut = len(df[df['status'].str.contains("Cut|커팅", na=False)])
     cnt_elec = len(df[df['status'].str.contains("전극", na=False)])
