@@ -32,8 +32,10 @@ except Exception as e:
     st.stop()
 
 # ==============================================================================
-# 🛡️ [핵심 기능] 공정 순서 위반 방지 함수
+# 🛠️ [기능 정의 구역] 화면을 그리기 위한 도구들을 미리 만듭니다.
 # ==============================================================================
+
+# 1. 공정 순서 위반 방지 함수
 def check_process_sequence(lot_no, current_step):
     try:
         response = supabase.table("production_logs") \
@@ -65,34 +67,20 @@ def check_process_sequence(lot_no, current_step):
     
     return True, "OK"
 
-# ==========================================
-# ⚙️ 설정 & 초기화
-# ==========================================
-st.set_page_config(page_title="(주)베스트룸 생산관리", page_icon="🏭", layout="wide")
-APP_URL = "https://bt-app-pwgumeleefkwpf3xsu5bob.streamlit.app/"
-
-if 'order_list' not in st.session_state: st.session_state.order_list = []
-if 'generated_qrs' not in st.session_state: st.session_state.generated_qrs = []
-if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
-if 'history_data' not in st.session_state: st.session_state.history_data = []
-
-# ==========================================
-# 🛠️ 공통 유틸리티 함수
-# ==========================================
+# 2. 이미지 처리 함수
 def image_to_base64(img):
     buffered = io.BytesIO()
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
+# 3. 원단 재고 조회
 def fetch_fabric_stock():
     try:
         response = supabase.table("fabric_stock").select("*").execute()
         return {row['lot_no']: row for row in response.data}
     except: return {}
 
-# ----------------------------------------------------
-# 🔡 [폰트] '굵은' 한글 폰트(Bold) 로드
-# ----------------------------------------------------
+# 4. 폰트 로드 (Bold)
 @st.cache_resource
 def load_korean_font(size):
     font_filename = "NanumGothic-Bold.ttf"
@@ -106,9 +94,7 @@ def load_korean_font(size):
             return ImageFont.load_default()
     return ImageFont.truetype(font_filename, size)
 
-# ----------------------------------------------------
-# 🖼️ [핵심] 라벨 이미지 생성 (가로 방향 + 굵고 큰 글씨)
-# ----------------------------------------------------
+# 5. 라벨 이미지 생성 (가로 띠)
 def create_label_strip_image(items, rotate=False):
     LABEL_W = 472 # 40mm
     LABEL_H = 236 # 20mm
@@ -164,9 +150,7 @@ def create_label_strip_image(items, rotate=False):
     full_img.save(buf, format="PNG")
     return buf.getvalue()
 
-# ----------------------------------------------------
-# 🖨️ [통합] 인쇄용 HTML 래퍼
-# ----------------------------------------------------
+# 6. 인쇄 스크립트 래퍼
 def generate_print_html(content_html):
     return f"""
     <!DOCTYPE html>
@@ -187,9 +171,7 @@ def generate_print_html(content_html):
     </html>
     """
 
-# ----------------------------------------------------
-# 🏷️ [라벨] 화면 미리보기용 HTML
-# ----------------------------------------------------
+# 7. 라벨 미리보기 HTML 생성 (NameError 해결의 핵심!)
 def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     transform_css = "transform: rotate(90deg);" if rotate else ""
     
@@ -271,9 +253,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     html += "</div></body></html>"
     return html
 
-# ----------------------------------------------------
-# 📄 [작업지시서] A4 (2x4 배열) - 사이즈 동일, 방향만 Extra Bold
-# ----------------------------------------------------
+# 8. 작업지시서 HTML 생성 (방향 강조 기능 포함)
 def get_work_order_html(items):
     html = """
     <html>
@@ -351,7 +331,10 @@ def get_work_order_html(items):
             w, h = item['w'], item['h']
             elec = item['elec']
             
-            # [수정] 가로/세로 숫자 스타일 지정
+            # [디자인 적용] 가로/세로 숫자 스타일
+            # 기본(Inactive): Medium(500) + 회색
+            # 강조(Active): Extra Bold(900) + 검정 + 밑줄
+            
             base_size = "34px"
             inactive_style = f"font-size: {base_size}; font-weight: 500; color: #555;"
             active_style = f"font-size: {base_size}; font-weight: 900; color: #000; text-decoration: underline;"
@@ -400,6 +383,36 @@ def get_work_order_html(items):
     html += "</body></html>"
     return html
 
+# 9. 접속 QR 생성
+def get_access_qr_content_html(url, mode="big"):
+    qr = qrcode.QRCode(box_size=10, border=1)
+    qr.add_data(url)
+    qr.make(fit=True)
+    img_b64 = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
+    
+    if mode == "big":
+        html = f"""<div style="text-align:center; padding-top:50mm;"><div style="border:5px solid black; padding:50px; display:inline-block; border-radius:30px;"><div style="font-size:40pt; font-weight:900; margin-bottom:30px;">🏭 접속 QR</div><img src="data:image/png;base64,{img_b64}" style="width:400px; height:400px;"><div style="font-size:15pt; margin-top:20px; font-family:monospace;">{url}</div></div></div>"""
+    else:
+        html = '<table style="width:100%; border-collapse:collapse;">'
+        for r in range(4):
+            html += '<tr>'
+            for c in range(2):
+                html += f"""<td style="border:1px dashed #999; padding:10px; text-align:center;"><div style="font-weight:bold; font-size:16pt;">시스템 접속</div><img src="data:image/png;base64,{img_b64}" style="width:100px;"></td>"""
+            html += '</tr>'
+        html += "</table>"
+    return html
+
+# ==========================================
+# ⚙️ 설정 & 초기화 (UI 시작)
+# ==========================================
+st.set_page_config(page_title="(주)베스트룸 생산관리", page_icon="🏭", layout="wide")
+APP_URL = "https://bt-app-pwgumeleefkwpf3xsu5bob.streamlit.app/"
+
+if 'order_list' not in st.session_state: st.session_state.order_list = []
+if 'generated_qrs' not in st.session_state: st.session_state.generated_qrs = []
+if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
+if 'history_data' not in st.session_state: st.session_state.history_data = []
+
 # ==========================================
 # 🖥️ 관리자 UI 메인
 # ==========================================
@@ -409,7 +422,7 @@ if st.sidebar.button("🔄 재고 정보 새로고침", use_container_width=True
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["📝 작업 입력", "📄 지시서 인쇄", "🏷️ 라벨 인쇄", "🔄 QR 재발행", "🧵 원단 재고", "📊 발행 이력", "🔍 제품 추적", "🚨 불량 현황", "📱 접속 QR"])
 
-# [Tab 1] 작업 입력 (혼합 문자 허용 및 안내 수정)
+# [Tab 1] 작업 입력
 with tab1:
     st.markdown("### 📝 신규 작업 지시 등록")
     if 'fabric_db' not in st.session_state or not st.session_state.fabric_db: st.session_state.fabric_db = fetch_fabric_stock()
@@ -427,18 +440,16 @@ with tab1:
                 stock_options.append(display_text)
         selected_stock = c_mat1.selectbox("🧵 사용할 원단 선택", stock_options)
         
-        # [수정] 원단 로트 번호 자동 추출 (숫자 포함)
         if "직접 입력" in selected_stock:
             fabric_lot = c_mat1.text_input("원단 LOT 번호 입력", placeholder="Roll-2312a-KR")
             default_short = ""
         else:
             fabric_lot = selected_stock.split(" | ")[0]
             c_mat1.info(f"✅ 선택됨: {fabric_lot}")
-            # [수정] 자동으로 4자리 추출 시, 문자/숫자 상관없이 4글자 가져오기
-            default_short = fabric_lot[:4].upper() 
+            default_short = fabric_lot[:4].upper()
 
-        # [핵심 수정] 4자리 입력 필드: 영문/숫자/혼합 모두 가능하도록 안내 및 제한 해제
-        fabric_short = c_mat2.text_input("🆔 식별코드 (4자리)", value=default_short, max_chars=4, help="영문, 숫자, 혼합 모두 가능 (예: A123, 2301, TEST)")
+        # [입력 허용] 영문/숫자 혼합 가능
+        fabric_short = c_mat2.text_input("🆔 식별코드 (4자리)", value=default_short, max_chars=4, help="영문, 숫자, 혼합 모두 가능 (예: A123, 2301)")
         
         st.divider()
         c3, c4, c5 = st.columns([1, 1, 1])
@@ -458,7 +469,6 @@ with tab1:
             if not customer or not w or not h: st.error("고객사, 가로, 세로 사이즈는 필수입니다.")
             elif not fabric_lot: st.error("원단 정보가 없습니다.")
             else:
-                # [수정] 식별 코드(ID) 처리: 문자/숫자 그대로 사용, 4자리 미만이면 뒤에 X 채움
                 input_short = str(fabric_short).strip().upper()
                 final_short = input_short if input_short else fabric_lot[:4].upper()
                 final_short = final_short.ljust(4, 'X') 
