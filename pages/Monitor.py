@@ -36,7 +36,7 @@ st.markdown("""
     .metric-box { background: #111; border: 1px solid #333; border-radius: 12px; width: 18%; padding: 15px; text-align: center; box-shadow: 0 4px 15px rgba(255,255,255,0.05); }
     .metric-title { font-size: 16px; color: #888; margin-bottom: 5px; font-weight: bold; }
     .metric-num { font-size: 48px; font-weight: 900; line-height: 1; }
-    .tx-white { color: #fff; } .tx-blue { color: #00e5ff; } .tx-green { color: #00e676; } .tx-orange { color: #ff9100; }
+    .tx-white { color: #fff; } .tx-blue { color: #00e5ff; } .tx-green { color: #00e676; } .tx-orange { color: #ff9100; } .tx-purple { color: #d500f9; }
     
     /* 3. 테이블 스타일 */
     .smart-table { width: 100%; border-collapse: separate; border-spacing: 0 10px; }
@@ -60,50 +60,31 @@ st.markdown("""
     .status-badge { display: inline-block; padding: 5px 10px; border-radius: 15px; font-size: 12px; font-weight: 900; text-transform: uppercase; }
     .pct-text { font-size: 13px; font-weight: 900; color: #fff; }
     
+    /* 뱃지 컬러 */
     .badge-white { background: #333; color: #ccc; border: 1px solid #555; }
-    .badge-blue { background: #0277bd; color: white; border: 1px solid #0288d1; }
-    .badge-green { background: #2e7d32; color: white; border: 1px solid #388e3c; }
-    .badge-orange { background: #ef6c00; color: white; border: 1px solid #f57c00; }
-    .badge-red { background: #b71c1c; color: white; border: 1px solid #d32f2f; }
+    .badge-blue { background: #0277bd; color: white; border: 1px solid #0288d1; } /* 풀커팅 */
+    .badge-purple { background: #7b1fa2; color: white; border: 1px solid #ba68c8; } /* 하프커팅 */
+    .badge-green { background: #2e7d32; color: white; border: 1px solid #388e3c; } /* 완료 */
+    .badge-orange { background: #ef6c00; color: white; border: 1px solid #f57c00; } /* 전극/접합 */
+    .badge-red { background: #b71c1c; color: white; border: 1px solid #d32f2f; } /* 불량 */
     
     /* 5. 미니 프로그레스 바 (테이블 내부) */
     .mini-progress-bg { width: 100%; height: 6px; background: #222; border-radius: 3px; overflow: hidden; }
     .mini-progress-fill { height: 100%; border-radius: 3px; transition: width 0.5s; }
-    .bg-w { background: #555; } .bg-b { background: linear-gradient(90deg, #00e5ff, #2979ff); } 
-    .bg-g { background: linear-gradient(90deg, #00e676, #00c853); } .bg-o { background: linear-gradient(90deg, #ff9100, #ff3d00); } .bg-r { background: linear-gradient(90deg, #ff5252, #d50000); }
+    .bg-w { background: #555; } 
+    .bg-b { background: linear-gradient(90deg, #00e5ff, #2979ff); } 
+    .bg-p { background: linear-gradient(90deg, #d500f9, #aa00ff); } /* 하프커팅용 */
+    .bg-g { background: linear-gradient(90deg, #00e676, #00c853); } 
+    .bg-o { background: linear-gradient(90deg, #ff9100, #ff3d00); } 
+    .bg-r { background: linear-gradient(90deg, #ff5252, #d50000); }
     
     /* 6. 페이지 번호 표시 */
     .page-indicator { position: fixed; top: 20px; right: 20px; background: rgba(20,20,20,0.8); color: #888; padding: 5px 15px; border-radius: 15px; font-weight: bold; font-size: 14px; border: 1px solid #333; }
 
-    /* 🔥 [핵심] 하단 자동실행 타이머 바 (부드러운 애니메이션) */
-    @keyframes load-bar {
-        0% { width: 0%; }
-        100% { width: 100%; }
-    }
-    
-    .timer-bar-container {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        height: 6px;
-        background-color: #111;
-        z-index: 999999;
-    }
-    
-    .timer-bar-fill {
-        height: 100%;
-        background: linear-gradient(90deg, #00e5ff, #2979ff);
-        box-shadow: 0 0 10px #00e5ff;
-        animation: load-bar 5s linear infinite; /* 5초 동안 채워짐 */
-    }
-    
-    /* 로고가 없을 때 표시할 박스 스타일 */
-    .logo-placeholder {
-        width: 100%; height: 60px; background: #111; border: 2px dashed #333;
-        display: flex; align-items: center; justify-content: center;
-        color: #555; font-weight: bold; border-radius: 10px;
-    }
+    /* 하단 타이머 바 */
+    @keyframes load-bar { 0% { width: 0%; } 100% { width: 100%; } }
+    .timer-bar-container { position: fixed; bottom: 0; left: 0; width: 100%; height: 6px; background-color: #111; z-index: 999999; }
+    .timer-bar-fill { height: 100%; background: linear-gradient(90deg, #00e5ff, #2979ff); box-shadow: 0 0 10px #00e5ff; animation: load-bar 5s linear infinite; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -135,7 +116,6 @@ if not df.empty:
     total_pages = math.ceil(len(df) / ITEMS_PER_PAGE)
     if total_pages < 1: total_pages = 1
     
-    # 페이지 자동 넘김 로직
     if st.session_state.page_index >= total_pages: st.session_state.page_index = 0
     start = st.session_state.page_index * ITEMS_PER_PAGE
     df_view = df.iloc[start : start + ITEMS_PER_PAGE]
@@ -143,20 +123,16 @@ else:
     cnt_ready=cnt_cut=cnt_elec=cnt_lam=cnt_out=0; df_view=pd.DataFrame(); total_pages=1
 
 # ==========================================
-# 🖼️ 레이아웃 구성 (로고 복구됨!)
+# 🖼️ 레이아웃 구성
 # ==========================================
 c1, c2, c3 = st.columns([2, 6, 2])
 with c1:
-    # 로고 파일 찾기 로직 복구
     logo_path = None
     if os.path.exists("pages/company_logo.png"): logo_path = "pages/company_logo.png"
     elif os.path.exists("company_logo.png"): logo_path = "company_logo.png"
     
-    if logo_path:
-        st.image(logo_path, width=300)
-    else:
-        # 이미지가 없으면 텍스트로 대체
-        st.markdown("### 🏭 BESTROOM", unsafe_allow_html=True)
+    if logo_path: st.image(logo_path, width=300)
+    else: st.markdown("### 🏭 BESTROOM", unsafe_allow_html=True)
 
 with c2:
     now_time = get_korea_time().strftime("%H:%M:%S")
@@ -169,7 +145,6 @@ with c3:
 
 st.markdown(f'<div class="page-indicator">PAGE {st.session_state.page_index + 1} / {total_pages}</div>', unsafe_allow_html=True)
 
-# 상단 집계 박스
 st.markdown(f"""
 <div class="metric-container">
     <div class="metric-box"><div class="metric-title">⏳ 작업대기</div><div class="metric-num tx-white">{cnt_ready}</div></div>
@@ -186,29 +161,83 @@ if not df_view.empty:
     for _, row in df_view.iterrows():
         lot = row['lot_no']; cust = row['customer']; prod = row['product']
         size = row['dimension']; spec = row['spec']; time_str = row.get('short_time','-')
-        status_txt = str(row['status'])
+        status_txt_db = str(row['status'])
         
+        # 보안 처리
         if is_cust_secure: cust_display = '<div class="secret-box">🔒 대외비</div>'
         else: cust_display = f'<div class="cell-cust">{cust}</div><div class="cell-prod">{prod}</div>'
 
         if is_spec_secure: spec_display = '<div class="secret-box">🔒 CONFIDENTIAL</div>'
         else: spec_display = f'<div class="spec-box">{spec}</div>'
         
-        # 상태별 로직
-        step_pct=5; badge="badge-white"; txt="작업 대기"; bar="bg-w"
+        # -----------------------------------------------------------
+        # 🔥 [핵심 수정] 진행 상태 및 퍼센트 계산 로직 (단품 vs 일반)
+        # -----------------------------------------------------------
+        step_pct = 5
+        badge = "badge-white"
+        txt = "작업 대기"
+        bar = "bg-w"
+        
+        # 1. 단품 여부 확인 (status에 '단품'이 있거나 spec에 '접합 생략'이 있는 경우)
+        is_short_product = "단품" in status_txt_db or "생략" in str(spec) or "No Lam" in str(spec)
+
         if not df_log.empty:
             my_logs = df_log[df_log['lot_no'] == lot]
             if not my_logs.empty:
-                last_step = my_logs.iloc[-1]['step']
-                if "Cut" in last_step: step_pct=25; txt="✂️ 커팅 중"; badge="badge-blue"; bar="bg-b"
-                elif "전극" in last_step: step_pct=50; txt="⚡ 전극 중"; badge="badge-blue"; bar="bg-b"
+                last_step = str(my_logs.iloc[-1]['step'])
+                
+                # (A) 커팅 공정 세분화 (풀커팅 / 하프커팅)
+                if "Full" in last_step or "풀" in last_step or "원단" in last_step:
+                    # 풀커팅 단계
+                    step_pct = 20 if not is_short_product else 30
+                    txt = "✂️ 원단 풀커팅"
+                    badge = "badge-blue"
+                    bar = "bg-b"
+                
+                elif "Half" in last_step or "하프" in last_step:
+                    # 하프커팅 단계
+                    step_pct = 40 if not is_short_product else 60
+                    txt = "🔪 정밀 하프커팅"
+                    badge = "badge-purple" # 하프커팅은 보라색으로 구분
+                    bar = "bg-p"
+                
+                # (B) 전극 공정 (단품일 경우 여기가 끝!)
+                elif "전극" in last_step:
+                    if is_short_product:
+                        step_pct = 100
+                        txt = "✅ 생산 완료 (단품)"
+                        badge = "badge-green"
+                        bar = "bg-g"
+                    else:
+                        step_pct = 60
+                        txt = "⚡ 전극 부착"
+                        badge = "badge-blue"
+                        bar = "bg-b"
+                
+                # (C) 접합 공정 (일반 제품만 해당)
                 elif "접합" in last_step:
-                    if "완료" in last_step: step_pct=100; txt="✅ 생산 완료"; badge="badge-green"; bar="bg-g"
-                    else: step_pct=75; txt="🔥 접합 중"; badge="badge-orange"; bar="bg-o"
+                    if "완료" in last_step:
+                        step_pct = 100
+                        txt = "✅ 생산 완료"
+                        badge = "badge-green"
+                        bar = "bg-g"
+                    else:
+                        step_pct = 80
+                        txt = "🔥 접합 공정"
+                        badge = "badge-orange"
+                        bar = "bg-o"
         
-        # 상태 텍스트 오버라이드
-        if "불량" in status_txt: step_pct=100; txt="⛔ 불량 발생"; badge="badge-red"; bar="bg-r"
-        elif "완료" in status_txt: step_pct=100; txt="✅ 생산 완료"; badge="badge-green"; bar="bg-g"
+        # DB 상태값 강제 오버라이드 (완료/불량 최우선)
+        if "불량" in status_txt_db: 
+            step_pct = 100
+            txt = "⛔ 불량 발생"
+            badge = "badge-red"
+            bar = "bg-r"
+        elif "완료" in status_txt_db or "출고" in status_txt_db:
+            step_pct = 100
+            txt = "✅ 생산 완료"
+            badge = "badge-green"
+            bar = "bg-g"
 
         status_html = f"""
         <div style="display:flex; flex-direction:column; justify-content:center;">
@@ -231,23 +260,13 @@ if not df_view.empty:
 else:
     st.info("현재 표시할 작업 지시가 없습니다.")
 
-# ==========================================
-# 🔄 부드러운 하단 타이머 바 (HTML/CSS 애니메이션)
-# ==========================================
 st.markdown("""
 <div class="timer-bar-container">
     <div class="timer-bar-fill"></div>
 </div>
 """, unsafe_allow_html=True)
 
-# 5초 대기
 time.sleep(5)
-
-# 페이지 인덱스 증가
 st.session_state.page_index = (st.session_state.page_index + 1) % total_pages
-
-# 안전한 새로고침
-try:
-    st.rerun()
-except AttributeError:
-    st.experimental_rerun()
+try: st.rerun()
+except AttributeError: st.experimental_rerun()
