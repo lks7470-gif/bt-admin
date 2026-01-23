@@ -31,18 +31,23 @@ st.markdown("""
     [data-testid="stSidebar"], [data-testid="collapsedControl"], header, footer { display: none !important; }
     .block-container { padding-top: 1rem; padding-bottom: 3rem; max-width: 99% !important; }
     
-    /* 2. 상단 집계 박스 스타일 */
-    .metric-container { display: flex; gap: 15px; margin-bottom: 25px; justify-content: center; }
-    .metric-box { background: #111; border: 1px solid #333; border-radius: 12px; width: 18%; padding: 15px; text-align: center; box-shadow: 0 4px 15px rgba(255,255,255,0.05); }
-    .metric-title { font-size: 16px; color: #888; margin-bottom: 5px; font-weight: bold; }
-    .metric-num { font-size: 48px; font-weight: 900; line-height: 1; }
+    /* 2. 상단 집계 박스 스타일 (7개 배치 최적화) */
+    .metric-container { display: flex; gap: 10px; margin-bottom: 25px; justify-content: center; }
+    .metric-box { 
+        background: #111; border: 1px solid #333; border-radius: 10px; 
+        width: 13.5%; /* 7개 박스가 한 줄에 들어가도록 너비 조정 */
+        padding: 12px 5px; text-align: center; box-shadow: 0 4px 15px rgba(255,255,255,0.05); 
+    }
+    .metric-title { font-size: 14px; color: #888; margin-bottom: 5px; font-weight: bold; white-space: nowrap; }
+    .metric-num { font-size: 42px; font-weight: 900; line-height: 1; }
     
     /* 텍스트 컬러 유틸리티 */
     .tx-white { color: #fff; } 
     .tx-blue { color: #00e5ff; } 
-    .tx-green { color: #00e676; } 
+    .tx-purple { color: #d500f9; } 
+    .tx-yellow { color: #ffeb3b; }
     .tx-orange { color: #ff9100; } 
-    .tx-purple { color: #d500f9; } /* 하프커팅용 보라색 */
+    .tx-green { color: #00e676; } 
     
     /* 3. 테이블 스타일 */
     .smart-table { width: 100%; border-collapse: separate; border-spacing: 0 10px; }
@@ -68,20 +73,22 @@ st.markdown("""
     
     /* 뱃지 컬러 */
     .badge-white { background: #333; color: #ccc; border: 1px solid #555; }
-    .badge-blue { background: #0277bd; color: white; border: 1px solid #0288d1; } /* 풀커팅 */
-    .badge-purple { background: #7b1fa2; color: white; border: 1px solid #ba68c8; } /* 하프커팅 */
-    .badge-green { background: #2e7d32; color: white; border: 1px solid #388e3c; } /* 완료 */
-    .badge-orange { background: #ef6c00; color: white; border: 1px solid #f57c00; } /* 전극/접합 */
-    .badge-red { background: #b71c1c; color: white; border: 1px solid #d32f2f; } /* 불량 */
+    .badge-blue { background: #0277bd; color: white; border: 1px solid #0288d1; }
+    .badge-purple { background: #7b1fa2; color: white; border: 1px solid #ba68c8; }
+    .badge-yellow { background: #fbc02d; color: black; border: 1px solid #fdd835; }
+    .badge-orange { background: #ef6c00; color: white; border: 1px solid #f57c00; }
+    .badge-green { background: #2e7d32; color: white; border: 1px solid #388e3c; }
+    .badge-red { background: #b71c1c; color: white; border: 1px solid #d32f2f; }
     
-    /* 5. 미니 프로그레스 바 (테이블 내부) */
+    /* 5. 미니 프로그레스 바 */
     .mini-progress-bg { width: 100%; height: 6px; background: #222; border-radius: 3px; overflow: hidden; }
     .mini-progress-fill { height: 100%; border-radius: 3px; transition: width 0.5s; }
     .bg-w { background: #555; } 
     .bg-b { background: linear-gradient(90deg, #00e5ff, #2979ff); } 
-    .bg-p { background: linear-gradient(90deg, #d500f9, #aa00ff); } /* 하프커팅용 보라색바 */
-    .bg-g { background: linear-gradient(90deg, #00e676, #00c853); } 
+    .bg-p { background: linear-gradient(90deg, #d500f9, #aa00ff); } 
+    .bg-y { background: linear-gradient(90deg, #ffeb3b, #fbc02d); }
     .bg-o { background: linear-gradient(90deg, #ff9100, #ff3d00); } 
+    .bg-g { background: linear-gradient(90deg, #00e676, #00c853); } 
     .bg-r { background: linear-gradient(90deg, #ff5252, #d50000); }
     
     /* 6. 페이지 번호 표시 */
@@ -98,9 +105,9 @@ if 'page_index' not in st.session_state: st.session_state.page_index = 0
 
 def load_data():
     try:
-        res_orders = supabase.table("work_orders").select("*").order("created_at", desc=True).limit(50).execute()
+        res_orders = supabase.table("work_orders").select("*").order("created_at", desc=True).limit(100).execute()
         df = pd.DataFrame(res_orders.data)
-        res_logs = supabase.table("production_logs").select("*").order("created_at", desc=True).limit(100).execute()
+        res_logs = supabase.table("production_logs").select("*").order("created_at", desc=True).limit(200).execute()
         df_log = pd.DataFrame(res_logs.data)
         
         if not df.empty: 
@@ -112,14 +119,39 @@ def load_data():
 df, df_log = load_data()
 ITEMS_PER_PAGE = 8
 
+# 카운터 초기화 (7단계)
+cnt_ready = 0
+cnt_full = 0
+cnt_half = 0
+cnt_elec = 0
+cnt_lam_wait = 0
+cnt_lam_ing = 0
+cnt_done = 0
+
 if not df.empty:
-    # 카운트 집계 (키워드 기반)
-    cnt_ready = len(df[df['status'].str.contains("대기", na=False)])
-    cnt_cut = len(df[df['status'].str.contains("Cut|커팅", na=False)])
-    cnt_elec = len(df[df['status'].str.contains("전극", na=False)])
-    cnt_lam = len(df[df['status'].str.contains("접합", na=False)])
-    cnt_out = len(df[df['status'].str.contains("출고|완료", na=False)])
-    
+    # ------------------------------------------------
+    # 📊 정밀 집계 로직
+    # ------------------------------------------------
+    for _, row in df.iterrows():
+        s = str(row['status'])
+        
+        if "불량" in s:
+            pass # 불량은 별도 집계 안함(또는 완료에 포함 등 정책결정)
+        elif "완료" in s or "출고" in s:
+            cnt_done += 1
+        elif "접합대기" in s:
+            cnt_lam_wait += 1
+        elif "접합" in s and "대기" not in s: # 접합중
+            cnt_lam_ing += 1
+        elif "전극" in s:
+            cnt_elec += 1
+        elif "Half" in s or "하프" in s:
+            cnt_half += 1
+        elif "Full" in s or "풀" in s or "원단" in s or "Cut" in s:
+            cnt_full += 1
+        elif "대기" in s:
+            cnt_ready += 1
+
     total_pages = math.ceil(len(df) / ITEMS_PER_PAGE)
     if total_pages < 1: total_pages = 1
     
@@ -127,7 +159,7 @@ if not df.empty:
     start = st.session_state.page_index * ITEMS_PER_PAGE
     df_view = df.iloc[start : start + ITEMS_PER_PAGE]
 else:
-    cnt_ready=cnt_cut=cnt_elec=cnt_lam=cnt_out=0; df_view=pd.DataFrame(); total_pages=1
+    df_view=pd.DataFrame(); total_pages=1
 
 # ==========================================
 # 🖼️ 레이아웃 구성
@@ -152,13 +184,18 @@ with c3:
 
 st.markdown(f'<div class="page-indicator">PAGE {st.session_state.page_index + 1} / {total_pages}</div>', unsafe_allow_html=True)
 
+# ------------------------------------------------
+# 📊 상단 집계 박스 (7개)
+# ------------------------------------------------
 st.markdown(f"""
 <div class="metric-container">
     <div class="metric-box"><div class="metric-title">⏳ 작업대기</div><div class="metric-num tx-white">{cnt_ready}</div></div>
-    <div class="metric-box"><div class="metric-title">✂️ 커팅공정</div><div class="metric-num tx-blue">{cnt_cut}</div></div>
+    <div class="metric-box"><div class="metric-title">✂️ 풀커팅</div><div class="metric-num tx-blue">{cnt_full}</div></div>
+    <div class="metric-box"><div class="metric-title">🔪 하프커팅</div><div class="metric-num tx-purple">{cnt_half}</div></div>
     <div class="metric-box"><div class="metric-title">⚡ 전극공정</div><div class="metric-num tx-blue">{cnt_elec}</div></div>
-    <div class="metric-box"><div class="metric-title">🔥 접합공정</div><div class="metric-num tx-orange">{cnt_lam}</div></div>
-    <div class="metric-box"><div class="metric-title">📦 완료/출고</div><div class="metric-num tx-green">{cnt_out}</div></div>
+    <div class="metric-box"><div class="metric-title">⏳ 접합대기</div><div class="metric-num tx-yellow">{cnt_lam_wait}</div></div>
+    <div class="metric-box"><div class="metric-title">🔥 접합중</div><div class="metric-num tx-orange">{cnt_lam_ing}</div></div>
+    <div class="metric-box"><div class="metric-title">📦 생산완료</div><div class="metric-num tx-green">{cnt_done}</div></div>
 </div>""", unsafe_allow_html=True)
 
 # 메인 테이블
@@ -170,7 +207,6 @@ if not df_view.empty:
         size = row['dimension']; spec = row['spec']; time_str = row.get('short_time','-')
         status_txt_db = str(row['status'])
         
-        # 보안 처리
         if is_cust_secure: cust_display = '<div class="secret-box">🔒 대외비</div>'
         else: cust_display = f'<div class="cell-cust">{cust}</div><div class="cell-prod">{prod}</div>'
 
@@ -178,73 +214,72 @@ if not df_view.empty:
         else: spec_display = f'<div class="spec-box">{spec}</div>'
         
         # -----------------------------------------------------------
-        # 🔥 [핵심 수정] 진행 상태 및 퍼센트 계산 로직 (단품 vs 일반)
+        # 🔥 상태 및 퍼센트 계산 로직 (단품 vs 일반)
         # -----------------------------------------------------------
-        step_pct = 5
-        badge = "badge-white"
-        txt = "작업 대기"
-        bar = "bg-w"
+        step_pct = 5; badge = "badge-white"; txt = "작업 대기"; bar = "bg-w"
         
-        # 1. 단품 여부 확인 (status에 '단품'이 있거나 spec에 '접합 생략'이 있는 경우)
+        # 단품 여부 확인
         is_short_product = "단품" in status_txt_db or "생략" in str(spec) or "No Lam" in str(spec)
 
+        # 로그 기반 상세 상태 추적
         if not df_log.empty:
             my_logs = df_log[df_log['lot_no'] == lot]
             if not my_logs.empty:
                 last_step = str(my_logs.iloc[-1]['step'])
                 
-                # (A) 커팅 공정 세분화 (풀커팅 / 하프커팅)
+                # (A) 커팅
                 if "Full" in last_step or "풀" in last_step or "원단" in last_step:
-                    # 풀커팅 단계
                     step_pct = 20 if not is_short_product else 30
                     txt = "✂️ 원단 풀커팅"
-                    badge = "badge-blue"
-                    bar = "bg-b"
-                
+                    badge = "badge-blue"; bar = "bg-b"
                 elif "Half" in last_step or "하프" in last_step:
-                    # 하프커팅 단계
                     step_pct = 40 if not is_short_product else 60
                     txt = "🔪 정밀 하프커팅"
-                    badge = "badge-purple" # 하프커팅은 보라색으로 구분
-                    bar = "bg-p"
+                    badge = "badge-purple"; bar = "bg-p"
                 
-                # (B) 전극 공정 (단품일 경우 여기가 끝!)
+                # (B) 전극
                 elif "전극" in last_step:
                     if is_short_product:
                         step_pct = 100
                         txt = "✅ 생산 완료 (단품)"
-                        badge = "badge-green"
-                        bar = "bg-g"
+                        badge = "badge-green"; bar = "bg-g"
                     else:
                         step_pct = 60
                         txt = "⚡ 전극 부착"
-                        badge = "badge-blue"
-                        bar = "bg-b"
+                        badge = "badge-blue"; bar = "bg-b"
                 
-                # (C) 접합 공정 (일반 제품만 해당)
+                # (C) 접합
                 elif "접합" in last_step:
                     if "완료" in last_step:
                         step_pct = 100
                         txt = "✅ 생산 완료"
-                        badge = "badge-green"
-                        bar = "bg-g"
+                        badge = "badge-green"; bar = "bg-g"
+                    elif "대기" in last_step:
+                        step_pct = 70
+                        txt = "⏳ 접합 대기"
+                        badge = "badge-yellow"; bar = "bg-y"
                     else:
-                        step_pct = 80
-                        txt = "🔥 접합 공정"
-                        badge = "badge-orange"
-                        bar = "bg-o"
+                        step_pct = 85
+                        txt = "🔥 접합 진행중"
+                        badge = "badge-orange"; bar = "bg-o"
         
-        # DB 상태값 강제 오버라이드 (완료/불량 최우선)
-        if "불량" in status_txt_db: 
+        # DB 상태값 오버라이드 (접합대기 상태 강제 표시)
+        if "접합대기" in status_txt_db:
+            step_pct = 70
+            txt = "⏳ 접합 대기"
+            badge = "badge-yellow"; bar = "bg-y"
+        elif "접합" in status_txt_db and "대기" not in status_txt_db: # 그냥 '접합' 상태라면 진행중
+             step_pct = 85
+             txt = "🔥 접합 진행중"
+             badge = "badge-orange"; bar = "bg-o"
+        elif "불량" in status_txt_db: 
             step_pct = 100
             txt = "⛔ 불량 발생"
-            badge = "badge-red"
-            bar = "bg-r"
+            badge = "badge-red"; bar = "bg-r"
         elif "완료" in status_txt_db or "출고" in status_txt_db:
             step_pct = 100
             txt = "✅ 생산 완료"
-            badge = "badge-green"
-            bar = "bg-g"
+            badge = "badge-green"; bar = "bg-g"
 
         status_html = f"""
         <div style="display:flex; flex-direction:column; justify-content:center;">
