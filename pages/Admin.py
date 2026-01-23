@@ -136,7 +136,8 @@ def get_label_content_html(items):
     return html
 
 # ----------------------------------------------------
-# 📄 [작업지시서] A4 (2x4 배열) - 하단 경고문구 수정됨
+# 📄 [작업지시서] A4 (2x4 배열)
+# 수정: 하단 경고문구 줄 삭제 및 위치 조정
 # ----------------------------------------------------
 def get_work_order_html(items):
     html = """
@@ -167,7 +168,7 @@ def get_work_order_html(items):
             }
             .job-card {
                 width: 49%; 
-                height: 60mm; 
+                height: 60mm; /* 한 장에 8개 들어가도록 높이 고정 */
                 border: 2px solid #000; box-sizing: border-box;
                 margin-bottom: 2mm; display: flex; flex-direction: column; overflow: hidden;
             }
@@ -197,15 +198,15 @@ def get_work_order_html(items):
                 font-size: 18px; font-weight: 400; 
             }
             
-            /* [수정] 경고 문구 스타일: 줄 제거 및 위치 내림 */
+            /* [수정 완료] 경고 문구: 상단 줄 삭제, 위치 하단으로 */
             .footer-warning {
                 width: 100%; 
                 text-align: center; 
                 font-size: 10pt; 
                 font-weight: bold;
-                margin-top: 15mm; /* [핵심] 위쪽 여백을 15mm로 늘려 더 아래로 내림 */
-                padding-top: 2mm; 
-                /* border-top 제거됨 */
+                margin-top: 10mm; /* 적당한 간격 */
+                color: #333;
+                border: none; /* 줄 삭제 */
             }
         </style>
     </head>
@@ -286,7 +287,7 @@ def get_work_order_html(items):
             """
         html += '</div>'
         
-        # [수정] 줄(bar) 없이 문구만 출력
+        # [수정] 줄 없이 문구만 표시
         html += '<div class="footer-warning">⚠️ 경고: 본 문서는 대외비 자료이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>'
 
         if i + chunk_size < len(items):
@@ -296,7 +297,7 @@ def get_work_order_html(items):
     return html
 
 # ----------------------------------------------------
-# 📱 접속 QR HTML 함수
+# 📱 [복구] 접속 QR HTML 함수
 # ----------------------------------------------------
 def get_access_qr_content_html(url, mode="big"):
     qr = qrcode.QRCode(box_size=10, border=1)
@@ -327,7 +328,7 @@ if st.sidebar.button("🔄 재고 정보 새로고침", use_container_width=True
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["📝 작업 입력", "📄 지시서 인쇄", "🏷️ 라벨 인쇄", "🔄 QR 재발행", "🧵 원단 재고", "📊 발행 이력", "🔍 제품 추적", "🚨 불량 현황", "📱 접속 QR"])
 
 # ==========================================
-# 📝 [Tab 1] 신규 작업 지시
+# 📝 [Tab 1] 신규 작업 지시 (원단 선택 연동)
 # ==========================================
 with tab1:
     st.markdown("### 📝 신규 작업 지시 등록")
