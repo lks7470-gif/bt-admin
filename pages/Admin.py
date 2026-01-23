@@ -471,7 +471,7 @@ with tab1:
         c3, c4, c5 = st.columns([1, 1, 1])
         w = c3.number_input("가로 (W)", min_value=0, step=10)
         h = c4.number_input("세로 (H)", min_value=0, step=10)
-        elec_type = c5.selectbox("전극 위치", ["없음", "가로(W) 양쪽", "세로(H) 양쪽", "가로(W)", "세로(H)"])
+        elec_type = c5.selectbox("전극 위치", ["없음", "가로(W) 양쪽", "세로(H) 양쪽", "가로(W) 상단", "세로(H) 우측"])
         st.caption("🔧 공정 조건 설정")
         cc1, cc2 = st.columns(2)
         spec_cut = cc1.text_input("✂️ 커팅 조건", placeholder="예: Full(50/80/20)")
