@@ -178,9 +178,11 @@ with c2:
     st.markdown(f"<h1 style='font-size:36px;'>MONITOR <span style='color:#ffd700;'>{now_time}</span></h1>", unsafe_allow_html=True)
 
 with c3:
-    col_t1, col_t2 = st.columns(2)
-    with col_t1: is_cust_secure = st.toggle("🔒 고객사", value=True)
-    with col_t2: is_spec_secure = st.toggle("🔒 SPEC", value=True)
+    # [수정] 자동전환 / 고객사 / SPEC 토글을 한 줄에 배치
+    c3_1, c3_2, c3_3 = st.columns(3)
+    with c3_1: is_auto_play = st.toggle("▶️ 자동전환", value=True)
+    with c3_2: is_cust_secure = st.toggle("🔒 고객사", value=True)
+    with c3_3: is_spec_secure = st.toggle("🔒 SPEC", value=True)
 
 st.markdown(f'<div class="page-indicator">PAGE {st.session_state.page_index + 1} / {total_pages}</div>', unsafe_allow_html=True)
 
@@ -302,13 +304,21 @@ if not df_view.empty:
 else:
     st.info("현재 표시할 작업 지시가 없습니다.")
 
-st.markdown("""
-<div class="timer-bar-container">
-    <div class="timer-bar-fill"></div>
-</div>
-""", unsafe_allow_html=True)
+# [수정] 자동전환 기능이 켜져있을 때만 타이머바 표시 및 페이지 넘김
+if is_auto_play:
+    st.markdown("""
+    <div class="timer-bar-container">
+        <div class="timer-bar-fill"></div>
+    </div>
+    """, unsafe_allow_html=True)
 
-time.sleep(5)
-st.session_state.page_index = (st.session_state.page_index + 1) % total_pages
-try: st.rerun()
-except AttributeError: st.experimental_rerun()
+    time.sleep(5)
+    st.session_state.page_index = (st.session_state.page_index + 1) % total_pages
+    try: st.rerun()
+    except AttributeError: st.experimental_rerun()
+else:
+    # 정지 상태일 때 표시할 UI
+    st.info(f"⏸️ 화면 전환이 일시 정지되었습니다. (현재 페이지: {st.session_state.page_index + 1}/{total_pages})")
+    if st.button("🔄 데이터 수동 새로고침"):
+        try: st.rerun()
+        except AttributeError: st.experimental_rerun()
