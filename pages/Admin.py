@@ -32,7 +32,7 @@ except Exception as e:
     st.stop()
 
 # ==============================================================================
-# 🛠️ [기능 정의 구역] 화면을 그리기 위한 도구들을 미리 만듭니다.
+# 🛠️ [기능 정의 구역] 
 # ==============================================================================
 
 # 1. 공정 순서 위반 방지 함수
@@ -73,10 +73,11 @@ def image_to_base64(img):
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
-# 3. 재고 조회 함수
+# 3. 재고 조회 함수 (단축코드 포함)
 def fetch_fabric_stock():
     try:
         response = supabase.table("fabric_stock").select("*").execute()
+        # 데이터가 있으면 dict로 반환
         return {row['lot_no']: row for row in response.data}
     except: return {}
 
@@ -115,8 +116,11 @@ def create_label_strip_image(items, rotate=False):
         x_offset = i * LABEL_W
         draw.rectangle([x_offset, 0, x_offset + LABEL_W-1, LABEL_H-1], outline="#cccccc", width=2)
         
+        # [수정] QR 데이터에서 하이픈 제거
+        qr_data_clean = item['lot'].replace("-", "")
+        
         qr = qrcode.QRCode(box_size=5, border=0)
-        qr.add_data(item['lot'])
+        qr.add_data(qr_data_clean)
         qr.make(fit=True)
         qr_img = qr.make_image(fill_color="black", back_color="white").resize((190, 190))
         
@@ -251,7 +255,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     html += "</div></body></html>"
     return html
 
-# 8. [핵심] 작업지시서 A4 2x4 HTML (동일 사이즈, 선택방향 진하게)
+# 8. [핵심] 작업지시서 A4 2x4 HTML
 def get_work_order_html(items):
     html = """
     <html>
@@ -277,7 +281,6 @@ def get_work_order_html(items):
                 padding: 0;
             }
             
-            /* 높이 62.5mm로 설정하여 8장 맞춤 */
             .job-card { 
                 width: 49%; 
                 height: 62.5mm; 
@@ -352,7 +355,14 @@ def get_work_order_html(items):
             
             is_lam = True
             if "생략" in lam_cond or "없음" in lam_cond or "단품" in lam_cond or lam_cond == "-": is_lam = False
-            lam_style = "color: #000;" if is_lam else "color: #aaa; text-decoration: line-through;"
+            
+            # [수정] 접합생략 표시: 접합생략에만 취소선/빨강, 필름마감은 정상
+            if not is_lam:
+                # ex: "접합생략 (필름 마감)" -> "접합생략" 부분만 스타일링
+                lam_display = "<span style='text-decoration:line-through; color:red;'>접합생략</span> <span style='color:#000; font-weight:bold;'>(필름마감)</span>"
+            else:
+                lam_display = f"<span style='color:#000;'>{lam_cond}</span>"
+
             note_text = item.get('note', item.get('비고', '-'))
             if not note_text: note_text = "-"
 
@@ -392,7 +402,7 @@ def get_work_order_html(items):
                             <tr><td class="lbl">🧵 원단</td><td class="val">{item.get('fabric','-')}</td></tr>
                             <tr><td colspan="2"><hr style="margin: 2px 0; border-top: 1px dashed #ccc;"></td></tr>
                             <tr><td class="lbl">✂️ 커팅</td><td class="val">{cut_cond}</td></tr>
-                            <tr><td class="lbl">🔥 접합</td><td class="val" style="{lam_style}">{lam_cond}</td></tr>
+                            <tr><td class="lbl">🔥 접합</td><td class="val">{lam_display}</td></tr>
                             <tr><td class="lbl" style="color:red;">⚠️ 특이</td><td class="val" style="color:red;">{note_text}</td></tr>
                         </table>
                     </div>
@@ -467,16 +477,22 @@ with tab1:
                 stock_options.append(display_text)
         selected_stock = c_mat1.selectbox("🧵 사용할 원단 선택", stock_options)
         
+        # [수정] 식별코드(ID) 로직 개선
+        default_short = "ROLL" # 기본값
+        
         if "직접 입력" in selected_stock:
             fabric_lot = c_mat1.text_input("원단 LOT 번호 입력", placeholder="Roll-2312a-KR")
-            default_short = ""
         else:
             fabric_lot = selected_stock.split(" | ")[0]
             c_mat1.info(f"✅ 선택됨: {fabric_lot}")
-            default_short = fabric_lot[:4].upper()
+            # DB에 저장된 short_code가 있는지 확인
+            sel_info = st.session_state.fabric_db.get(fabric_lot, {})
+            # short_code가 있으면 그걸 쓰고, 없으면 ROLL을 씀
+            if sel_info.get('short_code'):
+                default_short = sel_info.get('short_code')
 
-        # [입력 허용] 영문/숫자 혼합 가능
-        fabric_short = c_mat2.text_input("🆔 식별코드 (4자리)", value=default_short, max_chars=4, help="영문, 숫자, 혼합 모두 가능 (예: A123, 2301)")
+        # 사용자 입력이 가능하도록 value에 기본값을 넣어줌
+        fabric_short = c_mat2.text_input("🆔 식별코드 (4자리)", value=default_short, max_chars=4, help="기본값 대신 원하는 4자리 코드 입력 가능")
         
         st.divider()
         c3, c4, c5 = st.columns([1, 1, 1])
@@ -496,8 +512,9 @@ with tab1:
             if not customer or not w or not h: st.error("고객사, 가로, 세로 사이즈는 필수입니다.")
             elif not fabric_lot: st.error("원단 정보가 없습니다.")
             else:
+                # [수정] 사용자가 입력한 fabric_short를 최우선으로 사용
                 input_short = str(fabric_short).strip().upper()
-                final_short = input_short if input_short else fabric_lot[:4].upper()
+                final_short = input_short if input_short else "ROLL" # 비어있으면 ROLL
                 final_short = final_short.ljust(4, 'X') 
 
                 st.session_state.order_list.append({
@@ -533,7 +550,8 @@ with tab1:
                             "status": init_status, "note": item['비고'], "fabric_lot_no": item['lot_no']
                         }).execute()
                         qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=1)
-                        qr.add_data(final_lot_id)
+                        # [수정] QR 데이터 하이픈 제거
+                        qr.add_data(final_lot_id.replace("-",""))
                         qr.make(fit=True)
                         img = qr.make_image(fill_color="black", back_color="white")
                         new_qrs.append({
@@ -631,7 +649,7 @@ with tab4:
                             nums = re.findall(r'\d+', dim_str); 
                             if len(nums) >= 2: w, h = nums[0], nums[1]
                     except: pass
-                    qr = qrcode.QRCode(box_size=5, border=1); qr.add_data(row['lot_no']); qr.make(fit=True); img = qr.make_image(fill_color="black", back_color="white")
+                    qr = qrcode.QRCode(box_size=5, border=1); qr.add_data(row['lot_no'].replace("-","")); qr.make(fit=True); img = qr.make_image(fill_color="black", back_color="white")
                     rep_items.append({
                         "lot": row['lot_no'], "w": w, "h": h, "elec": elec, "cust": row['customer'], "prod": row['product'], 
                         "fabric": row.get('fabric_lot_no', '-'), "spec": row.get('spec', ''), "note": row.get('note', ''), "img": img
@@ -673,8 +691,20 @@ with tab5:
         st.markdown("##### 📥 원단 입고 등록")
         c1,c2,c3=st.columns(3); n_lot=c1.text_input("LOT"); n_name=c2.text_input("제품명"); n_w=c3.number_input("폭(mm)",1200)
         c4,c5,c6=st.columns(3); n_tot=c4.number_input("총길이(m)",100.0); n_rem=c5.number_input("현재 잔량(m)",100.0)
+        # [수정] 단축코드 입력란 추가
+        n_short = c6.text_input("단축코드 (4자리)", placeholder="예: TA12")
+        
         if st.form_submit_button("입고 등록"):
-            supabase.table("fabric_stock").insert({"lot_no":n_lot,"name":n_name,"width":n_w,"total_len":n_tot,"used_len":n_tot-n_rem}).execute(); st.rerun()
+            # DB 컬럼에 short_code가 있다는 가정하에 진행
+            data = {"lot_no":n_lot,"name":n_name,"width":n_w,"total_len":n_tot,"used_len":n_tot-n_rem}
+            if n_short: data["short_code"] = n_short
+            
+            try:
+                supabase.table("fabric_stock").insert(data).execute()
+                st.rerun()
+            except Exception as e:
+                st.error(f"저장 실패: {e}")
+                
     st.divider()
     res=supabase.table("fabric_stock").select("*").execute(); st.data_editor(pd.DataFrame(res.data),hide_index=True, use_container_width=True)
 
