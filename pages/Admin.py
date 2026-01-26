@@ -32,7 +32,7 @@ except Exception as e:
     st.stop()
 
 # ==============================================================================
-# 🛠️ [기능 정의 구역] 함수들을 먼저 정의합니다.
+# 🛠️ [기능 정의 구역] 화면을 그리기 위한 도구들을 미리 만듭니다.
 # ==============================================================================
 
 # 1. 공정 순서 위반 방지 함수
@@ -251,7 +251,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     html += "</div></body></html>"
     return html
 
-# 8. 작업지시서 A4 2x4 HTML (디자인 유지)
+# 8. [핵심] 작업지시서 A4 2x4 HTML (동일 사이즈, 선택방향 진하게)
 def get_work_order_html(items):
     html = """
     <html>
@@ -449,7 +449,7 @@ if st.sidebar.button("🔄 재고 정보 새로고침", use_container_width=True
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["📝 작업 입력", "📄 지시서 인쇄", "🏷️ 라벨 인쇄", "🔄 QR 재발행", "🧵 원단 재고", "📊 발행 이력", "🔍 제품 추적", "🚨 불량 현황", "📱 접속 QR"])
 
-# [Tab 1] 작업 입력 (입력 우선 로직 복구됨)
+# [Tab 1] 작업 입력
 with tab1:
     st.markdown("### 📝 신규 작업 지시 등록")
     if 'fabric_db' not in st.session_state or not st.session_state.fabric_db: st.session_state.fabric_db = fetch_fabric_stock()
@@ -467,7 +467,6 @@ with tab1:
                 stock_options.append(display_text)
         selected_stock = c_mat1.selectbox("🧵 사용할 원단 선택", stock_options)
         
-        # 기본값 로직
         if "직접 입력" in selected_stock:
             fabric_lot = c_mat1.text_input("원단 LOT 번호 입력", placeholder="Roll-2312a-KR")
             default_short = ""
@@ -476,8 +475,8 @@ with tab1:
             c_mat1.info(f"✅ 선택됨: {fabric_lot}")
             default_short = fabric_lot[:4].upper()
 
-        # [입력 허용] 사용자가 입력하면 그 값이 우선됨
-        fabric_short = c_mat2.text_input("🆔 식별코드 (4자리)", value=default_short, max_chars=4, help="영문, 숫자, 혼합 모두 가능 (예: 2401, A1B2)")
+        # [입력 허용] 영문/숫자 혼합 가능
+        fabric_short = c_mat2.text_input("🆔 식별코드 (4자리)", value=default_short, max_chars=4, help="영문, 숫자, 혼합 모두 가능 (예: A123, 2301)")
         
         st.divider()
         c3, c4, c5 = st.columns([1, 1, 1])
@@ -497,7 +496,6 @@ with tab1:
             if not customer or not w or not h: st.error("고객사, 가로, 세로 사이즈는 필수입니다.")
             elif not fabric_lot: st.error("원단 정보가 없습니다.")
             else:
-                # [복구된 로직] 사용자 입력이 있으면 그것을 쓰고, 없으면 원단 앞 4자리 사용
                 input_short = str(fabric_short).strip().upper()
                 final_short = input_short if input_short else fabric_lot[:4].upper()
                 final_short = final_short.ljust(4, 'X') 
