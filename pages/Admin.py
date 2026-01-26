@@ -73,11 +73,10 @@ def image_to_base64(img):
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
-# 3. 재고 조회 함수 (단축코드 포함)
+# 3. 재고 조회 함수
 def fetch_fabric_stock():
     try:
         response = supabase.table("fabric_stock").select("*").execute()
-        # 데이터가 있으면 dict로 반환
         return {row['lot_no']: row for row in response.data}
     except: return {}
 
@@ -116,11 +115,12 @@ def create_label_strip_image(items, rotate=False):
         x_offset = i * LABEL_W
         draw.rectangle([x_offset, 0, x_offset + LABEL_W-1, LABEL_H-1], outline="#cccccc", width=2)
         
-        # [수정] QR 데이터에서 하이픈 제거
-        qr_data_clean = item['lot'].replace("-", "")
+        # [QR 생성 시 하이픈 제거]
+        raw_lot = item['lot']
+        clean_lot = raw_lot.replace("-", "") # 하이픈 제거
         
         qr = qrcode.QRCode(box_size=5, border=0)
-        qr.add_data(qr_data_clean)
+        qr.add_data(clean_lot) # 제거된 데이터 사용
         qr.make(fit=True)
         qr_img = qr.make_image(fill_color="black", back_color="white").resize((190, 190))
         
@@ -129,7 +129,7 @@ def create_label_strip_image(items, rotate=False):
         full_img.paste(qr_img, (qr_x, qr_y))
         
         text_x = x_offset + 210
-        draw.text((text_x, 25), item['lot'], font=font_large, fill="black")
+        draw.text((text_x, 25), raw_lot, font=font_large, fill="black") # 글자는 하이픈 있는거 그대로
         
         cust_font = font_large if len(item['cust']) < 5 else font_medium
         draw.text((text_x, 75), f"{item['cust']}", font=cust_font, fill="black")
@@ -230,7 +230,14 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     """
     
     for item in items:
-        img_b64 = image_to_base64(item['img'])
+        # [QR 하이픈 제거]
+        qr_clean = item['lot'].replace("-", "")
+        
+        qr = qrcode.QRCode(box_size=5, border=0)
+        qr.add_data(qr_clean)
+        qr.make(fit=True)
+        img_b64 = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
+        
         lot_id = item['lot']       
         cust_name = item['cust']   
         w, h, elec = item['w'], item['h'], item['elec']
@@ -255,7 +262,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     html += "</div></body></html>"
     return html
 
-# 8. [핵심] 작업지시서 A4 2x4 HTML
+# 8. 작업지시서 A4 2x4 HTML (QR 하이픈 제거 + 접합생략 디자인 수정)
 def get_work_order_html(items):
     html = """
     <html>
@@ -341,7 +348,14 @@ def get_work_order_html(items):
         html += '<div class="page-container">'
         
         for item in chunk:
-            img_b64 = image_to_base64(item['img'])
+            # [QR 하이픈 제거]
+            qr_clean = item['lot'].replace("-", "")
+            
+            qr = qrcode.QRCode(box_size=5, border=0)
+            qr.add_data(qr_clean)
+            qr.make(fit=True)
+            img_b64 = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
+            
             full_id = item['lot']
             
             spec_raw = item.get('spec', '')
@@ -356,10 +370,9 @@ def get_work_order_html(items):
             is_lam = True
             if "생략" in lam_cond or "없음" in lam_cond or "단품" in lam_cond or lam_cond == "-": is_lam = False
             
-            # [수정] 접합생략 표시: 접합생략에만 취소선/빨강, 필름마감은 정상
+            # [수정] 접합생략 표시: 접합생략(취소선+빨강) + 필름마감(검정+정상)
             if not is_lam:
-                # ex: "접합생략 (필름 마감)" -> "접합생략" 부분만 스타일링
-                lam_display = "<span style='text-decoration:line-through; color:red;'>접합생략</span> <span style='color:#000; font-weight:bold;'>(필름마감)</span>"
+                lam_display = "<span style='text-decoration:line-through; color:red;'>접합생략</span> <span style='color:#000; text-decoration:none; font-weight:700;'>(필름마감)</span>"
             else:
                 lam_display = f"<span style='color:#000;'>{lam_cond}</span>"
 
@@ -369,7 +382,6 @@ def get_work_order_html(items):
             w, h = item['w'], item['h']
             elec = item['elec']
             
-            # [디자인] 규격 숫자 (동일 크기 + 선택된 방향만 굵게)
             base_size = "28px"
             inactive_css = f"font-size: {base_size}; font-weight: 500; color: #555; margin: 0 2px;"
             active_css = f"font-size: {base_size}; font-weight: 900; color: #000; text-decoration: underline; margin: 0 2px;"
