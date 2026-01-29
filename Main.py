@@ -28,7 +28,7 @@ with c2:
         
         if st.form_submit_button("로그인", use_container_width=True):
             # 👇 [체크 포인트] 이 부분이 지워지지 않았는지 확인하세요!
-            if role == "관리자 (Admin)" and pwd == "1234":
+            if role == "관리자 (Admin)" and pwd == "0729":
                 st.session_state.logged_in = True
                 st.session_state.user_role = "Admin"
                 st.success("관리자 로그인 성공! 이동 중...")
