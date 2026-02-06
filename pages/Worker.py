@@ -78,9 +78,15 @@ current_worker = st.selectbox("👤 작업자 선택", worker_list)
 st.divider()
 
 # 2. 공정 단계 정의 (순서 체크용)
+# [수정] "📦 출고 완료" 단계를 마지막(50)에 추가했습니다.
 STEP_LEVEL = {
-    "Full Cut": 10, "Half Cut": 20, "전극 완료": 30, 
-    "접합: 1. 준비 완료": 41, "접합: 2. 가열 시작": 42, "접합: 3. 공정 완료 (End)": 43
+    "Full Cut": 10, 
+    "Half Cut": 20, 
+    "전극 완료": 30, 
+    "접합: 1. 준비 완료": 41, 
+    "접합: 2. 가열 시작": 42, 
+    "접합: 3. 공정 완료 (End)": 43,
+    "📦 출고 완료": 50 
 }
 
 # 3. 불량 신고 모드 스위치
@@ -111,6 +117,10 @@ else:
         c1, c2 = st.columns(2)
         t1 = c1.number_input("내부(℃)", value=0.0); t2 = c2.number_input("Start(℃)", value=0.0)
         save_data = f"내부:{t1} / Start:{t2}"
+    elif "출고" in step:
+        st.info("🚚 출고 정보를 확인하세요.")
+        note = st.text_input("📝 송장번호/비고 (선택)", placeholder="택배사/송장번호 등")
+        if note: save_data = note
     else:
         note = st.text_input("📝 특이사항 (선택)", placeholder="특이사항 없음")
         if note: save_data = note
