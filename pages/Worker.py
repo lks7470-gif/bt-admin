@@ -78,7 +78,6 @@ current_worker = st.selectbox("👤 작업자 선택", worker_list)
 st.divider()
 
 # 2. 공정 단계 정의 (순서 체크용)
-# [수정] "📦 출고 완료" 단계를 마지막(50)에 추가했습니다.
 STEP_LEVEL = {
     "Full Cut": 10, 
     "Half Cut": 20, 
@@ -106,17 +105,24 @@ else:
     
     save_data = "-"
     
-    # 공정별 입력창 (보내주신 로직 반영)
+    # 공정별 입력창 (소수점 입력 가능하도록 수정됨)
     if "Cut" in step:
         st.info("⚙️ 장비 세팅값 입력")
         c1, c2, c3 = st.columns(3)
-        sp = c1.number_input("Speed", value=0); mx = c2.number_input("Max", value=0); mn = c3.number_input("Min", value=0)
+        # [수정] value=0.0, step=0.1, format="%.1f" 추가
+        sp = c1.number_input("Speed", value=0.0, step=0.1, format="%.1f")
+        mx = c2.number_input("Max", value=0.0, step=0.1, format="%.1f")
+        mn = c3.number_input("Min", value=0.0, step=0.1, format="%.1f")
         save_data = f"S:{sp} / M:{mx} / m:{mn}"
+        
     elif "End" in step or "공정 완료" in step:
         st.info("🌡️ 최종 온도 입력")
         c1, c2 = st.columns(2)
-        t1 = c1.number_input("내부(℃)", value=0.0); t2 = c2.number_input("Start(℃)", value=0.0)
+        # [수정] value=0.0, step=0.1, format="%.1f" 추가
+        t1 = c1.number_input("내부(℃)", value=0.0, step=0.1, format="%.1f")
+        t2 = c2.number_input("Start(℃)", value=0.0, step=0.1, format="%.1f")
         save_data = f"내부:{t1} / Start:{t2}"
+        
     elif "출고" in step:
         st.info("🚚 출고 정보를 확인하세요.")
         note = st.text_input("📝 송장번호/비고 (선택)", placeholder="택배사/송장번호 등")
@@ -129,7 +135,7 @@ st.markdown("### 👇 QR 스캔 (카메라)")
 st.caption("※ 카메라 권한을 허용해주세요.")
 
 # ==========================================
-# 📷 카메라 로직 (여기가 핵심!)
+# 📷 카메라 로직
 # ==========================================
 img_file = st.camera_input("QR 스캔", label_visibility="collapsed")
 
@@ -138,10 +144,10 @@ if img_file is not None:
         # 1. 이미지 파일 바이트로 읽기
         bytes_data = img_file.getvalue()
         
-        # 2. OpenCV 형식으로 디코딩 (numpy 필수)
+        # 2. OpenCV 형식으로 디코딩
         cv2_img = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
         
-        # 3. QR 인식률을 높이기 위해 흑백 변환
+        # 3. 흑백 변환
         gray_img = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2GRAY)
         
         # 4. QR 코드 디코딩
@@ -152,7 +158,12 @@ if img_file is not None:
             st.success(f"🔍 QR 인식 성공: **{data}**")
             
             # --- DB 조회 및 저장 로직 ---
-            # 1. 작업 지시서(work_orders)에서 해당 LOT 조회
+            # QR에 하이픈이 빠져있으므로, DB 비교시에는 DB 값에서 하이픈을 빼고 비교하거나
+            # 저장할 때 하이픈을 뺀 값으로 저장했다면 그대로 비교.
+            # 여기서는 DB에 하이픈 없이 저장했다는 가정하에 진행. 
+            # 만약 DB에 하이픈이 있다면 .replace() 처리가 필요할 수 있습니다.
+            
+            # 1. 작업 지시서 상태 조회
             response = supabase.table("work_orders").select("status").eq("lot_no", data).execute()
             
             if not response.data:
@@ -171,37 +182,35 @@ if img_file is not None:
                     for key, val in STEP_LEVEL.items():
                         if key in prev_status: prev_level = val; break
                     
-                    # 이미 더 높은 단계거나 같은 단계면 경고
                     if prev_level >= current_level:
                         st.warning(f"⚠️ 이미 완료된 공정입니다. (현재 상태: {prev_status})")
                         st.stop()
                 
-                # 저장 버튼 표시
+                # 저장 버튼
                 btn_label = "🚨 불량 등록 실행" if is_defect_mode else "💾 작업 완료 저장"
                 btn_type = "secondary" if is_defect_mode else "primary"
 
                 if st.button(btn_label, type=btn_type, use_container_width=True):
                     if is_defect_mode:
-                        # 불량 테이블 저장
                         supabase.table("defects").insert({
                             "lot_no": data, "step": step, "defect_type": defect_type, 
                             "note": defect_note, "status": "조치대기", "worker": current_worker
                         }).execute()
-                        # 상태 업데이트
                         supabase.table("work_orders").update({"status": f"⛔ 불량({defect_type})"}).eq("lot_no", data).execute()
                         st.success(f"🚨 불량 등록 완료! ({defect_type})")
                     else:
-                        # 생산 로그 저장
                         supabase.table("production_logs").insert({
                             "lot_no": data, "step": step, "data": save_data, 
                             "worker": current_worker, "result": "OK"
                         }).execute()
-                        # 상태 업데이트
-                        supabase.table("work_orders").update({"status": step}).eq("lot_no", data).execute()
+                        
+                        # [수정] 출고 완료 시 DB 상태도 '출고'로 변경
+                        update_status = "출고" if "출고" in step else step
+                        supabase.table("work_orders").update({"status": update_status}).eq("lot_no", data).execute()
+                        
                         st.balloons()
                         st.success(f"✅ 작업 저장 완료! ({step})")
                     
-                    # 1.5초 후 새로고침
                     time.sleep(1.5)
                     st.rerun()
 
