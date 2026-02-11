@@ -115,12 +115,11 @@ def create_label_strip_image(items, rotate=False):
         x_offset = i * LABEL_W
         draw.rectangle([x_offset, 0, x_offset + LABEL_W-1, LABEL_H-1], outline="#cccccc", width=2)
         
-        # [QR 생성 시 하이픈 제거]
-        raw_lot = item['lot']
-        clean_lot = raw_lot.replace("-", "") # 하이픈 제거
+        # [QR 데이터 하이픈 제거]
+        qr_data_clean = item['lot'].replace("-", "")
         
         qr = qrcode.QRCode(box_size=5, border=0)
-        qr.add_data(clean_lot) # 제거된 데이터 사용
+        qr.add_data(qr_data_clean)
         qr.make(fit=True)
         qr_img = qr.make_image(fill_color="black", back_color="white").resize((190, 190))
         
@@ -129,7 +128,7 @@ def create_label_strip_image(items, rotate=False):
         full_img.paste(qr_img, (qr_x, qr_y))
         
         text_x = x_offset + 210
-        draw.text((text_x, 25), raw_lot, font=font_large, fill="black") # 글자는 하이픈 있는거 그대로
+        draw.text((text_x, 25), item['lot'], font=font_large, fill="black")
         
         cust_font = font_large if len(item['cust']) < 5 else font_medium
         draw.text((text_x, 75), f"{item['cust']}", font=cust_font, fill="black")
@@ -232,7 +231,6 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     for item in items:
         # [QR 하이픈 제거]
         qr_clean = item['lot'].replace("-", "")
-        
         qr = qrcode.QRCode(box_size=5, border=0)
         qr.add_data(qr_clean)
         qr.make(fit=True)
@@ -262,7 +260,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     html += "</div></body></html>"
     return html
 
-# 8. 작업지시서 A4 2x4 HTML (QR 하이픈 제거 + 접합생략 디자인 수정)
+# 8. 작업지시서 A4 2x4 HTML
 def get_work_order_html(items):
     html = """
     <html>
@@ -370,7 +368,6 @@ def get_work_order_html(items):
             is_lam = True
             if "생략" in lam_cond or "없음" in lam_cond or "단품" in lam_cond or lam_cond == "-": is_lam = False
             
-            # [수정] 접합생략 표시: 접합생략(취소선+빨강) + 필름마감(검정+정상)
             if not is_lam:
                 lam_display = "<span style='text-decoration:line-through; color:red;'>접합생략</span> <span style='color:#000; text-decoration:none; font-weight:700;'>(필름마감)</span>"
             else:
@@ -432,23 +429,152 @@ def get_work_order_html(items):
     html += "</body></html>"
     return html
 
-# 9. 접속 QR
-def get_access_qr_content_html(url, mode="big"):
-    qr = qrcode.QRCode(box_size=10, border=1)
-    qr.add_data(url)
-    qr.make(fit=True)
-    img_b64 = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
+# 10. 견적서 HTML
+def get_quotation_html(cust_data, items_df, totals):
+    # 로고
+    logo_base64 = ""
+    if os.path.exists("pages/company_logo.png"):
+        with open("pages/company_logo.png", "rb") as f:
+            logo_base64 = base64.b64encode(f.read()).decode()
+    elif os.path.exists("company_logo.png"):
+        with open("company_logo.png", "rb") as f:
+            logo_base64 = base64.b64encode(f.read()).decode()
+            
+    today_str = datetime.now().strftime("%Y-%m-%d")
     
-    if mode == "big":
-        html = f"""<div style="text-align:center; padding-top:50mm;"><div style="border:5px solid black; padding:50px; display:inline-block; border-radius:30px;"><div style="font-size:40pt; font-weight:900; margin-bottom:30px;">🏭 접속 QR</div><img src="data:image/png;base64,{img_b64}" style="width:400px; height:400px;"><div style="font-size:15pt; margin-top:20px; font-family:monospace;">{url}</div></div></div>"""
-    else:
-        html = '<table style="width:100%; border-collapse:collapse;">'
-        for r in range(4):
-            html += '<tr>'
-            for c in range(2):
-                html += f"""<td style="border:1px dashed #999; padding:10px; text-align:center;"><div style="font-weight:bold; font-size:16pt;">시스템 접속</div><img src="data:image/png;base64,{img_b64}" style="width:100px;"></td>"""
-            html += '</tr>'
-        html += "</table>"
+    html = f"""
+    <html>
+    <head>
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+            body {{ font-family: 'Noto Sans KR', sans-serif; font-size: 12px; margin: 0; padding: 20px; }}
+            table {{ width: 100%; border-collapse: collapse; border: 2px solid black; }}
+            th, td {{ border: 1px solid black; padding: 6px; }}
+            
+            .title {{ text-align: center; font-size: 32px; font-weight: 900; margin-bottom: 20px; letter-spacing: 5px; }}
+            
+            .header-table {{ margin-bottom: 10px; border: none; }}
+            .header-table td {{ border: none; padding: 0; }}
+            
+            .provider-box, .receiver-box {{ border: 2px solid black; width: 100%; border-collapse: collapse; }}
+            .bg-grey {{ background-color: #e0e0e0; text-align: center; font-weight: bold; }}
+            
+            .item-table {{ margin-top: 10px; }}
+            .item-header {{ background-color: #f5f5f5; text-align: center; font-weight: bold; height: 30px; }}
+            .item-row td {{ text-align: center; height: 25px; }}
+            .align-right {{ text-align: right !important; padding-right: 5px; }}
+            .align-left {{ text-align: left !important; padding-left: 5px; }}
+            
+            .total-row {{ background-color: #fff3e0; font-weight: bold; }}
+        </style>
+    </head>
+    <body>
+        <div class="title">견 적 서</div>
+        
+        <table class="header-table">
+            <tr>
+                <td width="48%" valign="top">
+                    <table class="provider-box">
+                        <tr>
+                            <td rowspan="4" width="20%" style="text-align:center; padding:10px;">
+                                <img src="data:image/png;base64,{logo_base64}" width="100" style="display:block; margin:auto;">
+                            </td>
+                            <td class="bg-grey" width="25%">사업자번호</td>
+                            <td colspan="3">108-81-49494</td>
+                        </tr>
+                        <tr>
+                            <td class="bg-grey">상 호</td>
+                            <td>(주)베스트룸</td>
+                            <td class="bg-grey">대표자</td>
+                            <td>이 광 석</td>
+                        </tr>
+                        <tr>
+                            <td class="bg-grey">주 소</td>
+                            <td colspan="3">강원도 강릉시 과학단지로 106-40</td>
+                        </tr>
+                        <tr>
+                            <td class="bg-grey">전 화</td>
+                            <td>033-655-2745</td>
+                            <td class="bg-grey">이메일</td>
+                            <td>-</td>
+                        </tr>
+                    </table>
+                </td>
+                <td width="4%"></td>
+                <td width="48%" valign="top">
+                    <table class="receiver-box">
+                        <tr>
+                            <td class="bg-grey" width="25%">고 객 사</td>
+                            <td style="font-size:14px; font-weight:bold;">{cust_data['name']}</td>
+                        </tr>
+                        <tr>
+                            <td class="bg-grey">참 조</td>
+                            <td>{cust_data['ref']}</td>
+                        </tr>
+                        <tr>
+                            <td class="bg-grey">발행일자</td>
+                            <td>{today_str}</td>
+                        </tr>
+                        <tr>
+                            <td class="bg-grey">합계금액</td>
+                            <td style="font-size:14px; font-weight:bold; text-align:right; padding-right:10px;">
+                                ₩ {totals['grand_total']:,}
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+        
+        <div style="margin: 10px 0; font-weight:bold;">아래와 같이 견적 합니다.</div>
+        
+        <table class="item-table">
+            <tr class="item-header">
+                <td width="10%">구분</td>
+                <td width="25%">품명 / 규격</td>
+                <td width="5%">단위</td>
+                <td width="5%">수량</td>
+                <td width="12%">단가</td>
+                <td width="15%">공급가액</td>
+                <td width="20%">비고</td>
+            </tr>
+    """
+    
+    for _, row in items_df.iterrows():
+        price_fmt = f"{int(row['단가']):,}" if row['단가'] > 0 else "-"
+        total_fmt = f"{int(row['공급가']):,}" if row['공급가'] > 0 else "-"
+        
+        html += f"""
+            <tr class="item-row">
+                <td>{row['구분']}</td>
+                <td class="align-left">{row['품명']}</td>
+                <td>{row['단위']}</td>
+                <td>{row['수량']}</td>
+                <td class="align-right">{price_fmt}</td>
+                <td class="align-right">{total_fmt}</td>
+                <td class="align-left">{row['비고']}</td>
+            </tr>
+        """
+        
+    for _ in range(max(0, 15 - len(items_df))):
+        html += '<tr class="item-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'
+        
+    html += f"""
+            <tr class="total-row">
+                <td colspan="4" style="text-align:center;">합 계</td>
+                <td colspan="3" class="align-right" style="padding-right:10px;">
+                    공급가: {totals['supply']:,} / 부가세: {totals['vat']:,} / <b>총계: {totals['grand_total']:,}</b>
+                </td>
+            </tr>
+        </table>
+        
+        <div style="margin-top:20px; text-align:center; color:#555;">
+            * 유효기간: 견적일로부터 15일<br>
+            * 결제조건: 별도 협의
+        </div>
+    </body>
+    </html>
+    """
     return html
 
 # ==========================================
@@ -462,6 +588,10 @@ if 'generated_qrs' not in st.session_state: st.session_state.generated_qrs = []
 if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 if 'history_data' not in st.session_state: st.session_state.history_data = []
 
+# [견적서용 세션]
+if 'quote_items' not in st.session_state:
+    st.session_state.quote_items = pd.DataFrame(columns=["구분", "품명", "단위", "수량", "단가", "공급가", "비고"])
+
 # ==========================================
 # 🖥️ 관리자 UI 메인
 # ==========================================
@@ -469,7 +599,7 @@ st.sidebar.title("👨‍💼 지시서 설정")
 if not st.session_state.fabric_db: st.session_state.fabric_db = fetch_fabric_stock()
 if st.sidebar.button("🔄 재고 정보 새로고침", use_container_width=True): st.session_state.fabric_db = fetch_fabric_stock(); st.toast("✅ 완료")
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["📝 작업 입력", "📄 지시서 인쇄", "🏷️ 라벨 인쇄", "🔄 QR 재발행", "🧵 원단 재고", "📊 발행 이력", "🔍 제품 추적", "🚨 불량 현황", "📱 접속 QR"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs(["📝 작업 입력", "📄 지시서 인쇄", "🏷️ 라벨 인쇄", "🔄 QR 재발행", "🧵 원단 재고", "📊 발행 이력", "🔍 제품 추적", "🚨 불량 현황", "📱 접속 QR", "📑 견적서 작성"])
 
 # [Tab 1] 작업 입력
 with tab1:
@@ -750,11 +880,30 @@ with tab6:
         edited_log = st.data_editor(df_view, hide_index=True, use_container_width=True, column_config={"선택": st.column_config.CheckboxColumn(width="small"), "created_at": st.column_config.DatetimeColumn("발행일시", format="MM-DD HH:mm"), "lot_no": st.column_config.TextColumn("LOT 번호", width="medium"), "status": st.column_config.TextColumn("현재 상태"), "spec": st.column_config.TextColumn("스펙 요약", width="medium")}, key="history_editor")
         selected_rows = edited_log[edited_log["선택"]]
         if not selected_rows.empty:
+            
+            # [추가] 선택된 행에 대한 상세 로그 조회
+            sel_row = selected_rows.iloc[0]
+            st.markdown(f"#### 📜 [{sel_row['lot_no']}] 작업자 상세 입력 로그")
+            
+            try:
+                # production_logs 테이블에서 해당 LOT의 기록 가져오기
+                res_logs = supabase.table("production_logs")\
+                    .select("*").eq("lot_no", sel_row['lot_no'])\
+                    .order("created_at", desc=False).execute()
+                
+                if res_logs.data:
+                    df_prod_logs = pd.DataFrame(res_logs.data)
+                    # 보기 좋게 컬럼 정리
+                    st.dataframe(df_prod_logs[['step', 'data', 'worker', 'created_at']], use_container_width=True)
+                else:
+                    st.info("아직 등록된 작업 이력이 없습니다.")
+            except Exception as e:
+                st.error(f"로그 조회 중 오류: {e}")
+
             st.markdown("---")
-            detail_tab, delete_tab = st.tabs(["🔍 상세 조건 확인", "🗑️ 데이터 삭제"])
+            detail_tab, delete_tab = st.tabs(["🔍 스펙 상세 확인", "🗑️ 데이터 삭제"])
             with detail_tab:
                 row = selected_rows.iloc[0]
-                st.info(f"선택된 항목 중 최상단 `{row['lot_no']}` 상세")
                 spec_text = row.get("spec", "")
                 full_cut, half_cut, lam_cond = "정보 없음", "정보 없음", "정보 없음"
                 if spec_text:
@@ -765,7 +914,6 @@ with tab6:
                         elif "Half" in p: half_cut = p.replace("Half", "").strip("()")
                         elif "단계" in p or "℃" in p or "생략" in p or "없음" in p: lam_cond = p
                 with st.container(border=True):
-                    st.markdown(f"#### 📌 LOT: `{row['lot_no']}`")
                     c_cut1, c_cut2 = st.columns(2)
                     with c_cut1: st.markdown("##### ✂️ 풀컷"); st.write(full_cut)
                     with c_cut2: st.markdown("##### 🗡️ 하프컷"); st.write(half_cut)
@@ -803,3 +951,64 @@ with tab9:
     if st.button("🖨️ 접속 QR 인쇄", key="btn_print_access_qr_tab9"):
         full_html = generate_print_html(content_html)
         components.html(full_html, height=0, width=0)
+
+# [Tab 10] 견적서 작성 (신규 추가)
+with tab10:
+    st.markdown("### 📑 견적서 작성 (Quotation)")
+    
+    with st.container(border=True):
+        c1, c2 = st.columns(2)
+        with c1:
+            q_cust = st.text_input("고객사명", placeholder="예: PARK TEN")
+            q_ref = st.text_input("참조 (담당자)", placeholder="예: 노민규 부장님")
+        with c2:
+            st.info("💡 품목 입력 후 엔터를 치면 합계가 자동 계산됩니다.")
+    
+    # 엑셀 같은 편집기 (Data Editor)
+    edited_df = st.data_editor(
+        st.session_state.quote_items,
+        num_rows="dynamic",
+        use_container_width=True,
+        column_config={
+            "수량": st.column_config.NumberColumn(min_value=0, step=1, default=1),
+            "단가": st.column_config.NumberColumn(min_value=0, step=100, format="%d원"),
+            "공급가": st.column_config.NumberColumn(disabled=True, format="%d원"), # 자동계산용
+        }
+    )
+    
+    # 자동 계산 로직
+    if not edited_df.empty:
+        # 수량 x 단가 계산 (없는 경우 0 처리)
+        edited_df['수량'] = pd.to_numeric(edited_df['수량'], errors='coerce').fillna(0)
+        edited_df['단가'] = pd.to_numeric(edited_df['단가'], errors='coerce').fillna(0)
+        edited_df['공급가'] = edited_df['수량'] * edited_df['단가']
+        
+        # 합계 산출
+        total_supply = int(edited_df['공급가'].sum())
+        total_vat = int(total_supply * 0.1)
+        grand_total = total_supply + total_vat
+        
+        # 화면 표시
+        st.divider()
+        c_tot1, c_tot2, c_tot3 = st.columns(3)
+        c_tot1.metric("공급가액", f"{total_supply:,} 원")
+        c_tot2.metric("부가세 (10%)", f"{total_vat:,} 원")
+        c_tot3.metric("총 합계", f"{grand_total:,} 원")
+        
+        # 인쇄 버튼
+        if st.button("🖨️ 견적서 인쇄 / 미리보기", type="primary", use_container_width=True):
+            if not q_cust:
+                st.warning("고객사명을 입력해주세요.")
+            else:
+                cust_data = {"name": q_cust, "ref": q_ref}
+                totals = {"supply": total_supply, "vat": total_vat, "grand_total": grand_total}
+                
+                # HTML 생성
+                q_html = get_quotation_html(cust_data, edited_df, totals)
+                
+                # 출력
+                print_html = generate_print_html(q_html)
+                components.html(print_html, height=0, width=0)
+                
+                # 화면 미리보기
+                st.components.v1.html(q_html, height=800, scrolling=True)
