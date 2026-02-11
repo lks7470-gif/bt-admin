@@ -105,23 +105,27 @@ else:
     
     save_data = "-"
     
-    # 공정별 입력창 (소수점 입력 가능하도록 수정됨)
+    # [핵심] 공정별 입력창 (접합 조건 입력 기능 강화)
     if "Cut" in step:
         st.info("⚙️ 장비 세팅값 입력")
         c1, c2, c3 = st.columns(3)
-        # [수정] value=0.0, step=0.1, format="%.1f" 추가
         sp = c1.number_input("Speed", value=0.0, step=0.1, format="%.1f")
         mx = c2.number_input("Max", value=0.0, step=0.1, format="%.1f")
         mn = c3.number_input("Min", value=0.0, step=0.1, format="%.1f")
         save_data = f"S:{sp} / M:{mx} / m:{mn}"
         
     elif "End" in step or "공정 완료" in step:
-        st.info("🌡️ 최종 온도 입력")
+        st.info("🌡️ 최종 온도/결과 입력")
         c1, c2 = st.columns(2)
-        # [수정] value=0.0, step=0.1, format="%.1f" 추가
         t1 = c1.number_input("내부(℃)", value=0.0, step=0.1, format="%.1f")
         t2 = c2.number_input("Start(℃)", value=0.0, step=0.1, format="%.1f")
         save_data = f"내부:{t1} / Start:{t2}"
+
+    elif "접합" in step: # [추가] 접합 준비/가열 단계일 때 조건 입력
+        st.info("🔥 접합 조건/상태 입력")
+        # 작업자가 자유롭게 조건을 쓸 수 있도록 함
+        lam_cond = st.text_input("현재 조건 (진공, 온도 등)", placeholder="예: 진공 1단계 완료, 60도 도달")
+        if lam_cond: save_data = lam_cond
         
     elif "출고" in step:
         st.info("🚚 출고 정보를 확인하세요.")
@@ -158,12 +162,7 @@ if img_file is not None:
             st.success(f"🔍 QR 인식 성공: **{data}**")
             
             # --- DB 조회 및 저장 로직 ---
-            # QR에 하이픈이 빠져있으므로, DB 비교시에는 DB 값에서 하이픈을 빼고 비교하거나
-            # 저장할 때 하이픈을 뺀 값으로 저장했다면 그대로 비교.
-            # 여기서는 DB에 하이픈 없이 저장했다는 가정하에 진행. 
-            # 만약 DB에 하이픈이 있다면 .replace() 처리가 필요할 수 있습니다.
-            
-            # 1. 작업 지시서 상태 조회
+            # DB 조회 (QR 데이터로 검색)
             response = supabase.table("work_orders").select("status").eq("lot_no", data).execute()
             
             if not response.data:
@@ -204,7 +203,7 @@ if img_file is not None:
                             "worker": current_worker, "result": "OK"
                         }).execute()
                         
-                        # [수정] 출고 완료 시 DB 상태도 '출고'로 변경
+                        # 출고 완료 시 DB 상태도 '출고'로 변경
                         update_status = "출고" if "출고" in step else step
                         supabase.table("work_orders").update({"status": update_status}).eq("lot_no", data).execute()
                         
