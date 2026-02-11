@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
 
 # ==========================================
-# ⚙️ [필수] 페이지 설정은 무조건 맨 처음에 와야 합니다.
+# ⚙️ [필수] 페이지 설정은 무조건 맨 처음에!
 # ==========================================
 st.set_page_config(page_title="(주)베스트룸 생산관리", page_icon="🏭", layout="wide")
 
@@ -147,7 +147,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
         </div></div>"""
     return html + "</div></body></html>"
 
-# 8. 작업지시서 A4 2x4 HTML (접합생략 강조 및 디자인 수정)
+# 8. 작업지시서 A4 2x4 HTML
 def get_work_order_html(items):
     html = """<html><head><style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
@@ -167,12 +167,10 @@ def get_work_order_html(items):
         html += f'<div style="width:100%; text-align:center; font-size:20pt; font-weight:900; margin-bottom:3mm; text-decoration:underline;">작업 지시서 (Work Order)</div><div style="display:flex; flex-wrap:wrap; justify-content:space-between; width:100%;">'
         
         for item in chunk:
-            # [수정] QR 하이픈 제거
             qr_clean = item['lot'].replace("-", "") 
             qr = qrcode.QRCode(box_size=5, border=0); qr.add_data(qr_clean); qr.make(fit=True)
             img_b64 = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
             
-            # [수정] 접합생략 빨간 취소선 + 필름마감 정상 표시
             is_lam = True
             lam_cond = item.get('spec_lam', '-')
             if "생략" in lam_cond or "없음" in lam_cond or "단품" in lam_cond or lam_cond == "-": is_lam = False
@@ -182,7 +180,6 @@ def get_work_order_html(items):
             else:
                 lam_display = f"<span style='color:#000;'>{lam_cond}</span>"
 
-            # [수정] 규격 숫자 (동일 28px, 선택된 방향만 ExtraBold+Underline)
             w, h, elec = item['w'], item['h'], item['elec']
             base_css = "font-size: 28px; color: #000; margin: 0 2px;"
             w_css = base_css + ("font-weight: 900; text-decoration: underline;" if "가로" in elec or "W" in elec.upper() else "font-weight: 500; color: #555;")
@@ -214,11 +211,11 @@ def get_work_order_html(items):
         html += '</div><div class="page-break"></div>'
     return html + "</body></html>"
 
-# 9. 접속 QR
+# 9. [복구] 접속 QR 생성 함수
 def get_access_qr_content_html(url, mode="big"):
     qr = qrcode.QRCode(box_size=10, border=1); qr.add_data(url); qr.make(fit=True)
     img_b64 = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
-    return f'<div style="text-align:center; padding-top:50mm;"><img src="data:image/png;base64,{img_b64}" style="width:300px;"></div>'
+    return f'<div style="text-align:center; padding-top:50mm;"><div style="border:5px solid black; padding:30px; display:inline-block; border-radius:20px;"><div style="font-size:30pt; font-weight:900;">🏭 시스템 접속 QR</div><br><img src="data:image/png;base64,{img_b64}" style="width:350px;"></div></div>'
 
 # 10. 견적서 HTML
 def get_quotation_html(cust_data, items_df, totals):
@@ -280,7 +277,7 @@ if st.sidebar.button("🔄 재고 정보 새로고침", use_container_width=True
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs(["📝 작업 입력", "📄 지시서 인쇄", "🏷️ 라벨 인쇄", "🔄 QR 재발행", "🧵 원단 재고", "📊 발행 이력", "🔍 제품 추적", "🚨 불량 현황", "📱 접속 QR", "📑 견적서 작성"])
 
-# [Tab 1] 작업 입력 (입력창 갱신 로직 수정됨)
+# [Tab 1] 작업 입력
 with tab1:
     st.markdown("### 📝 신규 작업 지시 등록")
     if not st.session_state.fabric_db: st.session_state.fabric_db = fetch_fabric_stock()
@@ -292,7 +289,6 @@ with tab1:
         st.divider()
         c_mat1, c_mat2 = st.columns(2)
         
-        # 원단 선택 옵션 구성
         stock_options = ["➕ 직접 입력"] 
         if st.session_state.fabric_db:
             for lot, info in st.session_state.fabric_db.items():
@@ -300,7 +296,6 @@ with tab1:
         
         selected_stock = c_mat1.selectbox("🧵 사용할 원단 선택", stock_options)
         
-        # [핵심 수정] 원단 선택 시 식별코드 자동 세팅
         default_short = "ROLL"
         fabric_lot = ""
         
@@ -309,13 +304,9 @@ with tab1:
         else:
             fabric_lot = selected_stock.split(" | ")[0]
             c_mat1.info(f"✅ 선택됨: {fabric_lot}")
-            
-            # DB 정보 가져오기
             sel_info = st.session_state.fabric_db.get(fabric_lot, {})
-            if sel_info.get('short_code'):
-                default_short = sel_info.get('short_code')
+            if sel_info.get('short_code'): default_short = sel_info.get('short_code')
         
-        # key를 fabric_lot에 따라 다르게 주어 강제 갱신 유도
         fabric_short = c_mat2.text_input("🆔 식별코드 (4자리)", value=default_short, max_chars=4, key=f"short_code_{fabric_lot}")
         
         st.divider()
@@ -418,7 +409,7 @@ with tab5:
             st.rerun()
     st.data_editor(pd.DataFrame(supabase.table("fabric_stock").select("*").execute().data))
 
-# [Tab 6] 발행 이력
+# [Tab 6] 발행 이력 (작업자 데이터 확인)
 with tab6:
     res = supabase.table("work_orders").select("*").order("created_at", desc=True).limit(200).execute()
     df = pd.DataFrame(res.data)
@@ -426,10 +417,41 @@ with tab6:
         sel_rows = st.data_editor(df.assign(선택=False), column_config={"선택": st.column_config.CheckboxColumn()})
         sel = sel_rows[sel_rows["선택"]]
         if not sel.empty:
-            st.info(f"선택된 LOT: {sel.iloc[0]['lot_no']}")
-            logs = supabase.table("production_logs").select("*").eq("lot_no", sel.iloc[0]['lot_no']).order("created_at").execute()
-            if logs.data: st.dataframe(pd.DataFrame(logs.data)[['step', 'data', 'worker', 'created_at']], use_container_width=True)
+            # [추가] 작업자 상세 로그 조회
+            sel_row = sel.iloc[0]
+            st.markdown(f"#### 📜 [{sel_row['lot_no']}] 작업자 상세 입력 로그")
+            logs = supabase.table("production_logs").select("*").eq("lot_no", sel_row['lot_no']).order("created_at").execute()
+            if logs.data: 
+                # 데이터프레임으로 깔끔하게 보여주기
+                st.dataframe(pd.DataFrame(logs.data)[['step', 'data', 'worker', 'created_at']], use_container_width=True)
             else: st.warning("작업 이력이 없습니다.")
+            
+            st.divider()
+            if st.button("🗑️ 삭제 실행", type="primary"):
+                supabase.table("work_orders").delete().in_("lot_no", sel['lot_no'].tolist()).execute()
+                st.rerun()
+
+# [Tab 7] 제품 추적 (복구)
+with tab7:
+    with st.form("track_form"):
+        track_lot = st.text_input("추적할 LOT 번호 입력")
+        if st.form_submit_button("검색"):
+            r = supabase.table("production_logs").select("*").eq("lot_no", track_lot).order("created_at").execute()
+            if r.data: st.dataframe(r.data)
+            else: st.error("이력이 없습니다.")
+
+# [Tab 8] 불량 현황 (복구)
+with tab8:
+    st.markdown("### 🚨 불량 등록 현황")
+    r = supabase.table("defects").select("*").order("created_at", desc=True).execute()
+    if r.data: st.dataframe(r.data)
+    else: st.info("불량 내역이 없습니다.")
+
+# [Tab 9] 접속 QR (복구)
+with tab9:
+    html = get_access_qr_content_html(APP_URL)
+    st.components.v1.html(html, height=500)
+    if st.button("🖨️ 접속 QR 인쇄"): components.html(generate_print_html(html), height=0)
 
 # [Tab 10] 견적서
 with tab10:
