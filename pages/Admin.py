@@ -181,7 +181,7 @@ def get_access_qr_content_html(url):
     img = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
     return f'<div style="text-align:center; padding-top:50mm;"><div style="border:5px solid black; padding:30px; display:inline-block; border-radius:20px;"><div style="font-size:30pt; font-weight:900;">🏭 시스템 접속 QR</div><br><img src="data:image/png;base64,{img}" style="width:350px;"></div></div>'
 
-# 10. [업그레이드] 견적서 HTML (이미지 양식 정밀 복원)
+# 10. [업그레이드] 견적서 HTML (수신처 칸 수정 및 하단 내용 추가)
 def get_quotation_html(cust_data, items_df, totals):
     logo = ""
     if os.path.exists("pages/company_logo.png"):
@@ -192,12 +192,13 @@ def get_quotation_html(cust_data, items_df, totals):
     today = datetime.now().strftime("%Y-%m-%d")
     q_no = f"BR{datetime.now().strftime('%Y%m%d')}-01"
     
+    # [수정된 HTML]
     html = f"""<html><head><style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
     body {{ font-family: 'Noto Sans KR', sans-serif; font-size: 11px; margin: 0; padding: 20px; }}
     table {{ width: 100%; border-collapse: collapse; border: 1px solid #000; }}
     th, td {{ border: 1px solid #000; padding: 4px 6px; }}
-    .title {{ text-align: center; font-size: 32px; font-weight: 900; margin-bottom: 25px; letter-spacing: 8px; }}
+    .title {{ text-align: center; font-size: 32px; font-weight: 900; margin-bottom: 25px; letter-spacing: 10px; }}
     .grey {{ background-color: #e0e0e0; text-align: center; font-weight: bold; }}
     .txt-c {{ text-align: center; }} .txt-r {{ text-align: right; }} .txt-l {{ text-align: left; }}
     .no-b {{ border: none; }}
@@ -209,9 +210,9 @@ def get_quotation_html(cust_data, items_df, totals):
             <td rowspan="4" width="20%" class="txt-c no-b" style="border:1px solid #000;">
                 <img src="data:image/png;base64,{logo}" style="max-width:120px; display:block; margin:auto;">
             </td>
-            <td class="grey" width="10%">사업자등록번호</td>
+            <td class="grey" width="12%">사업자등록번호</td>
             <td colspan="3" class="txt-c">108-81-49494</td>
-            <td class="grey" width="8%">대표자</td>
+            <td class="grey" width="10%">대표자</td>
             <td class="txt-c" width="10%">이 광 석</td>
         </tr>
         <tr>
@@ -232,12 +233,12 @@ def get_quotation_html(cust_data, items_df, totals):
         </tr>
     </table>
 
-    <table style="border:none;">
+    <table style="border:none; margin-bottom:0;">
         <tr>
             <td width="40%" style="vertical-align:top; padding:0; border:none;">
-                <table style="width:100%; border-right:none;">
+                <table style="width:100%; border-right:none; border-bottom:none;">
                     <tr>
-                        <td rowspan="2" class="grey" width="15%">수신처</td>
+                        <td rowspan="2" class="grey" width="15%" style="vertical-align:middle; line-height:1.2;">수신처</td>
                         <td class="grey" width="25%" style="color:#0033cc;">고객사</td>
                         <td class="txt-c" style="color:#0033cc; font-weight:bold;">{cust_data['name']}</td>
                     </tr>
@@ -261,7 +262,7 @@ def get_quotation_html(cust_data, items_df, totals):
             </td>
             
             <td width="60%" style="vertical-align:top; padding:0; border:none;">
-                <table style="width:100%; border-left:none;">
+                <table style="width:100%; border-left:none; border-bottom:none;">
                     <tr>
                         <td class="grey" width="25%">발행일자 / 유효기간</td>
                         <td class="txt-c">{today} &nbsp; / &nbsp; 30일</td>
@@ -287,7 +288,7 @@ def get_quotation_html(cust_data, items_df, totals):
         </tr>
     </table>
     
-    <table style="margin-top:-1px;">
+    <table style="margin-top:0; border-top:1px solid #000;">
         <tr>
             <td class="grey" width="15%">견적서 번호</td>
             <td class="txt-c" style="font-weight:bold;">{q_no}</td>
@@ -332,26 +333,28 @@ def get_quotation_html(cust_data, items_df, totals):
         
     html += f"""
         <tr style="background-color:#fff3e0; height:30px; font-weight:bold;">
-            <td colspan="2" class="txt-c">공급가</td>
-            <td colspan="6" class="txt-r" style="padding-right:10px;">{totals['supply']:,}</td>
-        </tr>
-        <tr style="background-color:#fff3e0; height:30px; font-weight:bold;">
-            <td colspan="2" class="txt-c">V.A.T</td>
-            <td colspan="6" class="txt-r" style="padding-right:10px;">{totals['vat']:,}</td>
-        </tr>
-        <tr style="background-color:#ffe0b2; height:35px; font-weight:bold;">
-            <td colspan="2" class="txt-c">합 계</td>
-            <td colspan="6" class="txt-r" style="padding-right:10px; color:#d32f2f; font-size:14px;">{totals['grand_total']:,}</td>
+            <td colspan="4" class="txt-c">공급가액 : {totals['supply']:,} &nbsp; / &nbsp; 부가세(VAT) : {totals['vat']:,}</td>
+            <td class="txt-c" style="background-color:#ffe0b2;">합 계</td>
+            <td colspan="3" class="txt-r" style="padding-right:15px; color:#d32f2f; font-size:14px;">₩ {totals['grand_total']:,}</td>
         </tr>
     </table>
     
-    <div style="margin-top:10px; font-size:10px; text-align:center;">페이지 1</div>
-    </body></html>
-    """
+    <div style="margin-top:20px; font-size:11px; line-height:1.6; border:1px solid #ddd; padding:10px; border-radius:5px;">
+        <b>※ Remark (참고사항)</b><br>
+        1. 납품기일은 협의 입니다.<br>
+        2. CONTROLLER 포함<br>
+        3. <b>결제조건:</b> 발주시 자재비(VAT포함) 선입금, 시공완료 후 5일 이내 시공비(VAT포함) 입금 기준 (발주 후에는 FILM이 재단되므로 취소 불가합니다)<br>
+        4. 사업자등록증: 팩스 033-655-2751 / 이메일 bttax@betroom.co.kr 송부요청드립니다.<br>
+        5. 필름 시공장소까지 전기 (220V) 콘센트 선작업 제공 기준입니다. (별도 선작업 시 비용 추가)<br>
+        6. 시공시 필요되는 특장차 별도. 시공비는 서울/경기 수도권 기준입니다.<br>
+        7. 프레임은 검정이며, 샴페인골드, 로즈골드 변경 가능 (추가 5만원)
+    </div>
+    
+    </body></html>"""
     return html
 
 # ==========================================
-# 🖥️ 관리자 UI
+# 🖥️ 관리자 UI 시작
 # ==========================================
 APP_URL = "https://bt-app-pwgumeleefkwpf3xsu5bob.streamlit.app/"
 if 'order_list' not in st.session_state: st.session_state.order_list = []
