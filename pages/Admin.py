@@ -181,7 +181,7 @@ def get_access_qr_content_html(url):
     img = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
     return f'<div style="text-align:center; padding-top:50mm;"><div style="border:5px solid black; padding:30px; display:inline-block; border-radius:20px;"><div style="font-size:30pt; font-weight:900;">🏭 시스템 접속 QR</div><br><img src="data:image/png;base64,{img}" style="width:350px;"></div></div>'
 
-# 10. [업그레이드] 견적서 HTML (수신처 정렬 완벽 수정)
+# 10. [업그레이드] 견적서 HTML (이메일 확장, 합계 검정색, 1페이지 인쇄)
 def get_quotation_html(cust_data, items_df, totals):
     logo = ""
     if os.path.exists("pages/company_logo.png"):
@@ -191,54 +191,40 @@ def get_quotation_html(cust_data, items_df, totals):
     
     today = datetime.now().strftime("%Y-%m-%d")
     q_no = f"BR{datetime.now().strftime('%Y%m%d')}-01"
-    
-    # [수정 포인트] 테이블 row 높이를 고정(height: 30px)하여 좌우 대칭을 맞춤
     row_h = "height: 28px;" 
     
     html = f"""<html><head><style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
-    body {{ font-family: 'Noto Sans KR', sans-serif; font-size: 11px; margin: 0; padding: 20px; }}
+    @media print {{ @page {{ size: A4; margin: 10mm; }} body {{ margin: 0; zoom: 92%; }} }}
+    body {{ font-family: 'Noto Sans KR', sans-serif; font-size: 11px; margin: 0; padding: 15px; }}
     table {{ width: 100%; border-collapse: collapse; border: 1px solid #000; }}
     th, td {{ border: 1px solid #000; padding: 2px 5px; vertical-align: middle; }}
-    
-    .title {{ text-align: center; font-size: 32px; font-weight: 900; margin-bottom: 20px; letter-spacing: 10px; }}
+    .title {{ text-align: center; font-size: 30px; font-weight: 900; margin-bottom: 15px; letter-spacing: 10px; }}
     .grey {{ background-color: #e0e0e0; text-align: center; font-weight: bold; }}
     .txt-c {{ text-align: center; }} .txt-r {{ text-align: right; }} .txt-l {{ text-align: left; }}
     .no-b {{ border: none; }}
     </style></head><body>
     <div class="title">견 적 서</div>
-    
     <table style="margin-bottom:5px;">
         <tr style="{row_h}">
-            <td rowspan="4" width="20%" class="txt-c no-b" style="border:1px solid #000; padding:5px;">
-                <img src="data:image/png;base64,{logo}" style="max-width:110px; display:block; margin:auto;">
-            </td>
-            <td class="grey" width="12%">사업자등록번호</td>
-            <td colspan="3" class="txt-c">108-81-49494</td>
-            <td class="grey" width="10%">대표자</td>
-            <td class="txt-c" width="10%">이 광 석</td>
+            <td rowspan="4" width="20%" class="txt-c no-b" style="border:1px solid #000; padding:5px;"><img src="data:image/png;base64,{logo}" style="max-width:110px; display:block; margin:auto;"></td>
+            <td class="grey" width="12%">사업자등록번호</td><td colspan="3" class="txt-c">108-81-49494</td><td class="grey" width="10%">대표자</td><td class="txt-c" width="10%">이 광 석</td>
         </tr>
         <tr style="{row_h}"><td class="grey">상 호</td><td colspan="3" class="txt-c">(주)베스트룸</td><td class="grey"></td><td></td></tr>
         <tr style="{row_h}"><td class="grey">주 소</td><td colspan="5" class="txt-c">강원도 강릉시 과학단지로 106-40</td></tr>
-        <tr style="{row_h}"><td class="grey">전 화</td><td colspan="3" class="txt-c">033 655 2745</td><td class="grey">이메일</td><td></td></tr>
+        <tr style="{row_h}"><td class="grey">전 화</td><td class="txt-c" width="25%">033 655 2745</td><td class="grey" width="10%">이메일</td><td colspan="3" class="txt-c"></td></tr>
     </table>
-
     <table style="border:none; margin-bottom:0;">
         <tr>
             <td width="40%" style="padding:0; border:none; vertical-align:top;">
                 <table style="width:100%; border-right:none; border-bottom:none;">
-                    <tr style="{row_h}">
-                        <td rowspan="2" class="grey" width="18%" style="vertical-align:middle;">수신처</td>
-                        <td class="grey" width="22%" style="color:#0033cc;">고객사</td>
-                        <td class="txt-c" style="color:#0033cc; font-weight:bold;">{cust_data['name']}</td>
-                    </tr>
+                    <tr style="{row_h}"><td rowspan="2" class="grey" width="18%" style="vertical-align:middle;">수신처</td><td class="grey" width="22%" style="color:#0033cc;">고객사</td><td class="txt-c" style="color:#0033cc; font-weight:bold;">{cust_data['name']}</td></tr>
                     <tr style="{row_h}"><td class="grey">참 조</td><td class="txt-c">{cust_data['ref']}</td></tr>
                     <tr style="{row_h}"><td class="grey">연락처</td><td colspan="2" class="txt-c">{cust_data['contact']}</td></tr>
                     <tr style="{row_h}"><td class="grey">팩 스</td><td colspan="2" class="txt-c">{cust_data.get('fax','')}</td></tr>
                     <tr style="{row_h}"><td class="grey">E-mail</td><td colspan="2" class="txt-c">{cust_data.get('email','')}</td></tr>
                 </table>
             </td>
-            
             <td width="60%" style="padding:0; border:none; vertical-align:top;">
                 <table style="width:100%; border-left:none; border-bottom:none;">
                     <tr style="{row_h}"><td class="grey" width="25%">발행일자 / 유효기간</td><td class="txt-c">{today} &nbsp; / &nbsp; 30일</td></tr>
@@ -250,15 +236,12 @@ def get_quotation_html(cust_data, items_df, totals):
             </td>
         </tr>
     </table>
-    
     <table style="margin-top:0; border-top:1px solid #000;">
         <tr style="{row_h}"><td class="grey" width="15%">견적서 번호</td><td class="txt-c" style="font-weight:bold;">{q_no}</td></tr>
     </table>
-
-    <div style="text-align:center; font-weight:bold; margin:15px 0;">아래와 같이 견적 합니다.</div>
-
+    <div style="text-align:center; font-weight:bold; margin:10px 0;">아래와 같이 견적 합니다.</div>
     <table style="margin-top:5px;">
-        <tr class="grey" style="height:35px;">
+        <tr class="grey" style="height:30px;">
             <td width="8%">Section</td><td width="20%">Description</td><td width="15%">세부내용</td><td width="7%">Sqm</td><td width="5%">Q'ty</td><td width="12%">U/Price</td><td width="13%">Total</td><td width="20%">Remark</td>
         </tr>
     """
@@ -267,32 +250,18 @@ def get_quotation_html(cust_data, items_df, totals):
         p = f"{int(row['단가']):,}" if row['단가'] > 0 else ""
         t = f"{int(row['공급가']):,}" if row['공급가'] > 0 else ""
         bg = "background-color:#f9fbe7;" if row['구분'] and not row['품명'] else ""
+        html += f"""<tr style="height:25px; {bg}"><td class="txt-c" style="font-weight:bold;">{row['구분']}</td><td class="txt-l" style="padding-left:5px;">{row['품명']}</td><td class="txt-c">{row['세부내용']}</td><td class="txt-c">{row['Sqm']}</td><td class="txt-c">{row['수량']}</td><td class="txt-r" style="padding-right:5px;">{p}</td><td class="txt-r" style="padding-right:5px;">{t}</td><td class="txt-l" style="padding-left:5px; font-size:10px;">{row['비고']}</td></tr>"""
         
-        html += f"""
-        <tr style="height:28px; {bg}">
-            <td class="txt-c" style="font-weight:bold;">{row['구분']}</td>
-            <td class="txt-l" style="padding-left:5px;">{row['품명']}</td>
-            <td class="txt-c">{row['세부내용']}</td>
-            <td class="txt-c">{row['Sqm']}</td>
-            <td class="txt-c">{row['수량']}</td>
-            <td class="txt-r" style="padding-right:5px;">{p}</td>
-            <td class="txt-r" style="padding-right:5px;">{t}</td>
-            <td class="txt-l" style="padding-left:5px; font-size:10px;">{row['비고']}</td>
-        </tr>
-        """
-        
-    for _ in range(max(0, 15 - len(items_df))): 
-        html += '<tr style="height:28px;"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'
-        
+    for _ in range(max(0, 15 - len(items_df))): html += '<tr style="height:25px;"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'
+    
     html += f"""
-        <tr style="background-color:#fff3e0; height:30px; font-weight:bold;">
+        <tr style="background-color:#fff3e0; height:28px; font-weight:bold;">
             <td colspan="4" class="txt-c">공급가액 : {totals['supply']:,} &nbsp; / &nbsp; 부가세(VAT) : {totals['vat']:,}</td>
             <td class="txt-c" style="background-color:#ffe0b2;">합 계</td>
-            <td colspan="3" class="txt-r" style="padding-right:15px; color:#d32f2f; font-size:14px;">₩ {totals['grand_total']:,}</td>
+            <td colspan="3" class="txt-r" style="padding-right:15px; color:#000; font-size:14px;">₩ {totals['grand_total']:,}</td>
         </tr>
     </table>
-    
-    <div style="margin-top:20px; font-size:11px; line-height:1.6; border:1px solid #000; padding:10px; border-radius:5px;">
+    <div style="margin-top:15px; font-size:10px; line-height:1.5; border:1px solid #000; padding:8px; border-radius:5px; page-break-inside: avoid;">
         <b>※ Remark (참고사항)</b><br>
         1. 납품기일은 협의 입니다.<br>
         2. CONTROLLER 포함<br>
@@ -302,7 +271,6 @@ def get_quotation_html(cust_data, items_df, totals):
         6. 시공시 필요되는 특장차 별도. 시공비는 서울/경기 수도권 기준입니다.<br>
         7. 프레임은 검정이며, 샴페인골드, 로즈골드 변경 가능 (추가 5만원)
     </div>
-    
     </body></html>"""
     return html
 
@@ -313,11 +281,14 @@ APP_URL = "https://bt-app-pwgumeleefkwpf3xsu5bob.streamlit.app/"
 if 'order_list' not in st.session_state: st.session_state.order_list = []
 if 'generated_qrs' not in st.session_state: st.session_state.generated_qrs = []
 if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
+
+# [자동 계산을 위한 초기 데이터 확장]
 if 'quote_items' not in st.session_state: 
+    # 기본 행 생성
     st.session_state.quote_items = pd.DataFrame([
-        {"구분": "자재비", "품명": "SMART 뷰 유리", "세부내용": "800*2200", "Sqm": 1.76, "수량": 1, "단가": 624800, "공급가": 0, "비고": ""},
-        {"구분": "", "품명": "", "세부내용": "스위치 타입", "Sqm": "", "수량": 1, "단가": 75000, "공급가": 0, "비고": ""},
-        {"구분": "시공비", "품명": "시공비", "세부내용": "", "Sqm": "", "수량": 1, "단가": 350000, "공급가": 0, "비고": "1일 시공"}
+        {"구분": "자재비", "품명": "SMART 뷰 유리", "세부내용": "1200*2400 / Clear / 4+4", "W(mm)": 1200, "H(mm)": 2400, "유리": "Clear", "두께": "4+4", "Sqm": 2.88, "수량": 1, "단가": 912000, "공급가": 0, "비고": ""},
+        {"구분": "", "품명": "", "세부내용": "스위치 타입", "W(mm)":0, "H(mm)":0, "유리":"", "두께":"", "Sqm": "", "수량": 1, "단가": 75000, "공급가": 0, "비고": ""},
+        {"구분": "시공비", "품명": "시공비", "세부내용": "", "W(mm)":0, "H(mm)":0, "유리":"", "두께":"", "Sqm": "", "수량": 1, "단가": 350000, "공급가": 0, "비고": "1일 시공"}
     ])
 
 st.sidebar.title("👨‍💼 지시서 설정")
@@ -327,23 +298,20 @@ if st.sidebar.button("🔄 재고 정보 새로고침", use_container_width=True
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs(["📝 작업 입력", "📄 지시서 인쇄", "🏷️ 라벨 인쇄", "🔄 QR 재발행", "🧵 원단 재고", "📊 발행 이력", "🔍 제품 추적", "🚨 불량 현황", "📱 접속 QR", "📑 견적서 작성"])
 
-# Tab 1: 작업 입력
+# ... (Tab 1 ~ Tab 9 는 기존 코드와 동일)
 with tab1:
     st.markdown("### 📝 신규 작업 지시 등록")
     if not st.session_state.fabric_db: st.session_state.fabric_db = fetch_fabric_stock()
-    
     with st.form("order_form"):
         c1, c2 = st.columns([1, 1])
         customer = c1.text_input("고객사 (Customer)", placeholder="예: A건설")
         product = c2.selectbox("제품 종류", ["스마트글라스", "접합필름", "PDLC원단", "일반유리"])
         st.divider()
         c_mat1, c_mat2 = st.columns(2)
-        
         stock_options = ["➕ 직접 입력"] 
         if st.session_state.fabric_db:
             for lot, info in st.session_state.fabric_db.items(): stock_options.append(f"{lot} | {info['name']}")
         selected_stock = c_mat1.selectbox("🧵 사용할 원단 선택", stock_options)
-        
         default_short = "ROLL"; fabric_lot = ""
         if "직접 입력" in selected_stock: fabric_lot = c_mat1.text_input("원단 LOT 번호 입력", placeholder="Roll-2312a-KR")
         else:
@@ -351,28 +319,23 @@ with tab1:
             c_mat1.info(f"✅ 선택됨: {fabric_lot}")
             sel_info = st.session_state.fabric_db.get(fabric_lot, {})
             if sel_info.get('short_code'): default_short = sel_info.get('short_code')
-        
         fabric_short = c_mat2.text_input("🆔 식별코드 (4자리)", value=default_short, max_chars=4, key=f"sc_{fabric_lot}")
-        
         st.divider()
         c3, c4, c5 = st.columns([1, 1, 1])
         w = c3.number_input("가로 (W)", min_value=0, step=10)
         h = c4.number_input("세로 (H)", min_value=0, step=10)
         elec_type = c5.selectbox("전극 위치", ["없음", "가로(W) 양쪽", "세로(H) 양쪽", "가로(W) 상단", "세로(H) 우측"])
-        
         cc1, cc2 = st.columns(2)
         spec_cut = cc1.text_input("✂️ 커팅 조건", placeholder="예: Full(50/80/20)")
         is_lamination = cc2.checkbox("🔥 접합(Lamination) 포함", value=True)
         spec_lam = cc2.text_input("🔥 접합 조건", placeholder="예: 1단계") if is_lamination else "⛔ 접합 생략 (필름 마감)"
         note = st.text_input("비고", placeholder="특이사항"); count = st.number_input("수량", min_value=1, value=1)
-        
         if st.form_submit_button("➕ 작업 목록 추가", type="primary", use_container_width=True):
             input_short = str(fabric_short).strip().upper()
             final_short = input_short if input_short else "ROLL"
             final_short = final_short.ljust(4, 'X')
             st.session_state.order_list.append({"고객사": customer, "제품": product, "규격": f"{w}x{h}", "w": w, "h": h, "전극": elec_type, "spec_cut": spec_cut, "spec_lam": spec_lam, "is_lam": is_lamination, "spec": f"{spec_cut} | {spec_lam}", "비고": note, "수량": count, "lot_no": fabric_lot, "lot_short": final_short})
             st.success(f"추가됨! (ID: {final_short})")
-
     if st.session_state.order_list:
         st.dataframe(pd.DataFrame(st.session_state.order_list)[["고객사", "lot_short", "제품", "규격", "spec_lam", "수량"]], use_container_width=True)
         if st.button("🚀 최종 발행 및 저장"):
@@ -392,16 +355,12 @@ with tab1:
             st.session_state.generated_qrs = new_qrs
             st.session_state.order_list = []
             st.rerun()
-
-# Tab 2: 지시서
 with tab2:
     if st.session_state.generated_qrs:
         html = get_work_order_html(st.session_state.generated_qrs)
         st.components.v1.html(html, height=1000, scrolling=True)
         if st.button("🖨️ 인쇄하기"): components.html(generate_print_html(html), height=0)
     else: st.info("발행된 작업이 없습니다.")
-
-# Tab 3: 라벨
 with tab3:
     if st.session_state.generated_qrs:
         html = get_label_content_html(st.session_state.generated_qrs)
@@ -410,8 +369,6 @@ with tab3:
         img_data = create_label_strip_image(st.session_state.generated_qrs)
         if img_data: st.download_button("💾 이미지 다운로드", img_data, file_name="labels.png")
     else: st.info("발행된 작업이 없습니다.")
-
-# Tab 4: 재발행
 with tab4:
     with st.form("reprint"):
         s_d = st.date_input("날짜")
@@ -432,8 +389,6 @@ with tab4:
                     rep_items.append({"lot": r['lot_no'], "cust": r['customer'], "prod": r['product'], "w": w, "h": h, "elec": elec, "fabric": r.get('fabric_lot_no','-'), "spec_cut": r.get('spec',''), "spec_lam": r.get('spec',''), "note": r.get('note','')})
                 html = get_work_order_html(rep_items)
                 components.html(generate_print_html(html), height=0)
-
-# Tab 5: 재고
 with tab5:
     with st.form("fabric_in"):
         c1, c2, c3 = st.columns(3)
@@ -442,8 +397,6 @@ with tab5:
             supabase.table("fabric_stock").insert({"lot_no": n_lot, "name": n_name, "short_code": n_short}).execute()
             st.rerun()
     st.data_editor(pd.DataFrame(supabase.table("fabric_stock").select("*").execute().data))
-
-# Tab 6: 이력
 with tab6:
     res = supabase.table("work_orders").select("*").order("created_at", desc=True).limit(200).execute()
     df = pd.DataFrame(res.data)
@@ -459,8 +412,6 @@ with tab6:
             if st.button("🗑️ 삭제 실행", type="primary"):
                 supabase.table("work_orders").delete().in_("lot_no", sel['lot_no'].tolist()).execute()
                 st.rerun()
-
-# Tab 7, 8, 9
 with tab7:
     with st.form("track_form"):
         track_lot = st.text_input("추적할 LOT 번호 입력")
@@ -478,9 +429,9 @@ with tab9:
     st.components.v1.html(html, height=500)
     if st.button("🖨️ 접속 QR 인쇄"): components.html(generate_print_html(html), height=0)
 
-# Tab 10: 견적서
+# Tab 10: 견적서 (자동 계산 탑재)
 with tab10:
-    st.markdown("### 📑 견적서 작성")
+    st.markdown("### 📑 견적서 작성 (자동 계산)")
     c1, c2, c3 = st.columns(3)
     q_cust = c1.text_input("고객사명", placeholder="예: 에코하우징")
     q_ref = c2.text_input("참조", placeholder="예: 조성옥 대표님")
@@ -488,8 +439,9 @@ with tab10:
     q_fax = st.text_input("팩스", placeholder="")
     q_email = st.text_input("E-mail", placeholder="")
     
-    st.info("👇 품목 입력 (Section, Description, 세부내용, Sqm, Q'ty, U/Price, Remark)")
+    st.info("💡 가로/세로, 유리종류, 두께를 입력하면 단가와 면적(Sqm)이 자동 계산됩니다.")
     
+    # 엑셀 편집기 (입력용 컬럼 추가)
     edited = st.data_editor(
         st.session_state.quote_items,
         num_rows="dynamic",
@@ -497,20 +449,71 @@ with tab10:
         column_config={
             "구분": st.column_config.TextColumn("Section", width="small"),
             "품명": st.column_config.TextColumn("Description", width="medium"),
-            "세부내용": st.column_config.TextColumn("Details", width="large"),
-            "Sqm": st.column_config.TextColumn("Sqm", width="small"),
+            "W(mm)": st.column_config.NumberColumn("가로(mm)", step=10),
+            "H(mm)": st.column_config.NumberColumn("세로(mm)", step=10),
+            "유리": st.column_config.SelectboxColumn("유리종류", options=["Clear", "Low iron", "Dark grey"], default="Clear"),
+            "두께": st.column_config.SelectboxColumn("두께", options=["4+4", "5+5", "6+6"], default="4+4"),
+            "세부내용": st.column_config.TextColumn("Details", disabled=True), # 자동생성
+            "Sqm": st.column_config.TextColumn("Sqm", disabled=True),       # 자동계산
             "수량": st.column_config.NumberColumn("Q'ty", min_value=0, step=1),
-            "단가": st.column_config.NumberColumn("U/Price", min_value=0, step=100, format="%d"),
-            "공급가": st.column_config.NumberColumn("Total", disabled=True, format="%d"), 
-            "비고": st.column_config.TextColumn("Remark", width="medium"),
+            "단가": st.column_config.NumberColumn("U/Price", min_value=0, step=100, format="%d", disabled=True), # 자동계산
+            "공급가": st.column_config.NumberColumn("Total", disabled=True, format="%d"),
+            "비고": st.column_config.TextColumn("Remark"),
         }
     )
     
+    # [핵심] 자동 계산 로직 (PDF 기준)
     if not edited.empty:
-        edited['수량'] = pd.to_numeric(edited['수량'], errors='coerce').fillna(0)
-        edited['단가'] = pd.to_numeric(edited['단가'], errors='coerce').fillna(0)
-        edited['공급가'] = edited['수량'] * edited['단가']
-        
+        for i, row in edited.iterrows():
+            try:
+                w, h = float(row['W(mm)']), float(row['H(mm)'])
+                qty = float(row['수량'])
+                
+                if w > 0 and h > 0:
+                    # 1. 100mm 단위 절상
+                    rw = math.ceil(w / 100) * 100
+                    rh = math.ceil(h / 100) * 100
+                    area = (rw * rh) / 1_000_000 # m2
+                    
+                    # 2. 기본 단가 (300,150원)
+                    base_price = 300150
+                    
+                    # 3. 할증 (Premium)
+                    p_w = 0
+                    if rw <= 1200: p_w = 0
+                    elif rw <= 1500: p_w = 0.05
+                    elif rw <= 1800: p_w = 0.10
+                    elif rw <= 2000: p_w = 0.15
+                    
+                    p_h = 0
+                    if rh <= 2000: p_h = 0
+                    elif rh <= 2400: p_h = 0.05 # 2200, 2400 grouped
+                    elif rh <= 2800: p_h = 0.10 # 2600, 2800 grouped
+                    elif rh <= 3200: p_h = 0.15 # 3000, 3200 grouped
+                    
+                    # 4. 계수 (Factor)
+                    f_glass = 1.12 if "Low" in str(row['유리']) else 1.0
+                    f_thick = 1.0
+                    if "5+5" in str(row['두께']): f_thick = 1.08
+                    elif "6+6" in str(row['두께']): f_thick = 1.15
+                    
+                    # 최종 단가 (장당 가격) = m2단가 * 면적
+                    unit_m2_price = base_price * f_glass * f_thick * (1 + p_w + p_h)
+                    unit_sheet_price = unit_m2_price * area
+                    
+                    # 결과 업데이트
+                    edited.at[i, 'Sqm'] = f"{area:.2f}"
+                    edited.at[i, '단가'] = round(unit_sheet_price, -2) # 10원 단위 반올림
+                    edited.at[i, '공급가'] = edited.at[i, '단가'] * qty
+                    
+                    # 세부내용 자동 생성
+                    edited.at[i, '세부내용'] = f"{int(w)}*{int(h)} / {row['유리']} / {row['두께']}"
+                else:
+                    # 사이즈 없는 항목 (시공비 등)은 수기 입력 단가 사용
+                    edited.at[i, '공급가'] = row['단가'] * qty
+                    
+            except: pass # 빈 행 무시
+
         total_supply = int(edited['공급가'].sum())
         total_vat = int(total_supply * 0.1)
         grand_total = total_supply + total_vat
