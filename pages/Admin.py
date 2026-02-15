@@ -181,7 +181,7 @@ def get_access_qr_content_html(url):
     img = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
     return f'<div style="text-align:center; padding-top:50mm;"><div style="border:5px solid black; padding:30px; display:inline-block; border-radius:20px;"><div style="font-size:30pt; font-weight:900;">🏭 시스템 접속 QR</div><br><img src="data:image/png;base64,{img}" style="width:350px;"></div></div>'
 
-# 10. [업그레이드] 견적서 HTML (수신처 칸 수정 및 하단 내용 추가)
+# 10. [업그레이드] 견적서 HTML (수신처 정렬 완벽 수정)
 def get_quotation_html(cust_data, items_df, totals):
     logo = ""
     if os.path.exists("pages/company_logo.png"):
@@ -192,121 +192,74 @@ def get_quotation_html(cust_data, items_df, totals):
     today = datetime.now().strftime("%Y-%m-%d")
     q_no = f"BR{datetime.now().strftime('%Y%m%d')}-01"
     
-    # [수정된 HTML]
+    # [수정 포인트] 테이블 row 높이를 고정(height: 30px)하여 좌우 대칭을 맞춤
+    row_h = "height: 28px;" 
+    
     html = f"""<html><head><style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
     body {{ font-family: 'Noto Sans KR', sans-serif; font-size: 11px; margin: 0; padding: 20px; }}
     table {{ width: 100%; border-collapse: collapse; border: 1px solid #000; }}
-    th, td {{ border: 1px solid #000; padding: 4px 6px; }}
-    .title {{ text-align: center; font-size: 32px; font-weight: 900; margin-bottom: 25px; letter-spacing: 10px; }}
+    th, td {{ border: 1px solid #000; padding: 2px 5px; vertical-align: middle; }}
+    
+    .title {{ text-align: center; font-size: 32px; font-weight: 900; margin-bottom: 20px; letter-spacing: 10px; }}
     .grey {{ background-color: #e0e0e0; text-align: center; font-weight: bold; }}
     .txt-c {{ text-align: center; }} .txt-r {{ text-align: right; }} .txt-l {{ text-align: left; }}
     .no-b {{ border: none; }}
     </style></head><body>
     <div class="title">견 적 서</div>
     
-    <table style="margin-bottom:10px;">
-        <tr>
-            <td rowspan="4" width="20%" class="txt-c no-b" style="border:1px solid #000;">
-                <img src="data:image/png;base64,{logo}" style="max-width:120px; display:block; margin:auto;">
+    <table style="margin-bottom:5px;">
+        <tr style="{row_h}">
+            <td rowspan="4" width="20%" class="txt-c no-b" style="border:1px solid #000; padding:5px;">
+                <img src="data:image/png;base64,{logo}" style="max-width:110px; display:block; margin:auto;">
             </td>
             <td class="grey" width="12%">사업자등록번호</td>
             <td colspan="3" class="txt-c">108-81-49494</td>
             <td class="grey" width="10%">대표자</td>
             <td class="txt-c" width="10%">이 광 석</td>
         </tr>
-        <tr>
-            <td class="grey">상 호</td>
-            <td colspan="3" class="txt-c">(주)베스트룸</td>
-            <td class="grey"></td>
-            <td></td>
-        </tr>
-        <tr>
-            <td class="grey">주 소</td>
-            <td colspan="5" class="txt-c">강원도 강릉시 과학단지로 106-40</td>
-        </tr>
-        <tr>
-            <td class="grey">전 화</td>
-            <td colspan="3" class="txt-c">033 655 2745</td>
-            <td class="grey">이메일</td>
-            <td></td>
-        </tr>
+        <tr style="{row_h}"><td class="grey">상 호</td><td colspan="3" class="txt-c">(주)베스트룸</td><td class="grey"></td><td></td></tr>
+        <tr style="{row_h}"><td class="grey">주 소</td><td colspan="5" class="txt-c">강원도 강릉시 과학단지로 106-40</td></tr>
+        <tr style="{row_h}"><td class="grey">전 화</td><td colspan="3" class="txt-c">033 655 2745</td><td class="grey">이메일</td><td></td></tr>
     </table>
 
     <table style="border:none; margin-bottom:0;">
         <tr>
-            <td width="40%" style="vertical-align:top; padding:0; border:none;">
+            <td width="40%" style="padding:0; border:none; vertical-align:top;">
                 <table style="width:100%; border-right:none; border-bottom:none;">
-                    <tr>
-                        <td rowspan="2" class="grey" width="15%" style="vertical-align:middle; line-height:1.2;">수신처</td>
-                        <td class="grey" width="25%" style="color:#0033cc;">고객사</td>
+                    <tr style="{row_h}">
+                        <td rowspan="2" class="grey" width="18%" style="vertical-align:middle;">수신처</td>
+                        <td class="grey" width="22%" style="color:#0033cc;">고객사</td>
                         <td class="txt-c" style="color:#0033cc; font-weight:bold;">{cust_data['name']}</td>
                     </tr>
-                    <tr>
-                        <td class="grey">참 조</td>
-                        <td class="txt-c">{cust_data['ref']}</td>
-                    </tr>
-                    <tr>
-                        <td class="grey">연 락 처</td>
-                        <td colspan="2" class="txt-c">{cust_data['contact']}</td>
-                    </tr>
-                    <tr>
-                        <td class="grey">팩 스</td>
-                        <td colspan="2" class="txt-c">{cust_data.get('fax','')}</td>
-                    </tr>
-                    <tr>
-                        <td class="grey">E - mail</td>
-                        <td colspan="2" class="txt-c">{cust_data.get('email','')}</td>
-                    </tr>
+                    <tr style="{row_h}"><td class="grey">참 조</td><td class="txt-c">{cust_data['ref']}</td></tr>
+                    <tr style="{row_h}"><td class="grey">연락처</td><td colspan="2" class="txt-c">{cust_data['contact']}</td></tr>
+                    <tr style="{row_h}"><td class="grey">팩 스</td><td colspan="2" class="txt-c">{cust_data.get('fax','')}</td></tr>
+                    <tr style="{row_h}"><td class="grey">E-mail</td><td colspan="2" class="txt-c">{cust_data.get('email','')}</td></tr>
                 </table>
             </td>
             
-            <td width="60%" style="vertical-align:top; padding:0; border:none;">
+            <td width="60%" style="padding:0; border:none; vertical-align:top;">
                 <table style="width:100%; border-left:none; border-bottom:none;">
-                    <tr>
-                        <td class="grey" width="25%">발행일자 / 유효기간</td>
-                        <td class="txt-c">{today} &nbsp; / &nbsp; 30일</td>
-                    </tr>
-                    <tr>
-                        <td class="grey">결 제 조 건</td>
-                        <td class="txt-c">Remark 참고</td>
-                    </tr>
-                    <tr>
-                        <td class="grey">결 제 계 좌</td>
-                        <td class="txt-c"></td>
-                    </tr>
-                    <tr>
-                        <td class="grey">담당자 (책임 업무)</td>
-                        <td class="txt-c">김명자 이사 (010 3439 0936)</td>
-                    </tr>
-                    <tr>
-                        <td class="grey">담당자 (기타 지원)</td>
-                        <td class="txt-c"></td>
-                    </tr>
+                    <tr style="{row_h}"><td class="grey" width="25%">발행일자 / 유효기간</td><td class="txt-c">{today} &nbsp; / &nbsp; 30일</td></tr>
+                    <tr style="{row_h}"><td class="grey">결 제 조 건</td><td class="txt-c">Remark 참고</td></tr>
+                    <tr style="{row_h}"><td class="grey">결 제 계 좌</td><td class="txt-c"></td></tr>
+                    <tr style="{row_h}"><td class="grey">담당자 (책임 업무)</td><td class="txt-c">김명자 이사 (010 3439 0936)</td></tr>
+                    <tr style="{row_h}"><td class="grey">담당자 (기타 지원)</td><td class="txt-c"></td></tr>
                 </table>
             </td>
         </tr>
     </table>
     
     <table style="margin-top:0; border-top:1px solid #000;">
-        <tr>
-            <td class="grey" width="15%">견적서 번호</td>
-            <td class="txt-c" style="font-weight:bold;">{q_no}</td>
-        </tr>
+        <tr style="{row_h}"><td class="grey" width="15%">견적서 번호</td><td class="txt-c" style="font-weight:bold;">{q_no}</td></tr>
     </table>
 
     <div style="text-align:center; font-weight:bold; margin:15px 0;">아래와 같이 견적 합니다.</div>
 
     <table style="margin-top:5px;">
         <tr class="grey" style="height:35px;">
-            <td width="8%">Section</td>
-            <td width="20%">Description</td>
-            <td width="15%">세부내용</td>
-            <td width="7%">Sqm</td>
-            <td width="5%">Q'ty</td>
-            <td width="12%">U/Price</td>
-            <td width="13%">Total</td>
-            <td width="20%">Remark</td>
+            <td width="8%">Section</td><td width="20%">Description</td><td width="15%">세부내용</td><td width="7%">Sqm</td><td width="5%">Q'ty</td><td width="12%">U/Price</td><td width="13%">Total</td><td width="20%">Remark</td>
         </tr>
     """
     
@@ -339,7 +292,7 @@ def get_quotation_html(cust_data, items_df, totals):
         </tr>
     </table>
     
-    <div style="margin-top:20px; font-size:11px; line-height:1.6; border:1px solid #ddd; padding:10px; border-radius:5px;">
+    <div style="margin-top:20px; font-size:11px; line-height:1.6; border:1px solid #000; padding:10px; border-radius:5px;">
         <b>※ Remark (참고사항)</b><br>
         1. 납품기일은 협의 입니다.<br>
         2. CONTROLLER 포함<br>
@@ -525,7 +478,7 @@ with tab9:
     st.components.v1.html(html, height=500)
     if st.button("🖨️ 접속 QR 인쇄"): components.html(generate_print_html(html), height=0)
 
-# Tab 10: 견적서 (이미지 양식 완벽 복원)
+# Tab 10: 견적서
 with tab10:
     st.markdown("### 📑 견적서 작성")
     c1, c2, c3 = st.columns(3)
