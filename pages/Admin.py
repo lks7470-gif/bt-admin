@@ -181,7 +181,7 @@ def get_access_qr_content_html(url):
     img = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
     return f'<div style="text-align:center; padding-top:50mm;"><div style="border:5px solid black; padding:30px; display:inline-block; border-radius:20px;"><div style="font-size:30pt; font-weight:900;">🏭 시스템 접속 QR</div><br><img src="data:image/png;base64,{img}" style="width:350px;"></div></div>'
 
-# 10. [업그레이드] 견적서 HTML (이메일 확장, 합계 검정색, 1페이지 인쇄)
+# 10. [업그레이드] 견적서 HTML (소계 기능 추가)
 def get_quotation_html(cust_data, items_df, totals):
     logo = ""
     if os.path.exists("pages/company_logo.png"):
@@ -203,6 +203,7 @@ def get_quotation_html(cust_data, items_df, totals):
     .grey {{ background-color: #e0e0e0; text-align: center; font-weight: bold; }}
     .txt-c {{ text-align: center; }} .txt-r {{ text-align: right; }} .txt-l {{ text-align: left; }}
     .no-b {{ border: none; }}
+    .sub-row {{ background-color: #f9fbe7; font-weight: bold; }}
     </style></head><body>
     <div class="title">견 적 서</div>
     <table style="margin-bottom:5px;">
@@ -240,19 +241,64 @@ def get_quotation_html(cust_data, items_df, totals):
         <tr style="{row_h}"><td class="grey" width="15%">견적서 번호</td><td class="txt-c" style="font-weight:bold;">{q_no}</td></tr>
     </table>
     <div style="text-align:center; font-weight:bold; margin:10px 0;">아래와 같이 견적 합니다.</div>
+    
     <table style="margin-top:5px;">
         <tr class="grey" style="height:30px;">
             <td width="8%">Section</td><td width="20%">Description</td><td width="15%">세부내용</td><td width="7%">Sqm</td><td width="5%">Q'ty</td><td width="12%">U/Price</td><td width="13%">Total</td><td width="20%">Remark</td>
         </tr>
     """
     
-    for _, row in items_df.iterrows():
-        p = f"{int(row['단가']):,}" if row['단가'] > 0 else ""
-        t = f"{int(row['공급가']):,}" if row['공급가'] > 0 else ""
-        bg = "background-color:#f9fbe7;" if row['구분'] and not row['품명'] else ""
-        html += f"""<tr style="height:25px; {bg}"><td class="txt-c" style="font-weight:bold;">{row['구분']}</td><td class="txt-l" style="padding-left:5px;">{row['품명']}</td><td class="txt-c">{row['세부내용']}</td><td class="txt-c">{row['Sqm']}</td><td class="txt-c">{row['수량']}</td><td class="txt-r" style="padding-right:5px;">{p}</td><td class="txt-r" style="padding-right:5px;">{t}</td><td class="txt-l" style="padding-left:5px; font-size:10px;">{row['비고']}</td></tr>"""
+    # [소계 로직 적용]
+    # 자재비(Material)와 시공비(Construction) 그룹핑
+    mat_df = items_df[items_df['구분'].str.contains("자재", na=False)]
+    con_df = items_df[items_df['구분'].str.contains("시공", na=False)]
+    etc_df = items_df[~items_df['구분'].str.contains("자재|시공", na=False)]
+    
+    def add_rows(df, sub_label):
+        rows_html = ""
+        sub_total = 0
+        for _, row in df.iterrows():
+            p = f"{int(row['단가']):,}" if row['단가'] > 0 else ""
+            t = f"{int(row['공급가']):,}" if row['공급가'] > 0 else ""
+            sub_total += int(row['공급가'])
+            
+            # 섹션 이름은 첫 줄에만 표시하거나, 반복 표시
+            sect = row['구분']
+            
+            rows_html += f"""
+            <tr style="height:25px;">
+                <td class="txt-c">{sect}</td>
+                <td class="txt-l" style="padding-left:5px;">{row['품명']}</td>
+                <td class="txt-c">{row['세부내용']}</td>
+                <td class="txt-c">{row['Sqm']}</td>
+                <td class="txt-c">{row['수량']}</td>
+                <td class="txt-r" style="padding-right:5px;">{p}</td>
+                <td class="txt-r" style="padding-right:5px;">{t}</td>
+                <td class="txt-l" style="padding-left:5px; font-size:10px;">{row['비고']}</td>
+            </tr>
+            """
+        # 소계 행 추가
+        if sub_total > 0:
+            rows_html += f"""
+            <tr class="sub-row" style="height:25px;">
+                <td colspan="6" class="txt-c">{sub_label} 소계</td>
+                <td class="txt-r" style="padding-right:5px;">{sub_total:,}</td>
+                <td></td>
+            </tr>
+            """
+        return rows_html
+
+    # 자재비 출력
+    html += add_rows(mat_df, "자재비")
+    # 시공비 출력
+    html += add_rows(con_df, "시공비")
+    # 기타 항목 출력
+    html += add_rows(etc_df, "기타")
         
-    for _ in range(max(0, 15 - len(items_df))): html += '<tr style="height:25px;"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'
+    # 빈 줄 채우기 (최소 높이 유지용)
+    total_rows = len(mat_df) + len(con_df) + len(etc_df) + 2 # 소계 행 고려
+    for _ in range(max(0, 15 - total_rows)): 
+        html += '<tr style="height:25px;"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'
     
     html += f"""
         <tr style="background-color:#fff3e0; height:28px; font-weight:bold;">
@@ -282,12 +328,11 @@ if 'order_list' not in st.session_state: st.session_state.order_list = []
 if 'generated_qrs' not in st.session_state: st.session_state.generated_qrs = []
 if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 
-# [자동 계산을 위한 초기 데이터 확장]
+# [데이터 구조: 구분(Section) 기본값 지정]
 if 'quote_items' not in st.session_state: 
-    # 기본 행 생성
     st.session_state.quote_items = pd.DataFrame([
         {"구분": "자재비", "품명": "SMART 뷰 유리", "세부내용": "1200*2400 / Clear / 4+4", "W(mm)": 1200, "H(mm)": 2400, "유리": "Clear", "두께": "4+4", "Sqm": 2.88, "수량": 1, "단가": 912000, "공급가": 0, "비고": ""},
-        {"구분": "", "품명": "", "세부내용": "스위치 타입", "W(mm)":0, "H(mm)":0, "유리":"", "두께":"", "Sqm": "", "수량": 1, "단가": 75000, "공급가": 0, "비고": ""},
+        {"구분": "자재비", "품명": "부자재", "세부내용": "스위치 타입", "W(mm)":0, "H(mm)":0, "유리":"", "두께":"", "Sqm": "", "수량": 1, "단가": 75000, "공급가": 0, "비고": ""},
         {"구분": "시공비", "품명": "시공비", "세부내용": "", "W(mm)":0, "H(mm)":0, "유리":"", "두께":"", "Sqm": "", "수량": 1, "단가": 350000, "공급가": 0, "비고": "1일 시공"}
     ])
 
@@ -298,7 +343,7 @@ if st.sidebar.button("🔄 재고 정보 새로고침", use_container_width=True
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs(["📝 작업 입력", "📄 지시서 인쇄", "🏷️ 라벨 인쇄", "🔄 QR 재발행", "🧵 원단 재고", "📊 발행 이력", "🔍 제품 추적", "🚨 불량 현황", "📱 접속 QR", "📑 견적서 작성"])
 
-# ... (Tab 1 ~ Tab 9 는 기존 코드와 동일)
+# ... (Tab 1 ~ Tab 9 는 기존과 동일하므로 생략하지 않고 전체 코드 제공)
 with tab1:
     st.markdown("### 📝 신규 작업 지시 등록")
     if not st.session_state.fabric_db: st.session_state.fabric_db = fetch_fabric_stock()
@@ -429,9 +474,9 @@ with tab9:
     st.components.v1.html(html, height=500)
     if st.button("🖨️ 접속 QR 인쇄"): components.html(generate_print_html(html), height=0)
 
-# Tab 10: 견적서 (자동 계산 탑재)
+# Tab 10: 견적서 (소계 기능 탑재)
 with tab10:
-    st.markdown("### 📑 견적서 작성 (자동 계산)")
+    st.markdown("### 📑 견적서 작성 (자동 계산 + 소계)")
     c1, c2, c3 = st.columns(3)
     q_cust = c1.text_input("고객사명", placeholder="예: 에코하우징")
     q_ref = c2.text_input("참조", placeholder="예: 조성옥 대표님")
@@ -439,9 +484,8 @@ with tab10:
     q_fax = st.text_input("팩스", placeholder="")
     q_email = st.text_input("E-mail", placeholder="")
     
-    st.info("💡 가로/세로, 유리종류, 두께를 입력하면 단가와 면적(Sqm)이 자동 계산됩니다.")
+    st.info("💡 '구분'란에 '자재비', '시공비'를 입력하면 자동으로 분류되어 합계가 계산됩니다.")
     
-    # 엑셀 편집기 (입력용 컬럼 추가)
     edited = st.data_editor(
         st.session_state.quote_items,
         num_rows="dynamic",
@@ -453,16 +497,15 @@ with tab10:
             "H(mm)": st.column_config.NumberColumn("세로(mm)", step=10),
             "유리": st.column_config.SelectboxColumn("유리종류", options=["Clear", "Low iron", "Dark grey"], default="Clear"),
             "두께": st.column_config.SelectboxColumn("두께", options=["4+4", "5+5", "6+6"], default="4+4"),
-            "세부내용": st.column_config.TextColumn("Details", disabled=True), # 자동생성
-            "Sqm": st.column_config.TextColumn("Sqm", disabled=True),       # 자동계산
+            "세부내용": st.column_config.TextColumn("Details", disabled=True),
+            "Sqm": st.column_config.TextColumn("Sqm", disabled=True),
             "수량": st.column_config.NumberColumn("Q'ty", min_value=0, step=1),
-            "단가": st.column_config.NumberColumn("U/Price", min_value=0, step=100, format="%d", disabled=True), # 자동계산
+            "단가": st.column_config.NumberColumn("U/Price", min_value=0, step=100, format="%d", disabled=True),
             "공급가": st.column_config.NumberColumn("Total", disabled=True, format="%d"),
             "비고": st.column_config.TextColumn("Remark"),
         }
     )
     
-    # [핵심] 자동 계산 로직 (PDF 기준)
     if not edited.empty:
         for i, row in edited.iterrows():
             try:
@@ -470,49 +513,36 @@ with tab10:
                 qty = float(row['수량'])
                 
                 if w > 0 and h > 0:
-                    # 1. 100mm 단위 절상
                     rw = math.ceil(w / 100) * 100
                     rh = math.ceil(h / 100) * 100
-                    area = (rw * rh) / 1_000_000 # m2
+                    area = (rw * rh) / 1_000_000
                     
-                    # 2. 기본 단가 (300,150원)
                     base_price = 300150
+                    p_w = 0; p_h = 0
+                    if rw > 2000: p_w = 0.15
+                    elif rw > 1800: p_w = 0.10
+                    elif rw > 1500: p_w = 0.05
                     
-                    # 3. 할증 (Premium)
-                    p_w = 0
-                    if rw <= 1200: p_w = 0
-                    elif rw <= 1500: p_w = 0.05
-                    elif rw <= 1800: p_w = 0.10
-                    elif rw <= 2000: p_w = 0.15
+                    if rh > 3200: p_h = 0.15
+                    elif rh > 2800: p_h = 0.10
+                    elif rh > 2400: p_h = 0.05
+                    elif rh > 2000: p_h = 0.0
                     
-                    p_h = 0
-                    if rh <= 2000: p_h = 0
-                    elif rh <= 2400: p_h = 0.05 # 2200, 2400 grouped
-                    elif rh <= 2800: p_h = 0.10 # 2600, 2800 grouped
-                    elif rh <= 3200: p_h = 0.15 # 3000, 3200 grouped
-                    
-                    # 4. 계수 (Factor)
                     f_glass = 1.12 if "Low" in str(row['유리']) else 1.0
                     f_thick = 1.0
                     if "5+5" in str(row['두께']): f_thick = 1.08
                     elif "6+6" in str(row['두께']): f_thick = 1.15
                     
-                    # 최종 단가 (장당 가격) = m2단가 * 면적
                     unit_m2_price = base_price * f_glass * f_thick * (1 + p_w + p_h)
                     unit_sheet_price = unit_m2_price * area
                     
-                    # 결과 업데이트
                     edited.at[i, 'Sqm'] = f"{area:.2f}"
-                    edited.at[i, '단가'] = round(unit_sheet_price, -2) # 10원 단위 반올림
+                    edited.at[i, '단가'] = round(unit_sheet_price, -2)
                     edited.at[i, '공급가'] = edited.at[i, '단가'] * qty
-                    
-                    # 세부내용 자동 생성
                     edited.at[i, '세부내용'] = f"{int(w)}*{int(h)} / {row['유리']} / {row['두께']}"
                 else:
-                    # 사이즈 없는 항목 (시공비 등)은 수기 입력 단가 사용
                     edited.at[i, '공급가'] = row['단가'] * qty
-                    
-            except: pass # 빈 행 무시
+            except: pass
 
         total_supply = int(edited['공급가'].sum())
         total_vat = int(total_supply * 0.1)
