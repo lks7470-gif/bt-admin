@@ -147,7 +147,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
         </div></div>"""
     return html + "</div></body></html>"
 
-# 8. 작업지시서 A4 2x4 HTML
+# 8. 작업지시서 A4 2x4 HTML (접합생략 강조 및 디자인 수정)
 def get_work_order_html(items):
     html = """<html><head><style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
@@ -167,10 +167,12 @@ def get_work_order_html(items):
         html += f'<div style="width:100%; text-align:center; font-size:20pt; font-weight:900; margin-bottom:3mm; text-decoration:underline;">작업 지시서 (Work Order)</div><div style="display:flex; flex-wrap:wrap; justify-content:space-between; width:100%;">'
         
         for item in chunk:
+            # [수정] QR 하이픈 제거
             qr_clean = item['lot'].replace("-", "") 
             qr = qrcode.QRCode(box_size=5, border=0); qr.add_data(qr_clean); qr.make(fit=True)
             img_b64 = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
             
+            # [수정] 접합생략 빨간 취소선 + 필름마감 정상 표시
             is_lam = True
             lam_cond = item.get('spec_lam', '-')
             if "생략" in lam_cond or "없음" in lam_cond or "단품" in lam_cond or lam_cond == "-": is_lam = False
@@ -180,6 +182,7 @@ def get_work_order_html(items):
             else:
                 lam_display = f"<span style='color:#000;'>{lam_cond}</span>"
 
+            # [수정] 규격 숫자 (동일 28px, 선택된 방향만 ExtraBold+Underline)
             w, h, elec = item['w'], item['h'], item['elec']
             base_css = "font-size: 28px; color: #000; margin: 0 2px;"
             w_css = base_css + ("font-weight: 900; text-decoration: underline;" if "가로" in elec or "W" in elec.upper() else "font-weight: 500; color: #555;")
@@ -217,7 +220,7 @@ def get_access_qr_content_html(url, mode="big"):
     img_b64 = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
     return f'<div style="text-align:center; padding-top:50mm;"><div style="border:5px solid black; padding:30px; display:inline-block; border-radius:20px;"><div style="font-size:30pt; font-weight:900;">🏭 시스템 접속 QR</div><br><img src="data:image/png;base64,{img_b64}" style="width:350px;"></div></div>'
 
-# 10. 견적서 HTML
+# 10. [업그레이드] 견적서 HTML (이미지 양식 완벽 복원)
 def get_quotation_html(cust_data, items_df, totals):
     logo_base64 = ""
     if os.path.exists("pages/company_logo.png"):
@@ -226,39 +229,108 @@ def get_quotation_html(cust_data, items_df, totals):
         with open("company_logo.png", "rb") as f: logo_base64 = base64.b64encode(f.read()).decode()
             
     today_str = datetime.now().strftime("%Y-%m-%d")
+    
+    # 이미지에 나온 양식 그대로 HTML 작성
     html = f"""<html><head><style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
     body {{ font-family: 'Noto Sans KR', sans-serif; font-size: 11px; margin: 0; padding: 20px; }}
     table {{ width: 100%; border-collapse: collapse; border: 1px solid #000; }} th, td {{ border: 1px solid #000; padding: 4px 6px; }}
-    .title {{ text-align: center; font-size: 30px; font-weight: 900; margin-bottom: 25px; letter-spacing: 10px; }}
+    
+    .title {{ text-align: center; font-size: 30px; font-weight: 900; margin-bottom: 20px; letter-spacing: 10px; }}
+    
     .header-layout {{ width: 100%; border: none; margin-bottom: 10px; }} .header-layout td {{ border: none; padding: 0; vertical-align: top; }}
-    .info-box {{ width: 100%; border: 2px solid #000; }} .info-box td {{ border: 1px solid #000; }}
+    
+    .info-box {{ width: 100%; border: 2px solid #000; }} .info-box td {{ border: 1px solid #000; height: 25px; }}
     .label-cell {{ background-color: #e0e0e0; text-align: center; font-weight: bold; width: 80px; }}
-    .item-table {{ width: 100%; margin-top: 5px; border: 2px solid #000; }}
-    .item-header {{ background-color: #f2f2f2; text-align: center; font-weight: bold; height: 30px; }}
-    .item-row td {{ height: 24px; font-size: 11px; }}
-    .txt-c {{ text-align: center; }} .txt-r {{ text-align: right; padding-right: 5px; }}
+    .val-cell {{ text-align: center; font-weight: bold; }}
+    .blue-txt {{ color: #0033cc; font-weight: bold; }}
+    
+    .item-table {{ width: 100%; margin-top: 10px; border: 2px solid #000; }}
+    .item-header {{ background-color: #f2f2f2; text-align: center; font-weight: bold; height: 35px; }}
+    .item-row td {{ height: 28px; font-size: 11px; vertical-align: middle; }}
+    
+    .txt-c {{ text-align: center; }} 
+    .txt-r {{ text-align: right; padding-right: 5px; }}
+    .txt-l {{ text-align: left; padding-left: 5px; }}
+    
+    .section-header {{ background-color: #f9fbe7; font-weight: bold; }}
     </style></head><body>
+    
     <div class="title">견 적 서</div>
-    <table class="header-layout"><tr><td width="48%"><table class="info-box">
-    <tr><td class="label-cell">수신처</td><td class="value-cell" style="font-weight:bold; color:#0033cc;">{cust_data['name']}</td></tr>
-    <tr><td class="label-cell">참 조</td><td class="value-cell">{cust_data['ref']}</td></tr>
-    </table></td><td width="4%"></td><td width="48%"><table class="info-box">
-    <tr><td rowspan="4" width="20%" style="text-align:center;"><img src="data:image/png;base64,{logo_base64}" style="max-width:80px;"></td><td class="label-cell">등록번호</td><td colspan="3">108-81-49494</td></tr>
-    <tr><td class="label-cell">상 호</td><td>(주)베스트룸</td><td class="label-cell">대표</td><td>이 광 석</td></tr>
-    <tr><td class="label-cell">주 소</td><td colspan="3" style="font-size:10px;">강원도 강릉시 과학단지로 106-40</td></tr>
-    <tr><td class="label-cell">전 화</td><td>033-655-2745</td><td class="label-cell">담당</td><td>김명자 이사</td></tr>
-    </table></td></tr></table>
-    <table class="item-table"><tr class="item-header"><td>구분</td><td>품명</td><td>수량</td><td>단가</td><td>공급가액</td><td>비고</td></tr>"""
+    
+    <table class="header-layout">
+        <tr>
+            <td width="48%">
+                <table class="info-box">
+                    <tr><td rowspan="4" width="25%" style="text-align:center;"><img src="data:image/png;base64,{logo_base64}" style="max-width:100px;"></td><td class="label-cell">사업자번호</td><td colspan="3" class="val-cell">108-81-49494</td></tr>
+                    <tr><td class="label-cell">상 호</td><td class="val-cell">(주)베스트룸</td><td class="label-cell">대표자</td><td class="val-cell">이 광 석</td></tr>
+                    <tr><td class="label-cell">주 소</td><td colspan="3" class="val-cell" style="font-size:10px;">강원도 강릉시 과학단지로 106-40</td></tr>
+                    <tr><td class="label-cell">전 화</td><td colspan="3" class="val-cell">033-655-2745 / Fax: 033-655-2746</td></tr>
+                </table>
+            </td>
+            <td width="4%"></td>
+            <td width="48%">
+                <table class="info-box">
+                    <tr><td class="label-cell" style="color:blue;">고객사</td><td class="val-cell blue-txt">{cust_data['name']}</td><td class="label-cell">발행일자</td><td class="val-cell">{today_str}</td></tr>
+                    <tr><td class="label-cell">참 조</td><td class="val-cell">{cust_data['ref']}</td><td class="label-cell">유효기간</td><td class="val-cell">30일</td></tr>
+                    <tr><td class="label-cell">연락처</td><td class="val-cell">{cust_data['contact']}</td><td class="label-cell">결제조건</td><td class="val-cell">Remark 참고</td></tr>
+                    <tr><td class="label-cell">담당자</td><td colspan="3" class="val-cell">{cust_data['manager']}</td></tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+    
+    <div style="margin: 15px 0 5px 0; font-weight:bold; font-size:12px; text-align:center;">아래와 같이 견적 합니다.</div>
+    
+    <table class="item-table">
+        <tr class="item-header">
+            <td width="10%">Section</td><td width="25%">Description / 세부내용</td><td width="8%">Sqm</td><td width="5%">Q'ty</td><td width="12%">U/Price</td><td width="15%">Total</td><td width="20%">Remark</td>
+        </tr>
+    """
     
     for _, row in items_df.iterrows():
-        price = f"{int(row['단가']):,}" if row['단가'] else "-"
-        total = f"{int(row['공급가']):,}" if row['공급가'] else "-"
-        html += f"""<tr class="item-row"><td class="txt-c">{row['구분']}</td><td>{row['품명']}</td><td class="txt-c">{row['수량']}</td><td class="txt-r">{price}</td><td class="txt-r">{total}</td><td>{row['비고']}</td></tr>"""
+        # 천단위 콤마 (값이 없으면 빈칸)
+        price = f"{int(row['단가']):,}" if row['단가'] > 0 else ""
+        total = f"{int(row['공급가']):,}" if row['공급가'] > 0 else ""
         
-    for _ in range(max(0, 15 - len(items_df))): html += '<tr class="item-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>'
+        # Section이 있으면(자재비, 시공비 등) 배경색 넣기
+        row_style = "background-color:#f9fbe7; font-weight:bold;" if row['구분'] and not row['품명'] else ""
+        
+        html += f"""
+        <tr class="item-row" style="{row_style}">
+            <td class="txt-c">{row['구분']}</td>
+            <td class="txt-l">
+                <div style="font-weight:bold;">{row['품명']}</div>
+                <div style="font-size:10px; color:#555;">{row['세부내용']}</div>
+            </td>
+            <td class="txt-c">{row['Sqm']}</td>
+            <td class="txt-c">{row['수량']}</td>
+            <td class="txt-r">{price}</td>
+            <td class="txt-r">{total}</td>
+            <td class="txt-l">{row['비고']}</td>
+        </tr>
+        """
+        
+    # 빈 줄 채우기
+    for _ in range(max(0, 15 - len(items_df))): 
+        html += '<tr class="item-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'
     
-    html += f"""<tr style="background-color:#fff5e6; font-weight:bold; height:30px;"><td colspan="4" class="txt-c">합 계</td><td colspan="2" class="txt-r" style="color:#cc0000; font-size:14px;">₩ {totals['grand_total']:,}</td></tr></table></body></html>"""
+    html += f"""
+        <tr style="background-color:#fff3e0; font-weight:bold; height:35px;">
+            <td colspan="4" class="txt-c">공급가액 : {totals['supply']:,} &nbsp; / &nbsp; 부가세(VAT) : {totals['vat']:,}</td>
+            <td class="txt-c" style="background-color:#ffe0b2;">합 계</td>
+            <td colspan="2" class="txt-r" style="font-size:14px; color:#d32f2f; padding-right:15px;">₩ {totals['grand_total']:,}</td>
+        </tr>
+    </table>
+    
+    <div style="margin-top:20px; font-size:11px; line-height:1.6;">
+        <b>※ 참고사항 (Remark)</b><br>
+        1. 결제계좌: [기업은행] 033-655-2745 ((주)베스트룸)<br>
+        2. 납기는 발주 후 협의 바랍니다.<br>
+        3. 시공비는 현장 상황에 따라 변동될 수 있습니다.
+    </div>
+    
+    </body></html>"""
     return html
 
 # ==========================================
@@ -268,7 +340,14 @@ APP_URL = "https://bt-app-pwgumeleefkwpf3xsu5bob.streamlit.app/"
 if 'order_list' not in st.session_state: st.session_state.order_list = []
 if 'generated_qrs' not in st.session_state: st.session_state.generated_qrs = []
 if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
-if 'quote_items' not in st.session_state: st.session_state.quote_items = pd.DataFrame([{"구분": "자재비", "품명": "SMART 뷰 유리", "수량": 1, "단위": "EA", "단가": 0, "공급가": 0, "비고": ""}])
+
+# [견적서용 초기 데이터 구조 변경]
+if 'quote_items' not in st.session_state: 
+    st.session_state.quote_items = pd.DataFrame([
+        {"구분": "자재비", "품명": "SMART 뷰 유리", "세부내용": "800*2200 / 4T 투반강", "Sqm": 1.76, "수량": 1, "단가": 624800, "공급가": 0, "비고": ""},
+        {"구분": "", "품명": "", "세부내용": "스위치 타입", "Sqm": "", "수량": 1, "단가": 75000, "공급가": 0, "비고": ""},
+        {"구분": "시공비", "품명": "시공비", "세부내용": "1일 시공 (2인)", "Sqm": "", "수량": 1, "단가": 350000, "공급가": 0, "비고": "서울 경기 기준"}
+    ])
 
 st.sidebar.title("👨‍💼 지시서 설정")
 if st.sidebar.button("🔄 재고 정보 새로고침", use_container_width=True): 
@@ -417,21 +496,17 @@ with tab6:
         sel_rows = st.data_editor(df.assign(선택=False), column_config={"선택": st.column_config.CheckboxColumn()})
         sel = sel_rows[sel_rows["선택"]]
         if not sel.empty:
-            # [추가] 작업자 상세 로그 조회
             sel_row = sel.iloc[0]
             st.markdown(f"#### 📜 [{sel_row['lot_no']}] 작업자 상세 입력 로그")
             logs = supabase.table("production_logs").select("*").eq("lot_no", sel_row['lot_no']).order("created_at").execute()
-            if logs.data: 
-                # 데이터프레임으로 깔끔하게 보여주기
-                st.dataframe(pd.DataFrame(logs.data)[['step', 'data', 'worker', 'created_at']], use_container_width=True)
+            if logs.data: st.dataframe(pd.DataFrame(logs.data)[['step', 'data', 'worker', 'created_at']], use_container_width=True)
             else: st.warning("작업 이력이 없습니다.")
             
-            st.divider()
             if st.button("🗑️ 삭제 실행", type="primary"):
                 supabase.table("work_orders").delete().in_("lot_no", sel['lot_no'].tolist()).execute()
                 st.rerun()
 
-# [Tab 7] 제품 추적 (복구)
+# [Tab 7] 제품 추적
 with tab7:
     with st.form("track_form"):
         track_lot = st.text_input("추적할 LOT 번호 입력")
@@ -440,34 +515,74 @@ with tab7:
             if r.data: st.dataframe(r.data)
             else: st.error("이력이 없습니다.")
 
-# [Tab 8] 불량 현황 (복구)
+# [Tab 8] 불량 현황
 with tab8:
     st.markdown("### 🚨 불량 등록 현황")
     r = supabase.table("defects").select("*").order("created_at", desc=True).execute()
     if r.data: st.dataframe(r.data)
     else: st.info("불량 내역이 없습니다.")
 
-# [Tab 9] 접속 QR (복구)
+# [Tab 9] 접속 QR
 with tab9:
     html = get_access_qr_content_html(APP_URL)
     st.components.v1.html(html, height=500)
     if st.button("🖨️ 접속 QR 인쇄"): components.html(generate_print_html(html), height=0)
 
-# [Tab 10] 견적서
+# [Tab 10] 견적서 작성 (이미지 양식 완벽 복원)
 with tab10:
-    st.markdown("### 📑 견적서 작성")
-    c1, c2 = st.columns(2)
-    q_cust = c1.text_input("고객사명"); q_ref = c2.text_input("참조")
+    st.markdown("### 📑 견적서 작성 (Quotation)")
     
-    edited = st.data_editor(st.session_state.quote_items, num_rows="dynamic", use_container_width=True)
+    with st.container(border=True):
+        c1, c2, c3 = st.columns(3)
+        q_cust = c1.text_input("고객사명", placeholder="예: 에코하우징")
+        q_ref = c2.text_input("참조 (대표님)", placeholder="예: 조성옥 대표님")
+        q_contact = c3.text_input("연락처", placeholder="예: 010-9941-6763")
+        q_manager = st.text_input("담당자 (베스트룸)", value="김명자 이사 (010-3439-0936)")
+    
+    st.info("👇 아래 표에 품목을 입력하세요. (세부내용, Sqm 항목 추가됨)")
+    
+    # 엑셀 편집기 설정
+    edited = st.data_editor(
+        st.session_state.quote_items,
+        num_rows="dynamic",
+        use_container_width=True,
+        column_config={
+            "구분": st.column_config.TextColumn(width="small", help="자재비/시공비 등"),
+            "품명": st.column_config.TextColumn(width="medium"),
+            "세부내용": st.column_config.TextColumn(width="large", help="규격, 타입 등 상세설명"),
+            "Sqm": st.column_config.TextColumn(width="small", help="면적/헤베"),
+            "수량": st.column_config.NumberColumn(min_value=0, step=1, default=1, width="small"),
+            "단가": st.column_config.NumberColumn(min_value=0, step=100, format="%d원", width="medium"),
+            "공급가": st.column_config.NumberColumn(disabled=True, format="%d원", width="medium"), 
+            "비고": st.column_config.TextColumn(width="medium"),
+        }
+    )
+    
     if not edited.empty:
+        # 계산 로직
         edited['수량'] = pd.to_numeric(edited['수량'], errors='coerce').fillna(0)
         edited['단가'] = pd.to_numeric(edited['단가'], errors='coerce').fillna(0)
         edited['공급가'] = edited['수량'] * edited['단가']
-        total = int(edited['공급가'].sum())
-        vat = int(total * 0.1)
         
-        st.metric("총 합계", f"{total + vat:,} 원")
-        if st.button("🖨️ 견적서 인쇄"):
-            html = get_quotation_html({"name": q_cust, "ref": q_ref}, edited, {"grand_total": total+vat, "supply": total, "vat": vat})
-            components.html(generate_print_html(html), height=0)
+        total_supply = int(edited['공급가'].sum())
+        total_vat = int(total_supply * 0.1)
+        grand_total = total_supply + total_vat
+        
+        st.divider()
+        k1, k2, k3 = st.columns(3)
+        k1.metric("공급가액", f"{total_supply:,} 원")
+        k2.metric("부가세 (10%)", f"{total_vat:,} 원")
+        k3.metric("총 합계", f"{grand_total:,} 원")
+        
+        if st.button("🖨️ 견적서 인쇄 / 미리보기", type="primary", use_container_width=True):
+            if not q_cust: st.warning("고객사명을 입력해주세요.")
+            else:
+                cust_data = {"name": q_cust, "ref": q_ref, "contact": q_contact, "manager": q_manager}
+                totals = {"supply": total_supply, "vat": total_vat, "grand_total": grand_total}
+                
+                html = get_quotation_html(cust_data, edited, totals)
+                
+                # 출력용 iframe
+                components.html(generate_print_html(html), height=0, width=0)
+                # 미리보기
+                st.components.v1.html(html, height=800, scrolling=True)
