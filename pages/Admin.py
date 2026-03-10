@@ -573,11 +573,11 @@ with tab5:
         n_rem = c5.number_input("현재 잔량(m)", min_value=0.0, value=100.0, step=1.0)
         n_short = c6.text_input("단축코드(4자리)", placeholder="예: TA12", help="선택사항")
 
-        if st.form_submit_button("입고 등록"):
+     if st.form_submit_button("입고 등록"):
             if not n_lot or not n_name: 
                 st.error("⚠️ LOT 번호와 제품명은 필수입니다.")
-           else:
-                # 👈 맨 끝에 "reg_date": datetime.now().strftime("%Y-%m-%d") 추가
+            else:
+                # 👇 아래 data 부분을 통째로 교체합니다 (reg_date 추가)
                 data = {
                     "lot_no": n_lot, 
                     "name": n_name, 
@@ -586,7 +586,7 @@ with tab5:
                     "used_len": n_tot - n_rem,
                     "reg_date": datetime.now().strftime("%Y-%m-%d")
                 }
-                if n_short: 
+                if n_short:
                     try:
                         data["short_code"] = n_short
                         supabase.table("fabric_stock").insert(data).execute()
