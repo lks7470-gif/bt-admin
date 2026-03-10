@@ -559,7 +559,7 @@ with tab4:
                 html = get_work_order_html(rep_items)
                 components.html(generate_print_html(html), height=0)
 
-# Tab 5: 재고 (등록일자 추가 완료 및 들여쓰기 완벽 수정)
+# Tab 5: 재고
 with tab5:
     with st.form("fabric_in"):
         st.markdown("##### 📥 원단 입고 등록")
@@ -671,11 +671,13 @@ with tab9:
 with tab10:
     st.markdown("### 📑 견적서 작성 (자동 계산 + 소계)")
     c1, c2, c3 = st.columns(3)
-    q_cust = c1.text_input("고객사명", placeholder="예: 에코하우징")
-    q_ref = c2.text_input("참조", placeholder="예: 조성옥 대표님")
-    q_contact = c3.text_input("연락처", placeholder="예: 010-9941-6763")
-    q_fax = st.text_input("팩스", placeholder="")
-    q_email = st.text_input("E-mail", placeholder="")
+    
+    # [수정] 고객사 정보도 입력 즉시 세션(메모리)에 저장되도록 key 부여
+    q_cust = c1.text_input("고객사명", placeholder="예: 에코하우징", key="q_cust_input")
+    q_ref = c2.text_input("참조", placeholder="예: 조성옥 대표님", key="q_ref_input")
+    q_contact = c3.text_input("연락처", placeholder="예: 010-9941-6763", key="q_contact_input")
+    q_fax = st.text_input("팩스", placeholder="", key="q_fax_input")
+    q_email = st.text_input("E-mail", placeholder="", key="q_email_input")
     
     st.info("💡 '가로/세로'를 비워두면(0), 수기로 입력한 '단가'가 적용됩니다. (시공비 등 입력 시 활용)")
     
@@ -746,6 +748,9 @@ with tab10:
                     edited.at[i, '공급가'] = user_price * qty
             except Exception: 
                 pass
+        
+        # [수정] 표의 변경된/계산된 내용을 메모리에 영구 저장하여 초기화 방지
+        st.session_state.quote_items = edited.copy()
 
         total_supply = int(edited['공급가'].sum())
         total_vat = int(total_supply * 0.1)
