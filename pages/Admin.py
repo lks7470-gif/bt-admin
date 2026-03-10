@@ -40,7 +40,6 @@ except Exception as e:
 # 🛠️ [기능 정의 구역] 
 # ==============================================================================
 
-# 1. 공정 순서 위반 방지
 def check_process_sequence(lot_no, current_step):
     try:
         response = supabase.table("production_logs") \
@@ -54,20 +53,17 @@ def check_process_sequence(lot_no, current_step):
         return False, "오류 발생"
     return True, "OK"
 
-# 2. 이미지 변환
 def image_to_base64(img):
     buffered = io.BytesIO()
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
-# 3. 재고 조회
 def fetch_fabric_stock():
     try:
         response = supabase.table("fabric_stock").select("*").execute()
         return {row['lot_no']: row for row in response.data}
     except: return {}
 
-# 4. 폰트 로드
 @st.cache_resource
 def load_korean_font(size):
     font_filename = "NanumGothic-Bold.ttf"
@@ -79,7 +75,6 @@ def load_korean_font(size):
         except: return ImageFont.load_default()
     return ImageFont.truetype(font_filename, size)
 
-# 5. 라벨 이미지 생성
 def create_label_strip_image(items, rotate=False):
     LABEL_W = 472; LABEL_H = 236
     if not items: return None
@@ -111,13 +106,11 @@ def create_label_strip_image(items, rotate=False):
     buf = io.BytesIO(); full_img.save(buf, format="PNG")
     return buf.getvalue()
 
-# 6. 인쇄 스크립트
 def generate_print_html(content_html):
     return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Print</title>
     <script>setTimeout(function() {{ window.print(); }}, 500);</script></head>
     <body style="margin:0; padding:0;">{content_html}</body></html>"""
 
-# 7. 라벨 미리보기 HTML
 def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     tr_css = "transform: rotate(90deg);" if rotate else ""
     wrap_css = f"width: 38mm; height: 19mm; page-break-after: always; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #ddd; margin-top: {margin_top}mm;" if mode == "roll" else "width: 42mm; height: 22mm; display: inline-flex; align-items: center; justify-content: center; margin: 2px; border: 1px dashed #ccc; float: left;"
@@ -138,7 +131,6 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
         </div></div>"""
     return html + "</div></body></html>"
 
-# 8. 작업지시서 HTML
 def get_work_order_html(items):
     html = """<html><head><style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
@@ -175,13 +167,11 @@ def get_work_order_html(items):
         html += '</div><div class="pb"></div>'
     return html + "</body></html>"
 
-# 9. 접속 QR
 def get_access_qr_content_html(url):
     qr = qrcode.QRCode(box_size=10, border=1); qr.add_data(url); qr.make(fit=True)
     img = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
     return f'<div style="text-align:center; padding-top:50mm;"><div style="border:5px solid black; padding:30px; display:inline-block; border-radius:20px;"><div style="font-size:30pt; font-weight:900;">🏭 시스템 접속 QR</div><br><img src="data:image/png;base64,{img}" style="width:350px;"></div></div>'
 
-# 10. 견적서 HTML
 def get_quotation_html(cust_data, items_df, totals):
     logo = ""
     if os.path.exists("pages/company_logo.png"):
@@ -426,23 +416,27 @@ with tab4:
                 html = get_work_order_html(rep_items)
                 components.html(generate_print_html(html), height=0)
 
-# [수정 완벽 복원] 폭, 총길이, 잔량 필수 정보 입력 폼
+# ==========================================
+# 🛑 [수정 완료] 폭/길이 자유입력 및 에러 방지 처리 완료 
+# ==========================================
 with tab5:
     with st.form("fabric_in"):
         st.markdown("##### 📥 원단 입고 등록")
         c1, c2, c3 = st.columns(3)
         n_lot = c1.text_input("LOT 번호")
         n_name = c2.text_input("제품명")
-        n_w = c3.number_input("폭(mm)", 1200)
+        # [핵심 수정] min_value=0 설정으로 자유 입력 가능
+        n_w = c3.number_input("폭(mm)", min_value=0, value=1200, step=10)
 
         c4, c5, c6 = st.columns(3)
-        n_tot = c4.number_input("총길이(m)", 100.0)
-        n_rem = c5.number_input("현재 잔량(m)", 100.0)
+        # [핵심 수정] min_value=0.0 설정으로 소수점/작은수 자유 입력 가능
+        n_tot = c4.number_input("총길이(m)", min_value=0.0, value=100.0, step=1.0)
+        n_rem = c5.number_input("현재 잔량(m)", min_value=0.0, value=100.0, step=1.0)
         n_short = c6.text_input("단축코드(4자리)", placeholder="예: TA12")
 
         if st.form_submit_button("입고 등록"):
             if not n_lot or not n_name:
-                st.error("LOT 번호와 제품명은 필수입니다.")
+                st.error("⚠️ LOT 번호와 제품명은 필수 입력 항목입니다.")
             else:
                 data = {
                     "lot_no": n_lot,
@@ -454,11 +448,12 @@ with tab5:
                 }
                 try:
                     supabase.table("fabric_stock").insert(data).execute()
-                    st.success(f"{n_lot} 입고 완료!")
+                    st.success(f"✅ {n_lot} 입고 등록 완료!")
                     time.sleep(1)
                     st.rerun()
                 except Exception as e:
-                    st.error(f"저장 실패 (중복된 LOT 번호이거나 필수값이 없습니다): {e}")
+                    # 중복된 데이터나 통신 오류 시 빨간색 알림창 띄움 (앱 튕김 방지)
+                    st.error(f"🚨 저장 실패! 이미 등록된 LOT 번호이거나 연결 문제가 있습니다.\n(상세오류: {e})")
 
     try:
         res = supabase.table("fabric_stock").select("*").execute()
