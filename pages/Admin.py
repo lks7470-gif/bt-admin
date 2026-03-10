@@ -181,7 +181,7 @@ def get_access_qr_content_html(url):
     img = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
     return f'<div style="text-align:center; padding-top:50mm;"><div style="border:5px solid black; padding:30px; display:inline-block; border-radius:20px;"><div style="font-size:30pt; font-weight:900;">🏭 시스템 접속 QR</div><br><img src="data:image/png;base64,{img}" style="width:350px;"></div></div>'
 
-# 10. [업그레이드] 견적서 HTML (소계 기능 추가)
+# 10. 견적서 HTML
 def get_quotation_html(cust_data, items_df, totals):
     logo = ""
     if os.path.exists("pages/company_logo.png"):
@@ -248,8 +248,6 @@ def get_quotation_html(cust_data, items_df, totals):
         </tr>
     """
     
-    # [소계 로직 적용]
-    # 자재비(Material)와 시공비(Construction) 그룹핑
     mat_df = items_df[items_df['구분'].str.contains("자재", na=False)]
     con_df = items_df[items_df['구분'].str.contains("시공", na=False)]
     etc_df = items_df[~items_df['구분'].str.contains("자재|시공", na=False)]
@@ -262,12 +260,9 @@ def get_quotation_html(cust_data, items_df, totals):
             t = f"{int(row['공급가']):,}" if row['공급가'] > 0 else ""
             sub_total += int(row['공급가'])
             
-            # 섹션 이름은 첫 줄에만 표시하거나, 반복 표시
-            sect = row['구분']
-            
             rows_html += f"""
             <tr style="height:25px;">
-                <td class="txt-c">{sect}</td>
+                <td class="txt-c">{row['구분']}</td>
                 <td class="txt-l" style="padding-left:5px;">{row['품명']}</td>
                 <td class="txt-c">{row['세부내용']}</td>
                 <td class="txt-c">{row['Sqm']}</td>
@@ -277,7 +272,6 @@ def get_quotation_html(cust_data, items_df, totals):
                 <td class="txt-l" style="padding-left:5px; font-size:10px;">{row['비고']}</td>
             </tr>
             """
-        # 소계 행 추가
         if sub_total > 0:
             rows_html += f"""
             <tr class="sub-row" style="height:25px;">
@@ -288,15 +282,11 @@ def get_quotation_html(cust_data, items_df, totals):
             """
         return rows_html
 
-    # 자재비 출력
     html += add_rows(mat_df, "자재비")
-    # 시공비 출력
     html += add_rows(con_df, "시공비")
-    # 기타 항목 출력
     html += add_rows(etc_df, "기타")
         
-    # 빈 줄 채우기 (최소 높이 유지용)
-    total_rows = len(mat_df) + len(con_df) + len(etc_df) + 2 # 소계 행 고려
+    total_rows = len(mat_df) + len(con_df) + len(etc_df) + 2 
     for _ in range(max(0, 15 - total_rows)): 
         html += '<tr style="height:25px;"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'
     
@@ -328,7 +318,6 @@ if 'order_list' not in st.session_state: st.session_state.order_list = []
 if 'generated_qrs' not in st.session_state: st.session_state.generated_qrs = []
 if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 
-# [데이터 구조: 구분(Section) 기본값 지정]
 if 'quote_items' not in st.session_state: 
     st.session_state.quote_items = pd.DataFrame([
         {"구분": "자재비", "품명": "SMART 뷰 유리", "세부내용": "1200*2400 / Clear / 4+4", "W(mm)": 1200, "H(mm)": 2400, "유리": "Clear", "두께": "4+4", "Sqm": 2.88, "수량": 1, "단가": 912000, "공급가": 0, "비고": ""},
@@ -343,7 +332,6 @@ if st.sidebar.button("🔄 재고 정보 새로고침", use_container_width=True
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs(["📝 작업 입력", "📄 지시서 인쇄", "🏷️ 라벨 인쇄", "🔄 QR 재발행", "🧵 원단 재고", "📊 발행 이력", "🔍 제품 추적", "🚨 불량 현황", "📱 접속 QR", "📑 견적서 작성"])
 
-# ... (Tab 1 ~ Tab 9 는 기존과 동일하므로 생략하지 않고 전체 코드 제공)
 with tab1:
     st.markdown("### 📝 신규 작업 지시 등록")
     if not st.session_state.fabric_db: st.session_state.fabric_db = fetch_fabric_stock()
@@ -400,12 +388,14 @@ with tab1:
             st.session_state.generated_qrs = new_qrs
             st.session_state.order_list = []
             st.rerun()
+
 with tab2:
     if st.session_state.generated_qrs:
         html = get_work_order_html(st.session_state.generated_qrs)
         st.components.v1.html(html, height=1000, scrolling=True)
         if st.button("🖨️ 인쇄하기"): components.html(generate_print_html(html), height=0)
     else: st.info("발행된 작업이 없습니다.")
+
 with tab3:
     if st.session_state.generated_qrs:
         html = get_label_content_html(st.session_state.generated_qrs)
@@ -414,6 +404,7 @@ with tab3:
         img_data = create_label_strip_image(st.session_state.generated_qrs)
         if img_data: st.download_button("💾 이미지 다운로드", img_data, file_name="labels.png")
     else: st.info("발행된 작업이 없습니다.")
+
 with tab4:
     with st.form("reprint"):
         s_d = st.date_input("날짜")
@@ -434,14 +425,50 @@ with tab4:
                     rep_items.append({"lot": r['lot_no'], "cust": r['customer'], "prod": r['product'], "w": w, "h": h, "elec": elec, "fabric": r.get('fabric_lot_no','-'), "spec_cut": r.get('spec',''), "spec_lam": r.get('spec',''), "note": r.get('note','')})
                 html = get_work_order_html(rep_items)
                 components.html(generate_print_html(html), height=0)
+
+# [수정 완벽 복원] 폭, 총길이, 잔량 필수 정보 입력 폼
 with tab5:
     with st.form("fabric_in"):
+        st.markdown("##### 📥 원단 입고 등록")
         c1, c2, c3 = st.columns(3)
-        n_lot = c1.text_input("LOT"); n_name = c2.text_input("제품명"); n_short = c3.text_input("단축코드(4자리)")
+        n_lot = c1.text_input("LOT 번호")
+        n_name = c2.text_input("제품명")
+        n_w = c3.number_input("폭(mm)", 1200)
+
+        c4, c5, c6 = st.columns(3)
+        n_tot = c4.number_input("총길이(m)", 100.0)
+        n_rem = c5.number_input("현재 잔량(m)", 100.0)
+        n_short = c6.text_input("단축코드(4자리)", placeholder="예: TA12")
+
         if st.form_submit_button("입고 등록"):
-            supabase.table("fabric_stock").insert({"lot_no": n_lot, "name": n_name, "short_code": n_short}).execute()
-            st.rerun()
-    st.data_editor(pd.DataFrame(supabase.table("fabric_stock").select("*").execute().data))
+            if not n_lot or not n_name:
+                st.error("LOT 번호와 제품명은 필수입니다.")
+            else:
+                data = {
+                    "lot_no": n_lot,
+                    "name": n_name,
+                    "width": n_w,
+                    "total_len": n_tot,
+                    "used_len": n_tot - n_rem,
+                    "short_code": n_short
+                }
+                try:
+                    supabase.table("fabric_stock").insert(data).execute()
+                    st.success(f"{n_lot} 입고 완료!")
+                    time.sleep(1)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"저장 실패 (중복된 LOT 번호이거나 필수값이 없습니다): {e}")
+
+    try:
+        res = supabase.table("fabric_stock").select("*").execute()
+        if res.data:
+            st.data_editor(pd.DataFrame(res.data), hide_index=True, use_container_width=True)
+        else:
+            st.info("등록된 원단 재고가 없습니다.")
+    except Exception as e:
+        st.error(f"재고 데이터를 불러올 수 없습니다: {e}")
+
 with tab6:
     res = supabase.table("work_orders").select("*").order("created_at", desc=True).limit(200).execute()
     df = pd.DataFrame(res.data)
@@ -457,6 +484,7 @@ with tab6:
             if st.button("🗑️ 삭제 실행", type="primary"):
                 supabase.table("work_orders").delete().in_("lot_no", sel['lot_no'].tolist()).execute()
                 st.rerun()
+
 with tab7:
     with st.form("track_form"):
         track_lot = st.text_input("추적할 LOT 번호 입력")
@@ -464,17 +492,18 @@ with tab7:
             r = supabase.table("production_logs").select("*").eq("lot_no", track_lot).order("created_at").execute()
             if r.data: st.dataframe(r.data)
             else: st.error("이력이 없습니다.")
+
 with tab8:
     st.markdown("### 🚨 불량 등록 현황")
     r = supabase.table("defects").select("*").order("created_at", desc=True).execute()
     if r.data: st.dataframe(r.data)
     else: st.info("불량 내역이 없습니다.")
+
 with tab9:
     html = get_access_qr_content_html(APP_URL)
     st.components.v1.html(html, height=500)
     if st.button("🖨️ 접속 QR 인쇄"): components.html(generate_print_html(html), height=0)
 
-# Tab 10: 견적서 (소계 기능 탑재)
 with tab10:
     st.markdown("### 📑 견적서 작성 (자동 계산 + 소계)")
     c1, c2, c3 = st.columns(3)
