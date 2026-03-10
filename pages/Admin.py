@@ -576,8 +576,16 @@ with tab5:
         if st.form_submit_button("입고 등록"):
             if not n_lot or not n_name: 
                 st.error("⚠️ LOT 번호와 제품명은 필수입니다.")
-            else:
-                data = {"lot_no": n_lot, "name": n_name, "width": n_w, "total_len": n_tot, "used_len": n_tot - n_rem}
+           else:
+                # 👈 맨 끝에 "reg_date": datetime.now().strftime("%Y-%m-%d") 추가
+                data = {
+                    "lot_no": n_lot, 
+                    "name": n_name, 
+                    "width": n_w, 
+                    "total_len": n_tot, 
+                    "used_len": n_tot - n_rem,
+                    "reg_date": datetime.now().strftime("%Y-%m-%d")
+                }
                 if n_short: 
                     try:
                         data["short_code"] = n_short
