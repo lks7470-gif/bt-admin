@@ -559,7 +559,7 @@ with tab4:
                 html = get_work_order_html(rep_items)
                 components.html(generate_print_html(html), height=0)
 
-# Tab 5: 재고
+# Tab 5: 재고 (등록일자 추가 완료 및 들여쓰기 완벽 수정)
 with tab5:
     with st.form("fabric_in"):
         st.markdown("##### 📥 원단 입고 등록")
@@ -573,11 +573,10 @@ with tab5:
         n_rem = c5.number_input("현재 잔량(m)", min_value=0.0, value=100.0, step=1.0)
         n_short = c6.text_input("단축코드(4자리)", placeholder="예: TA12", help="선택사항")
 
-     if st.form_submit_button("입고 등록"):
+        if st.form_submit_button("입고 등록"):
             if not n_lot or not n_name: 
                 st.error("⚠️ LOT 번호와 제품명은 필수입니다.")
             else:
-                # 👇 아래 data 부분을 통째로 교체합니다 (reg_date 추가)
                 data = {
                     "lot_no": n_lot, 
                     "name": n_name, 
@@ -586,7 +585,7 @@ with tab5:
                     "used_len": n_tot - n_rem,
                     "reg_date": datetime.now().strftime("%Y-%m-%d")
                 }
-                if n_short:
+                if n_short: 
                     try:
                         data["short_code"] = n_short
                         supabase.table("fabric_stock").insert(data).execute()
@@ -703,7 +702,6 @@ with tab10:
     if not edited.empty:
         for i, row in edited.iterrows():
             try:
-                # [철벽 방어] 빈 칸(None)이나 문자열이 들어가도 에러 없이 0으로 치환
                 val_w = row.get('W(mm)')
                 val_h = row.get('H(mm)')
                 val_qty = row.get('수량')
@@ -765,4 +763,6 @@ with tab10:
             else:
                 cust_data = {"name": q_cust, "ref": q_ref, "contact": q_contact, "fax": q_fax, "email": q_email}
                 totals = {"supply": total_supply, "vat": total_vat, "grand_total": grand_total}
-                html = get_quot
+                html = get_quotation_html(cust_data, edited, totals)
+                components.html(generate_print_html(html), height=0)
+                st.components.v1.html(html, height=1000, scrolling=True)
