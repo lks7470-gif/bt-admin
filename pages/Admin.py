@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
 
 # ==========================================
-# ⚙️ [필수] 페이지 설정 (맨 위)
+# ⚙️ 페이지 설정 (반드시 맨 위)
 # ==========================================
 st.set_page_config(page_title="(주)베스트룸 생산관리", page_icon="🏭", layout="wide")
 
@@ -37,7 +37,7 @@ except Exception as e:
     st.stop()
 
 # ==============================================================================
-# 🛠️ [기능 정의 구역] (에러 방지 안전장치 적용 완료)
+# 🛠️ [기능 정의 구역] 
 # ==============================================================================
 
 def check_process_sequence(lot_no, current_step):
@@ -287,7 +287,6 @@ if 'order_list' not in st.session_state: st.session_state.order_list = []
 if 'generated_qrs' not in st.session_state: st.session_state.generated_qrs = []
 if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 
-# [데이터 구조]
 if 'quote_items' not in st.session_state: 
     st.session_state.quote_items = pd.DataFrame([
         {"구분": "자재비", "품명": "SMART 뷰 유리", "W(mm)": 1200, "H(mm)": 2400, "유리": "Clear", "두께": "4+4", "세부내용": "1200*2400 / Clear / 4+4", "Sqm": 2.88, "수량": 1, "단가": 912000, "공급가": 0, "비고": ""},
@@ -302,7 +301,7 @@ if st.sidebar.button("🔄 재고 정보 새로고침", use_container_width=True
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs(["📝 작업 입력", "📄 지시서 인쇄", "🏷️ 라벨 인쇄", "🔄 QR 재발행", "🧵 원단 재고", "📊 발행 이력", "🔍 제품 추적", "🚨 불량 현황", "📱 접속 QR", "📑 견적서 작성"])
 
-# Tab 1: 작업 입력
+# [Tab 1] 작업 입력 (원단 자동차감 로직 추가)
 with tab1:
     st.markdown("### 📝 신규 작업 지시 등록")
     if not st.session_state.fabric_db: st.session_state.fabric_db = fetch_fabric_stock()
@@ -323,10 +322,7 @@ with tab1:
             c_mat1.info(f"✅ 선택됨: {fabric_lot}")
             sel_info = st.session_state.fabric_db.get(fabric_lot, {})
             if sel_info.get('short_code'): default_short = sel_info.get('short_code')
-        
-        # 단축코드는 여기서 수기로 덮어쓸 수 있습니다.
         fabric_short = c_mat2.text_input("🆔 식별코드 (4자리)", value=default_short, max_chars=4, key=f"sc_{fabric_lot}")
-        
         st.divider()
         c3, c4, c5 = st.columns([1, 1, 1])
         w = c3.number_input("가로 (W)", min_value=0, step=10)
@@ -358,17 +354,31 @@ with tab1:
                     final_lot_id = f"{item['lot_short']}{date_str}{prod_char}{cnt:02d}"
                     cnt = (cnt + 1) % 100
                     try:
+                        # 1. 작업 지시서 저장
                         supabase.table("work_orders").insert({"lot_no": final_lot_id, "customer": item['고객사'], "product": item['제품'], "dimension": f"{item['규격']} [{item['전극']}]", "spec": item['spec'], "status": "작업대기" if item['is_lam'] else "작업대기(단품)", "note": item['비고'], "fabric_lot_no": item['lot_no']}).execute()
                         
-                        # [오류 해결] 인쇄용 키값 명확하게 지정
+                        # 2. [추가] 원단 재고 자동 차감 로직 (세로(h) 길이 기준)
+                        if item['lot_no'] != "미등록 원단" and item['lot_no'] != "":
+                            h_m = float(item['h']) / 1000.0  # mm를 m로 변환
+                            consumed_m = h_m * 1 # 현재 루프가 수량(1개) 단위로 돌고 있으므로 1을 곱함
+                            
+                            # DB에서 현재 사용량 조회
+                            stock_res = supabase.table("fabric_stock").select("used_len").eq("lot_no", item['lot_no']).execute()
+                            if stock_res.data:
+                                curr_used = float(stock_res.data[0]['used_len'])
+                                new_used = curr_used + consumed_m
+                                supabase.table("fabric_stock").update({"used_len": new_used}).eq("lot_no", item['lot_no']).execute()
+
                         new_qrs.append({
                             "lot": final_lot_id, "w": item['w'], "h": item['h'], "elec": item['전극'], 
                             "prod": item['제품'], "cust": item['고객사'], 
                             "fabric": item['lot_no'], "spec_cut": item['spec_cut'], "spec_lam": item['spec_lam'], "note": item['비고']
                         })
-                    except: pass
+                    except Exception as e: print(e)
+            
             st.session_state.generated_qrs = new_qrs
             st.session_state.order_list = []
+            st.session_state.fabric_db = fetch_fabric_stock() # 차감된 재고 최신화
             st.rerun()
 
 with tab2:
@@ -408,7 +418,6 @@ with tab4:
                 html = get_work_order_html(rep_items)
                 components.html(generate_print_html(html), height=0)
 
-# [Tab 5] 원단 입고 (DB 스키마 에러 해결)
 with tab5:
     with st.form("fabric_in"):
         st.markdown("##### 📥 원단 입고 등록")
@@ -417,23 +426,43 @@ with tab5:
         n_name = c2.text_input("제품명")
         n_w = c3.number_input("폭(mm)", min_value=0, value=1200, step=10)
 
-        c4, c5 = st.columns(2)
+        c4, c5, c6 = st.columns(3)
         n_tot = c4.number_input("총길이(m)", min_value=0.0, value=100.0, step=1.0)
         n_rem = c5.number_input("현재 잔량(m)", min_value=0.0, value=100.0, step=1.0)
-        
-        st.info("💡 식별코드(단축코드)는 [작업 입력] 탭에서 수기로 덮어써서 사용하실 수 있습니다.")
+        n_short = c6.text_input("단축코드(4자리)", placeholder="예: TA12", help="옵션(선택사항)")
 
         if st.form_submit_button("입고 등록"):
             if not n_lot or not n_name: st.error("⚠️ LOT 번호와 제품명은 필수입니다.")
             else:
-                # [해결] DB에 없는 short_code 항목 제외 (APIError 방지)
                 data = {"lot_no": n_lot, "name": n_name, "width": n_w, "total_len": n_tot, "used_len": n_tot - n_rem}
-                try:
-                    supabase.table("fabric_stock").insert(data).execute()
-                    st.success(f"✅ {n_lot} 입고 완료!")
-                    time.sleep(1)
-                    st.rerun()
-                except Exception as e: st.error(f"🚨 저장 실패! (상세오류: {e})")
+                # short_code 컬럼이 DB에 없어서 나는 에러(APIError)를 방지하기 위해, 입력된 경우에만 딕셔너리에 추가
+                if n_short: 
+                    try:
+                        # 컬럼이 있는지 모르니 일단 넣어봄
+                        data["short_code"] = n_short
+                        supabase.table("fabric_stock").insert(data).execute()
+                        st.success(f"✅ {n_lot} 입고 완료!")
+                        st.session_state.fabric_db = fetch_fabric_stock()
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception:
+                        # 실패하면 short_code 빼고 다시 시도 (DB 구조 문제 우회)
+                        data.pop("short_code")
+                        try:
+                            supabase.table("fabric_stock").insert(data).execute()
+                            st.success(f"✅ {n_lot} 입고 완료! (단축코드는 제외됨)")
+                            st.session_state.fabric_db = fetch_fabric_stock()
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e: st.error(f"🚨 저장 실패: {e}")
+                else:
+                    try:
+                        supabase.table("fabric_stock").insert(data).execute()
+                        st.success(f"✅ {n_lot} 입고 완료!")
+                        st.session_state.fabric_db = fetch_fabric_stock()
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e: st.error(f"🚨 저장 실패: {e}")
 
     try:
         res = supabase.table("fabric_stock").select("*").execute()
@@ -476,7 +505,6 @@ with tab9:
     st.components.v1.html(html, height=500)
     if st.button("🖨️ 접속 QR 인쇄"): components.html(generate_print_html(html), height=0)
 
-# [Tab 10] 견적서 (자동계산, 잠금해제 적용)
 with tab10:
     st.markdown("### 📑 견적서 작성 (자동 계산 + 소계)")
     c1, c2, c3 = st.columns(3)
