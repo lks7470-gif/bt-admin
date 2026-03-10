@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
 
 # ==========================================
-# ⚙️ 페이지 설정 (반드시 맨 위)
+# ⚙️ [필수] 페이지 설정 (맨 위)
 # ==========================================
 st.set_page_config(page_title="(주)베스트룸 생산관리", page_icon="🏭", layout="wide")
 
@@ -37,7 +37,7 @@ except Exception as e:
     st.stop()
 
 # ==============================================================================
-# 🛠️ [기능 정의 구역] (에러 방지를 위해 .get() 안전장치 전면 적용)
+# 🛠️ [기능 정의 구역] (에러 방지 안전장치 적용 완료)
 # ==============================================================================
 
 def check_process_sequence(lot_no, current_step):
@@ -82,7 +82,7 @@ def create_label_strip_image(items, rotate=False):
         
         lot = it.get('lot', '')
         cust = str(it.get('cust', ''))
-        w, h, e = it.get('w', '0'), it.get('h', '0'), it.get('elec', '')
+        w, h, e = str(it.get('w', '0')), str(it.get('h', '0')), str(it.get('elec', ''))
         
         qr = qrcode.QRCode(box_size=5, border=0)
         qr.add_data(lot.replace("-", ""))
@@ -287,6 +287,7 @@ if 'order_list' not in st.session_state: st.session_state.order_list = []
 if 'generated_qrs' not in st.session_state: st.session_state.generated_qrs = []
 if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 
+# [데이터 구조]
 if 'quote_items' not in st.session_state: 
     st.session_state.quote_items = pd.DataFrame([
         {"구분": "자재비", "품명": "SMART 뷰 유리", "W(mm)": 1200, "H(mm)": 2400, "유리": "Clear", "두께": "4+4", "세부내용": "1200*2400 / Clear / 4+4", "Sqm": 2.88, "수량": 1, "단가": 912000, "공급가": 0, "비고": ""},
@@ -322,7 +323,10 @@ with tab1:
             c_mat1.info(f"✅ 선택됨: {fabric_lot}")
             sel_info = st.session_state.fabric_db.get(fabric_lot, {})
             if sel_info.get('short_code'): default_short = sel_info.get('short_code')
+        
+        # 단축코드는 여기서 수기로 덮어쓸 수 있습니다.
         fabric_short = c_mat2.text_input("🆔 식별코드 (4자리)", value=default_short, max_chars=4, key=f"sc_{fabric_lot}")
+        
         st.divider()
         c3, c4, c5 = st.columns([1, 1, 1])
         w = c3.number_input("가로 (W)", min_value=0, step=10)
@@ -333,13 +337,14 @@ with tab1:
         is_lamination = cc2.checkbox("🔥 접합(Lamination) 포함", value=True)
         spec_lam = cc2.text_input("🔥 접합 조건", placeholder="예: 1단계") if is_lamination else "⛔ 접합 생략 (필름 마감)"
         note = st.text_input("비고", placeholder="특이사항"); count = st.number_input("수량", min_value=1, value=1)
+        
         if st.form_submit_button("➕ 작업 목록 추가", type="primary", use_container_width=True):
             input_short = str(fabric_short).strip().upper()
             final_short = input_short if input_short else "ROLL"
             final_short = final_short.ljust(4, 'X')
             st.session_state.order_list.append({"고객사": customer, "제품": product, "규격": f"{w}x{h}", "w": w, "h": h, "전극": elec_type, "spec_cut": spec_cut, "spec_lam": spec_lam, "is_lam": is_lamination, "spec": f"{spec_cut} | {spec_lam}", "비고": note, "수량": count, "lot_no": fabric_lot, "lot_short": final_short})
             st.success(f"추가됨! (ID: {final_short})")
-    
+            
     if st.session_state.order_list:
         st.dataframe(pd.DataFrame(st.session_state.order_list)[["고객사", "lot_short", "제품", "규격", "spec_lam", "수량"]], use_container_width=True)
         if st.button("🚀 최종 발행 및 저장"):
@@ -354,13 +359,18 @@ with tab1:
                     cnt = (cnt + 1) % 100
                     try:
                         supabase.table("work_orders").insert({"lot_no": final_lot_id, "customer": item['고객사'], "product": item['제품'], "dimension": f"{item['규격']} [{item['전극']}]", "spec": item['spec'], "status": "작업대기" if item['is_lam'] else "작업대기(단품)", "note": item['비고'], "fabric_lot_no": item['lot_no']}).execute()
-                        new_qrs.append({**item, "lot": final_lot_id})
+                        
+                        # [오류 해결] 인쇄용 키값 명확하게 지정
+                        new_qrs.append({
+                            "lot": final_lot_id, "w": item['w'], "h": item['h'], "elec": item['전극'], 
+                            "prod": item['제품'], "cust": item['고객사'], 
+                            "fabric": item['lot_no'], "spec_cut": item['spec_cut'], "spec_lam": item['spec_lam'], "note": item['비고']
+                        })
                     except: pass
             st.session_state.generated_qrs = new_qrs
             st.session_state.order_list = []
             st.rerun()
 
-# Tab 2: 지시서
 with tab2:
     if st.session_state.generated_qrs:
         html = get_work_order_html(st.session_state.generated_qrs)
@@ -368,7 +378,6 @@ with tab2:
         if st.button("🖨️ 인쇄하기"): components.html(generate_print_html(html), height=0)
     else: st.info("발행된 작업이 없습니다.")
 
-# Tab 3: 라벨
 with tab3:
     if st.session_state.generated_qrs:
         html = get_label_content_html(st.session_state.generated_qrs)
@@ -378,7 +387,6 @@ with tab3:
         if img_data: st.download_button("💾 이미지 다운로드", img_data, file_name="labels.png")
     else: st.info("발행된 작업이 없습니다.")
 
-# Tab 4: 재발행
 with tab4:
     with st.form("reprint"):
         s_d = st.date_input("날짜")
@@ -400,7 +408,7 @@ with tab4:
                 html = get_work_order_html(rep_items)
                 components.html(generate_print_html(html), height=0)
 
-# Tab 5: 재고
+# [Tab 5] 원단 입고 (DB 스키마 에러 해결)
 with tab5:
     with st.form("fabric_in"):
         st.markdown("##### 📥 원단 입고 등록")
@@ -409,18 +417,20 @@ with tab5:
         n_name = c2.text_input("제품명")
         n_w = c3.number_input("폭(mm)", min_value=0, value=1200, step=10)
 
-        c4, c5, c6 = st.columns(3)
+        c4, c5 = st.columns(2)
         n_tot = c4.number_input("총길이(m)", min_value=0.0, value=100.0, step=1.0)
         n_rem = c5.number_input("현재 잔량(m)", min_value=0.0, value=100.0, step=1.0)
-        n_short = c6.text_input("단축코드(4자리)", placeholder="예: TA12")
+        
+        st.info("💡 식별코드(단축코드)는 [작업 입력] 탭에서 수기로 덮어써서 사용하실 수 있습니다.")
 
         if st.form_submit_button("입고 등록"):
-            if not n_lot or not n_name: st.error("⚠️ LOT 번호와 제품명은 필수 입력 항목입니다.")
+            if not n_lot or not n_name: st.error("⚠️ LOT 번호와 제품명은 필수입니다.")
             else:
-                data = {"lot_no": n_lot, "name": n_name, "width": n_w, "total_len": n_tot, "used_len": n_tot - n_rem, "short_code": n_short}
+                # [해결] DB에 없는 short_code 항목 제외 (APIError 방지)
+                data = {"lot_no": n_lot, "name": n_name, "width": n_w, "total_len": n_tot, "used_len": n_tot - n_rem}
                 try:
                     supabase.table("fabric_stock").insert(data).execute()
-                    st.success(f"✅ {n_lot} 입고 등록 완료!")
+                    st.success(f"✅ {n_lot} 입고 완료!")
                     time.sleep(1)
                     st.rerun()
                 except Exception as e: st.error(f"🚨 저장 실패! (상세오류: {e})")
@@ -431,7 +441,6 @@ with tab5:
         else: st.info("등록된 원단 재고가 없습니다.")
     except: pass
 
-# Tab 6: 이력
 with tab6:
     res = supabase.table("work_orders").select("*").order("created_at", desc=True).limit(200).execute()
     df = pd.DataFrame(res.data)
@@ -448,7 +457,6 @@ with tab6:
                 supabase.table("work_orders").delete().in_("lot_no", sel['lot_no'].tolist()).execute()
                 st.rerun()
 
-# Tab 7, 8, 9
 with tab7:
     with st.form("track_form"):
         track_lot = st.text_input("추적할 LOT 번호 입력")
@@ -456,19 +464,21 @@ with tab7:
             r = supabase.table("production_logs").select("*").eq("lot_no", track_lot).order("created_at").execute()
             if r.data: st.dataframe(r.data)
             else: st.error("이력이 없습니다.")
+
 with tab8:
     st.markdown("### 🚨 불량 등록 현황")
     r = supabase.table("defects").select("*").order("created_at", desc=True).execute()
     if r.data: st.dataframe(r.data)
     else: st.info("불량 내역이 없습니다.")
+
 with tab9:
     html = get_access_qr_content_html(APP_URL)
     st.components.v1.html(html, height=500)
     if st.button("🖨️ 접속 QR 인쇄"): components.html(generate_print_html(html), height=0)
 
-# Tab 10: 견적서
+# [Tab 10] 견적서 (자동계산, 잠금해제 적용)
 with tab10:
-    st.markdown("### 📑 견적서 작성")
+    st.markdown("### 📑 견적서 작성 (자동 계산 + 소계)")
     c1, c2, c3 = st.columns(3)
     q_cust = c1.text_input("고객사명", placeholder="예: 에코하우징")
     q_ref = c2.text_input("참조", placeholder="예: 조성옥 대표님")
@@ -476,9 +486,8 @@ with tab10:
     q_fax = st.text_input("팩스", placeholder="")
     q_email = st.text_input("E-mail", placeholder="")
     
-    st.info("💡 '가로/세로' 칸이 비어있으면(0) 사용자가 입력한 '단가'가 그대로 적용됩니다. (시공비 입력 가능!)")
+    st.info("💡 '가로/세로'를 비워두면(0), 수기로 입력한 '단가'가 적용됩니다. (시공비 등 입력 시 활용)")
     
-    # [수정] 단가(U/Price)와 세부내용 칸의 잠금을 풀었습니다 (disabled=False)
     edited = st.data_editor(
         st.session_state.quote_items,
         num_rows="dynamic",
@@ -493,7 +502,7 @@ with tab10:
             "세부내용": st.column_config.TextColumn("Details"), 
             "Sqm": st.column_config.TextColumn("Sqm", disabled=True),
             "수량": st.column_config.NumberColumn("Q'ty", min_value=0, step=1),
-            "단가": st.column_config.NumberColumn("U/Price", min_value=0, step=100, format="%d"), # 잠금 해제!
+            "단가": st.column_config.NumberColumn("U/Price", min_value=0, step=100, format="%d"),
             "공급가": st.column_config.NumberColumn("Total", disabled=True, format="%d"),
             "비고": st.column_config.TextColumn("Remark"),
         }
@@ -504,9 +513,8 @@ with tab10:
             try:
                 w, h = float(row.get('W(mm)', 0)), float(row.get('H(mm)', 0))
                 qty = float(row.get('수량', 0))
-                user_price = float(row.get('단가', 0)) # 사용자가 입력한 단가
+                user_price = float(row.get('단가', 0))
                 
-                # 가로, 세로가 입력된 경우에만 자동 계산 (유리)
                 if w > 0 and h > 0:
                     rw = math.ceil(w / 100) * 100
                     rh = math.ceil(h / 100) * 100
@@ -536,7 +544,6 @@ with tab10:
                     edited.at[i, '공급가'] = edited.at[i, '단가'] * qty
                     edited.at[i, '세부내용'] = f"{int(w)}*{int(h)} / {row.get('유리','')} / {row.get('두께','')}"
                 else:
-                    # 가로 세로가 없으면(0) 사용자가 직접 쓴 '단가'를 그대로 사용 (시공비 등)
                     edited.at[i, 'Sqm'] = ""
                     edited.at[i, '공급가'] = user_price * qty
             except: pass
