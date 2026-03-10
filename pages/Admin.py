@@ -13,12 +13,12 @@ from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
 
 # ==========================================
-# ⚙️ [필수] 페이지 설정 (맨 위)
+# ⚙️ 페이지 설정 (반드시 맨 위)
 # ==========================================
 st.set_page_config(page_title="(주)베스트룸 생산관리", page_icon="🏭", layout="wide")
 
 # ==========================================
-# 🛑 [문지기] 로그인 체크
+# 🛑 로그인 체크
 # ==========================================
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
     st.warning("⚠️ 로그인이 필요합니다.")
@@ -37,20 +37,14 @@ except Exception as e:
     st.stop()
 
 # ==============================================================================
-# 🛠️ [기능 정의 구역] 
+# 🛠️ [기능 정의 구역] (에러 방지를 위해 .get() 안전장치 전면 적용)
 # ==============================================================================
 
 def check_process_sequence(lot_no, current_step):
     try:
-        response = supabase.table("production_logs") \
-            .select("step") \
-            .eq("lot_no", lot_no) \
-            .order("created_at", desc=True) \
-            .limit(1) \
-            .execute()
+        response = supabase.table("production_logs").select("step").eq("lot_no", lot_no).order("created_at", desc=True).limit(1).execute()
         last_step = response.data[0]['step'] if response.data else "작업대기"
-    except Exception:
-        return False, "오류 발생"
+    except: return False, "오류 발생"
     return True, "OK"
 
 def image_to_base64(img):
@@ -68,9 +62,8 @@ def fetch_fabric_stock():
 def load_korean_font(size):
     font_filename = "NanumGothic-Bold.ttf"
     if not os.path.exists(font_filename):
-        url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Bold.ttf"
         try:
-            r = requests.get(url)
+            r = requests.get("https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Bold.ttf")
             with open(font_filename, 'wb') as f: f.write(r.content)
         except: return ImageFont.load_default()
     return ImageFont.truetype(font_filename, size)
@@ -83,24 +76,27 @@ def create_label_strip_image(items, rotate=False):
     draw = ImageDraw.Draw(full_img)
     font_lg = load_korean_font(28); font_md = load_korean_font(24)
 
-    for i, item in enumerate(items):
+    for i, it in enumerate(items):
         x = i * LABEL_W
         draw.rectangle([x, 0, x + LABEL_W-1, LABEL_H-1], outline="#cccccc", width=2)
         
+        lot = it.get('lot', '')
+        cust = str(it.get('cust', ''))
+        w, h, e = it.get('w', '0'), it.get('h', '0'), it.get('elec', '')
+        
         qr = qrcode.QRCode(box_size=5, border=0)
-        qr.add_data(item['lot'].replace("-", ""))
+        qr.add_data(lot.replace("-", ""))
         qr.make(fit=True)
         qr_img = qr.make_image(fill_color="black", back_color="white").resize((190, 190))
         full_img.paste(qr_img, (x + 10, (LABEL_H - 190) // 2))
         
         tx = x + 210
-        draw.text((tx, 25), item['lot'], font=font_lg, fill="black")
-        draw.text((tx, 75), str(item['cust']), font=font_lg if len(item['cust'])<5 else font_md, fill="black")
-        draw.text((tx, 125), f"{item['w']} x {item['h']}", font=font_lg, fill="black")
-        draw.text((tx, 170), f"[{item['elec']}]", font=font_lg, fill="black")
+        draw.text((tx, 25), lot, font=font_lg, fill="black")
+        draw.text((tx, 75), cust, font=font_lg if len(cust)<5 else font_md, fill="black")
+        draw.text((tx, 125), f"{w} x {h}", font=font_lg, fill="black")
+        draw.text((tx, 170), f"[{e}]", font=font_lg, fill="black")
         
-        if i < len(items) - 1:
-            draw.line([(x + LABEL_W - 1, 0), (x + LABEL_W - 1, LABEL_H)], fill="#999", width=1)
+        if i < len(items) - 1: draw.line([(x + LABEL_W - 1, 0), (x + LABEL_W - 1, LABEL_H)], fill="#999", width=1)
 
     if rotate: full_img = full_img.rotate(90, expand=True)
     buf = io.BytesIO(); full_img.save(buf, format="PNG")
@@ -122,12 +118,13 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     .tb {{ font-weight: 900; font-size: 11pt; color: black; line-height: 1.2; }}
     </style></head><body><div style="display:flex; flex-wrap:wrap;">"""
     
-    for item in items:
-        qr = qrcode.QRCode(box_size=5, border=0); qr.add_data(item['lot'].replace("-", "")); qr.make(fit=True)
+    for it in items:
+        lot = it.get('lot', '')
+        qr = qrcode.QRCode(box_size=5, border=0); qr.add_data(lot.replace("-", "")); qr.make(fit=True)
         img = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
         html += f"""<div class="lb"><div style="width:38mm; height:19mm; display:flex; align-items:center; {tr_css}">
         <div style="width:38%; text-align:center;"><img src="data:image/png;base64,{img}" style="width:95%;"></div>
-        <div style="width:62%; padding-left:1.5mm;"><div class="tb">{item['lot']}</div><div class="tb">{item['cust']}</div><div class="tb">{item['w']} x {item['h']}</div><div class="tb">[{item['elec']}]</div></div>
+        <div style="width:62%; padding-left:1.5mm;"><div class="tb">{lot}</div><div class="tb">{it.get('cust', '')}</div><div class="tb">{it.get('w', '0')} x {it.get('h', '0')}</div><div class="tb">[{it.get('elec', '')}]</div></div>
         </div></div>"""
     return html + "</div></body></html>"
 
@@ -149,18 +146,18 @@ def get_work_order_html(items):
         html += f'<div style="width:100%; text-align:center; font-size:20pt; font-weight:900; margin-bottom:3mm; text-decoration:underline;">작업 지시서 (Work Order)</div><div style="display:flex; flex-wrap:wrap; justify-content:space-between; width:100%;">'
         
         for it in sub:
-            qr = qrcode.QRCode(box_size=5, border=0); qr.add_data(it['lot'].replace("-", "")); qr.make(fit=True)
+            lot = it.get('lot', '')
+            qr = qrcode.QRCode(box_size=5, border=0); qr.add_data(lot.replace("-", "")); qr.make(fit=True)
             img = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
             
             lam_txt = f"<span style='color:#000;'>{it.get('spec_lam','-')}</span>"
-            if "생략" in str(it.get('spec_lam','')):
-                lam_txt = "<span style='text-decoration:line-through; color:red; font-weight:bold;'>접합생략</span> <span style='color:#000; font-weight:bold;'>(필름마감)</span>"
+            if "생략" in str(it.get('spec_lam','')): lam_txt = "<span style='text-decoration:line-through; color:red; font-weight:bold;'>접합생략</span> <span style='color:#000; font-weight:bold;'>(필름마감)</span>"
             
-            w, h, e = it['w'], it['h'], it['elec']
+            w, h, e = str(it.get('w', '0')), str(it.get('h', '0')), str(it.get('elec', ''))
             wc = "font-weight:900; text-decoration:underline;" if "가로" in e or "W" in e.upper() else "font-weight:500; color:#555;"
             hc = "font-weight:900; text-decoration:underline;" if "세로" in e or "H" in e.upper() else "font-weight:500; color:#555;"
             
-            html += f"""<div class="card"><div class="chead"><div><span style="font-size:13px; font-weight:900;">{it['lot']}</span> <span style="font-size:12px; font-weight:900; color:#333;">[{it['prod']}]</span></div><div style="font-size:10px; font-weight:700;">{it['cust']} | {datetime.now().strftime('%m-%d')}</div></div>
+            html += f"""<div class="card"><div class="chead"><div><span style="font-size:13px; font-weight:900;">{lot}</span> <span style="font-size:12px; font-weight:900; color:#333;">[{it.get('prod', '')}]</span></div><div style="font-size:10px; font-weight:700;">{it.get('cust', '')} | {datetime.now().strftime('%m-%d')}</div></div>
             <div style="display:flex; flex:1; overflow:hidden;"><div style="width:80px; display:flex; align-items:center; justify-content:center; border-right:1px solid #000;"><img src="data:image/png;base64,{img}" style="width:100%;"></div>
             <div style="flex:1; padding:2px 6px;"><table class="stbl"><tr><td class="lbl">🧵 원단</td><td class="val">{it.get('fabric','-')}</td></tr><tr><td colspan="2"><hr style="margin:2px 0; border-top:1px dashed #ccc;"></td></tr><tr><td class="lbl">✂️ 커팅</td><td class="val">{it.get('spec_cut','-')}</td></tr><tr><td class="lbl">🔥 접합</td><td class="val">{lam_txt}</td></tr><tr><td class="lbl" style="color:red;">⚠️ 특이</td><td class="val" style="color:red;">{it.get('note','-')}</td></tr></table></div></div>
             <div class="dim"><span style="font-size:28px; {wc}">{w}</span><span style="font-size:20px; font-weight:bold; margin:0 5px;">X</span><span style="font-size:28px; {hc}">{h}</span><span style="font-size:18px; font-weight:900; margin-left:15px;">[{e}]</span></div></div>"""
@@ -172,6 +169,7 @@ def get_access_qr_content_html(url):
     img = image_to_base64(qr.make_image(fill_color="black", back_color="white"))
     return f'<div style="text-align:center; padding-top:50mm;"><div style="border:5px solid black; padding:30px; display:inline-block; border-radius:20px;"><div style="font-size:30pt; font-weight:900;">🏭 시스템 접속 QR</div><br><img src="data:image/png;base64,{img}" style="width:350px;"></div></div>'
 
+# 견적서 HTML
 def get_quotation_html(cust_data, items_df, totals):
     logo = ""
     if os.path.exists("pages/company_logo.png"):
@@ -249,27 +247,9 @@ def get_quotation_html(cust_data, items_df, totals):
             p = f"{int(row['단가']):,}" if row['단가'] > 0 else ""
             t = f"{int(row['공급가']):,}" if row['공급가'] > 0 else ""
             sub_total += int(row['공급가'])
-            
-            rows_html += f"""
-            <tr style="height:25px;">
-                <td class="txt-c">{row['구분']}</td>
-                <td class="txt-l" style="padding-left:5px;">{row['품명']}</td>
-                <td class="txt-c">{row['세부내용']}</td>
-                <td class="txt-c">{row['Sqm']}</td>
-                <td class="txt-c">{row['수량']}</td>
-                <td class="txt-r" style="padding-right:5px;">{p}</td>
-                <td class="txt-r" style="padding-right:5px;">{t}</td>
-                <td class="txt-l" style="padding-left:5px; font-size:10px;">{row['비고']}</td>
-            </tr>
-            """
+            rows_html += f"""<tr style="height:25px;"><td class="txt-c">{row.get('구분','')}</td><td class="txt-l" style="padding-left:5px;">{row.get('품명','')}</td><td class="txt-c">{row.get('세부내용','')}</td><td class="txt-c">{row.get('Sqm','')}</td><td class="txt-c">{row.get('수량','')}</td><td class="txt-r" style="padding-right:5px;">{p}</td><td class="txt-r" style="padding-right:5px;">{t}</td><td class="txt-l" style="padding-left:5px; font-size:10px;">{row.get('비고','')}</td></tr>"""
         if sub_total > 0:
-            rows_html += f"""
-            <tr class="sub-row" style="height:25px;">
-                <td colspan="6" class="txt-c">{sub_label} 소계</td>
-                <td class="txt-r" style="padding-right:5px;">{sub_total:,}</td>
-                <td></td>
-            </tr>
-            """
+            rows_html += f"""<tr class="sub-row" style="height:25px;"><td colspan="6" class="txt-c">{sub_label} 소계</td><td class="txt-r" style="padding-right:5px;">{sub_total:,}</td><td></td></tr>"""
         return rows_html
 
     html += add_rows(mat_df, "자재비")
@@ -277,8 +257,7 @@ def get_quotation_html(cust_data, items_df, totals):
     html += add_rows(etc_df, "기타")
         
     total_rows = len(mat_df) + len(con_df) + len(etc_df) + 2 
-    for _ in range(max(0, 15 - total_rows)): 
-        html += '<tr style="height:25px;"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'
+    for _ in range(max(0, 15 - total_rows)): html += '<tr style="height:25px;"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'
     
     html += f"""
         <tr style="background-color:#fff3e0; height:28px; font-weight:bold;">
@@ -310,9 +289,9 @@ if 'fabric_db' not in st.session_state: st.session_state.fabric_db = {}
 
 if 'quote_items' not in st.session_state: 
     st.session_state.quote_items = pd.DataFrame([
-        {"구분": "자재비", "품명": "SMART 뷰 유리", "세부내용": "1200*2400 / Clear / 4+4", "W(mm)": 1200, "H(mm)": 2400, "유리": "Clear", "두께": "4+4", "Sqm": 2.88, "수량": 1, "단가": 912000, "공급가": 0, "비고": ""},
-        {"구분": "자재비", "품명": "부자재", "세부내용": "스위치 타입", "W(mm)":0, "H(mm)":0, "유리":"", "두께":"", "Sqm": "", "수량": 1, "단가": 75000, "공급가": 0, "비고": ""},
-        {"구분": "시공비", "품명": "시공비", "세부내용": "", "W(mm)":0, "H(mm)":0, "유리":"", "두께":"", "Sqm": "", "수량": 1, "단가": 350000, "공급가": 0, "비고": "1일 시공"}
+        {"구분": "자재비", "품명": "SMART 뷰 유리", "W(mm)": 1200, "H(mm)": 2400, "유리": "Clear", "두께": "4+4", "세부내용": "1200*2400 / Clear / 4+4", "Sqm": 2.88, "수량": 1, "단가": 912000, "공급가": 0, "비고": ""},
+        {"구분": "자재비", "품명": "부자재", "W(mm)":0, "H(mm)":0, "유리":"", "두께":"", "세부내용": "스위치 타입", "Sqm": "", "수량": 1, "단가": 75000, "공급가": 0, "비고": ""},
+        {"구분": "시공비", "품명": "시공비", "W(mm)":0, "H(mm)":0, "유리":"", "두께":"", "세부내용": "", "Sqm": "", "수량": 1, "단가": 350000, "공급가": 0, "비고": "1일 시공"}
     ])
 
 st.sidebar.title("👨‍💼 지시서 설정")
@@ -322,6 +301,7 @@ if st.sidebar.button("🔄 재고 정보 새로고침", use_container_width=True
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs(["📝 작업 입력", "📄 지시서 인쇄", "🏷️ 라벨 인쇄", "🔄 QR 재발행", "🧵 원단 재고", "📊 발행 이력", "🔍 제품 추적", "🚨 불량 현황", "📱 접속 QR", "📑 견적서 작성"])
 
+# Tab 1: 작업 입력
 with tab1:
     st.markdown("### 📝 신규 작업 지시 등록")
     if not st.session_state.fabric_db: st.session_state.fabric_db = fetch_fabric_stock()
@@ -359,6 +339,7 @@ with tab1:
             final_short = final_short.ljust(4, 'X')
             st.session_state.order_list.append({"고객사": customer, "제품": product, "규격": f"{w}x{h}", "w": w, "h": h, "전극": elec_type, "spec_cut": spec_cut, "spec_lam": spec_lam, "is_lam": is_lamination, "spec": f"{spec_cut} | {spec_lam}", "비고": note, "수량": count, "lot_no": fabric_lot, "lot_short": final_short})
             st.success(f"추가됨! (ID: {final_short})")
+    
     if st.session_state.order_list:
         st.dataframe(pd.DataFrame(st.session_state.order_list)[["고객사", "lot_short", "제품", "규격", "spec_lam", "수량"]], use_container_width=True)
         if st.button("🚀 최종 발행 및 저장"):
@@ -379,6 +360,7 @@ with tab1:
             st.session_state.order_list = []
             st.rerun()
 
+# Tab 2: 지시서
 with tab2:
     if st.session_state.generated_qrs:
         html = get_work_order_html(st.session_state.generated_qrs)
@@ -386,6 +368,7 @@ with tab2:
         if st.button("🖨️ 인쇄하기"): components.html(generate_print_html(html), height=0)
     else: st.info("발행된 작업이 없습니다.")
 
+# Tab 3: 라벨
 with tab3:
     if st.session_state.generated_qrs:
         html = get_label_content_html(st.session_state.generated_qrs)
@@ -395,6 +378,7 @@ with tab3:
         if img_data: st.download_button("💾 이미지 다운로드", img_data, file_name="labels.png")
     else: st.info("발행된 작업이 없습니다.")
 
+# Tab 4: 재발행
 with tab4:
     with st.form("reprint"):
         s_d = st.date_input("날짜")
@@ -416,54 +400,38 @@ with tab4:
                 html = get_work_order_html(rep_items)
                 components.html(generate_print_html(html), height=0)
 
-# ==========================================
-# 🛑 [수정 완료] 폭/길이 자유입력 및 에러 방지 처리 완료 
-# ==========================================
+# Tab 5: 재고
 with tab5:
     with st.form("fabric_in"):
         st.markdown("##### 📥 원단 입고 등록")
         c1, c2, c3 = st.columns(3)
         n_lot = c1.text_input("LOT 번호")
         n_name = c2.text_input("제품명")
-        # [핵심 수정] min_value=0 설정으로 자유 입력 가능
         n_w = c3.number_input("폭(mm)", min_value=0, value=1200, step=10)
 
         c4, c5, c6 = st.columns(3)
-        # [핵심 수정] min_value=0.0 설정으로 소수점/작은수 자유 입력 가능
         n_tot = c4.number_input("총길이(m)", min_value=0.0, value=100.0, step=1.0)
         n_rem = c5.number_input("현재 잔량(m)", min_value=0.0, value=100.0, step=1.0)
         n_short = c6.text_input("단축코드(4자리)", placeholder="예: TA12")
 
         if st.form_submit_button("입고 등록"):
-            if not n_lot or not n_name:
-                st.error("⚠️ LOT 번호와 제품명은 필수 입력 항목입니다.")
+            if not n_lot or not n_name: st.error("⚠️ LOT 번호와 제품명은 필수 입력 항목입니다.")
             else:
-                data = {
-                    "lot_no": n_lot,
-                    "name": n_name,
-                    "width": n_w,
-                    "total_len": n_tot,
-                    "used_len": n_tot - n_rem,
-                    "short_code": n_short
-                }
+                data = {"lot_no": n_lot, "name": n_name, "width": n_w, "total_len": n_tot, "used_len": n_tot - n_rem, "short_code": n_short}
                 try:
                     supabase.table("fabric_stock").insert(data).execute()
                     st.success(f"✅ {n_lot} 입고 등록 완료!")
                     time.sleep(1)
                     st.rerun()
-                except Exception as e:
-                    # 중복된 데이터나 통신 오류 시 빨간색 알림창 띄움 (앱 튕김 방지)
-                    st.error(f"🚨 저장 실패! 이미 등록된 LOT 번호이거나 연결 문제가 있습니다.\n(상세오류: {e})")
+                except Exception as e: st.error(f"🚨 저장 실패! (상세오류: {e})")
 
     try:
         res = supabase.table("fabric_stock").select("*").execute()
-        if res.data:
-            st.data_editor(pd.DataFrame(res.data), hide_index=True, use_container_width=True)
-        else:
-            st.info("등록된 원단 재고가 없습니다.")
-    except Exception as e:
-        st.error(f"재고 데이터를 불러올 수 없습니다: {e}")
+        if res.data: st.data_editor(pd.DataFrame(res.data), hide_index=True, use_container_width=True)
+        else: st.info("등록된 원단 재고가 없습니다.")
+    except: pass
 
+# Tab 6: 이력
 with tab6:
     res = supabase.table("work_orders").select("*").order("created_at", desc=True).limit(200).execute()
     df = pd.DataFrame(res.data)
@@ -480,6 +448,7 @@ with tab6:
                 supabase.table("work_orders").delete().in_("lot_no", sel['lot_no'].tolist()).execute()
                 st.rerun()
 
+# Tab 7, 8, 9
 with tab7:
     with st.form("track_form"):
         track_lot = st.text_input("추적할 LOT 번호 입력")
@@ -487,20 +456,19 @@ with tab7:
             r = supabase.table("production_logs").select("*").eq("lot_no", track_lot).order("created_at").execute()
             if r.data: st.dataframe(r.data)
             else: st.error("이력이 없습니다.")
-
 with tab8:
     st.markdown("### 🚨 불량 등록 현황")
     r = supabase.table("defects").select("*").order("created_at", desc=True).execute()
     if r.data: st.dataframe(r.data)
     else: st.info("불량 내역이 없습니다.")
-
 with tab9:
     html = get_access_qr_content_html(APP_URL)
     st.components.v1.html(html, height=500)
     if st.button("🖨️ 접속 QR 인쇄"): components.html(generate_print_html(html), height=0)
 
+# Tab 10: 견적서
 with tab10:
-    st.markdown("### 📑 견적서 작성 (자동 계산 + 소계)")
+    st.markdown("### 📑 견적서 작성")
     c1, c2, c3 = st.columns(3)
     q_cust = c1.text_input("고객사명", placeholder="예: 에코하우징")
     q_ref = c2.text_input("참조", placeholder="예: 조성옥 대표님")
@@ -508,8 +476,9 @@ with tab10:
     q_fax = st.text_input("팩스", placeholder="")
     q_email = st.text_input("E-mail", placeholder="")
     
-    st.info("💡 '구분'란에 '자재비', '시공비'를 입력하면 자동으로 분류되어 합계가 계산됩니다.")
+    st.info("💡 '가로/세로' 칸이 비어있으면(0) 사용자가 입력한 '단가'가 그대로 적용됩니다. (시공비 입력 가능!)")
     
+    # [수정] 단가(U/Price)와 세부내용 칸의 잠금을 풀었습니다 (disabled=False)
     edited = st.data_editor(
         st.session_state.quote_items,
         num_rows="dynamic",
@@ -521,10 +490,10 @@ with tab10:
             "H(mm)": st.column_config.NumberColumn("세로(mm)", step=10),
             "유리": st.column_config.SelectboxColumn("유리종류", options=["Clear", "Low iron", "Dark grey"], default="Clear"),
             "두께": st.column_config.SelectboxColumn("두께", options=["4+4", "5+5", "6+6"], default="4+4"),
-            "세부내용": st.column_config.TextColumn("Details", disabled=True),
+            "세부내용": st.column_config.TextColumn("Details"), 
             "Sqm": st.column_config.TextColumn("Sqm", disabled=True),
             "수량": st.column_config.NumberColumn("Q'ty", min_value=0, step=1),
-            "단가": st.column_config.NumberColumn("U/Price", min_value=0, step=100, format="%d", disabled=True),
+            "단가": st.column_config.NumberColumn("U/Price", min_value=0, step=100, format="%d"), # 잠금 해제!
             "공급가": st.column_config.NumberColumn("Total", disabled=True, format="%d"),
             "비고": st.column_config.TextColumn("Remark"),
         }
@@ -533,9 +502,11 @@ with tab10:
     if not edited.empty:
         for i, row in edited.iterrows():
             try:
-                w, h = float(row['W(mm)']), float(row['H(mm)'])
-                qty = float(row['수량'])
+                w, h = float(row.get('W(mm)', 0)), float(row.get('H(mm)', 0))
+                qty = float(row.get('수량', 0))
+                user_price = float(row.get('단가', 0)) # 사용자가 입력한 단가
                 
+                # 가로, 세로가 입력된 경우에만 자동 계산 (유리)
                 if w > 0 and h > 0:
                     rw = math.ceil(w / 100) * 100
                     rh = math.ceil(h / 100) * 100
@@ -552,10 +523,10 @@ with tab10:
                     elif rh > 2400: p_h = 0.05
                     elif rh > 2000: p_h = 0.0
                     
-                    f_glass = 1.12 if "Low" in str(row['유리']) else 1.0
+                    f_glass = 1.12 if "Low" in str(row.get('유리','')) else 1.0
                     f_thick = 1.0
-                    if "5+5" in str(row['두께']): f_thick = 1.08
-                    elif "6+6" in str(row['두께']): f_thick = 1.15
+                    if "5+5" in str(row.get('두께','')): f_thick = 1.08
+                    elif "6+6" in str(row.get('두께','')): f_thick = 1.15
                     
                     unit_m2_price = base_price * f_glass * f_thick * (1 + p_w + p_h)
                     unit_sheet_price = unit_m2_price * area
@@ -563,9 +534,11 @@ with tab10:
                     edited.at[i, 'Sqm'] = f"{area:.2f}"
                     edited.at[i, '단가'] = round(unit_sheet_price, -2)
                     edited.at[i, '공급가'] = edited.at[i, '단가'] * qty
-                    edited.at[i, '세부내용'] = f"{int(w)}*{int(h)} / {row['유리']} / {row['두께']}"
+                    edited.at[i, '세부내용'] = f"{int(w)}*{int(h)} / {row.get('유리','')} / {row.get('두께','')}"
                 else:
-                    edited.at[i, '공급가'] = row['단가'] * qty
+                    # 가로 세로가 없으면(0) 사용자가 직접 쓴 '단가'를 그대로 사용 (시공비 등)
+                    edited.at[i, 'Sqm'] = ""
+                    edited.at[i, '공급가'] = user_price * qty
             except: pass
 
         total_supply = int(edited['공급가'].sum())
