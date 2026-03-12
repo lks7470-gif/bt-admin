@@ -158,6 +158,7 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     html += "</div></body></html>"
     return html
 
+# 8. 작업지시서 HTML (우측 상단 날짜 & 하단 보안문구 적용)
 def get_work_order_html(items):
     html = """<html><head><style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
@@ -171,9 +172,18 @@ def get_work_order_html(items):
     </style></head><body><div style="display:flex; flex-wrap:wrap; justify-content:space-between;">"""
     
     chunk = 8
+    print_date = datetime.now().strftime('%Y-%m-%d %H:%M') # 현재 발행 날짜/시간 생성
+    
     for i in range(0, len(items), chunk):
         sub = items[i:i + chunk]
-        html += '<div style="width:100%; text-align:center; font-size:20pt; font-weight:900; margin-bottom:3mm; text-decoration:underline;">작업 지시서 (Work Order)</div>'
+        
+        # [수정] 제목 우측에 발행날짜 추가
+        html += f"""
+        <div style="width:100%; position:relative; margin-bottom:3mm; text-align:center;">
+            <span style="font-size:20pt; font-weight:900; text-decoration:underline;">작업 지시서 (Work Order)</span>
+            <span style="position:absolute; right:5px; bottom:0; font-size:10pt; color:#555; font-weight:bold;">발행일시: {print_date}</span>
+        </div>
+        """
         html += '<div style="display:flex; flex-wrap:wrap; justify-content:space-between; width:100%;">'
         
         for it in sub:
@@ -216,7 +226,12 @@ def get_work_order_html(items):
                 </div>
             </div>
             """
-        html += '</div><div class="pb"></div>'
+        html += '</div>'
+        
+        # [복구] 하단 무단복제 금지 문구 추가
+        html += '<div style="width:100%; text-align:center; font-size:11px; color:#444; margin-top:3mm; font-weight:bold; letter-spacing:1px;">※ 본 문서는 (주)베스트룸의 소중한 자산이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>'
+        html += '<div class="pb"></div>'
+        
     return html + "</body></html>"
 
 def get_access_qr_content_html(url):
@@ -393,6 +408,24 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
 # Tab 1: 작업 입력
 with tab1:
     st.markdown("### 📝 신규 작업 지시 등록")
+    
+    # [추가] 작업자를 위한 간단 메뉴얼
+    with st.expander("📖 관리자/작업자 시스템 사용 설명서 (클릭해서 열기)"):
+        st.markdown("""
+        **[1] 지시서 발행 방법 (관리자)**
+        1. 아래 폼에 고객사, 제품, 가로/세로 규격을 입력합니다.
+        2. `사용할 원단`을 선택하면 **식별코드**가 자동으로 입력됩니다. (이 코드는 지시서 맨 앞 영문 4자리로 출력되며 자유롭게 수정 가능합니다.)
+        3. `➕ 작업 목록 추가`를 눌러 리스트를 만들고, `🚀 최종 발행 및 저장`을 누릅니다.
+        4. 인쇄 탭으로 이동하여 지시서를 프린트합니다. (이때 원단 재고는 자동으로 차감됩니다!)
+
+        **[2] 현장 스마트폰 입력 방법 (작업자)**
+        1. 작업장 벽에 붙은 `시스템 접속 QR`을 핸드폰 카메라로 찍어 접속합니다.
+        2. 화면에서 본인 이름과 진행할 공정(Full Cut, 접합 등)을 선택합니다.
+        3. 장비의 세팅값이나 현재 온도를 입력칸에 적어줍니다.
+        4. 화면의 `QR 스캔` 카메라로 제품에 붙은 지시서 QR을 찍고 파란색 `저장` 버튼을 누르면 끝납니다.
+        *(※ 불량이 났을 때는 상단 `🚨 불량 발생 신고` 스위치를 켜고 저장하세요!)*
+        """)
+
     if not st.session_state.fabric_db: 
         st.session_state.fabric_db = fetch_fabric_stock()
     
@@ -453,20 +486,17 @@ with tab1:
             new_qrs = []
             cnt = 0
             
-            # --- 1. 원단 재고 100% 안전 차감 로직 ---
             for item in st.session_state.order_list:
                 lot = item.get('lot_no', '')
                 if lot and "직접 입력" not in lot and lot != "미등록 원단":
                     try:
-                        h_m = float(item.get('h', 0)) / 1000.0 # mm -> m
+                        h_m = float(item.get('h', 0)) / 1000.0 
                         qty = float(item.get('수량', 1))
-                        consumed = h_m * qty # 세로길이 * 장수 = 차감할 미터(m)
+                        consumed = h_m * qty 
 
-                        # 최신 재고 조회
                         res = supabase.table("fabric_stock").select("used_len").eq("lot_no", lot).execute()
                         if res.data:
                             raw_val = res.data[0].get('used_len')
-                            # DB에 None 값이 있어도 에러없이 0.0으로 치환하여 계산
                             try:
                                 curr_used = float(raw_val)
                             except (TypeError, ValueError):
@@ -474,14 +504,12 @@ with tab1:
                                 
                             new_used = curr_used + consumed
 
-                            # DB 업데이트 및 확인 메시지
                             up_res = supabase.table("fabric_stock").update({"used_len": new_used}).eq("lot_no", lot).execute()
                             if up_res.data:
                                 st.toast(f"🧵 [{lot}] 원단 {consumed:.3f}m 차감 성공!")
                     except Exception as e:
                         st.error(f"🚨 {lot} 재고 차감 중 오류 발생: {e}")
 
-            # --- 2. 작업 지시서 발행 로직 ---
             for item in st.session_state.order_list:
                 prod_char = prod_map.get(item['제품'], "X")
                 for _ in range(item['수량']):
@@ -504,7 +532,7 @@ with tab1:
                         
             st.session_state.generated_qrs = new_qrs
             st.session_state.order_list = []
-            st.session_state.fabric_db = fetch_fabric_stock() # 차감된 내역 메모리에 즉시 갱신
+            st.session_state.fabric_db = fetch_fabric_stock() 
             st.success("✅ 발행 및 재고 자동 차감이 완료되었습니다!")
             time.sleep(1.5)
             st.rerun()
@@ -559,7 +587,7 @@ with tab4:
                 html = get_work_order_html(rep_items)
                 components.html(generate_print_html(html), height=0)
 
-# Tab 5: 재고
+# Tab 5: 재고 (수정 완료)
 with tab5:
     with st.form("fabric_in"):
         st.markdown("##### 📥 원단 입고 등록")
@@ -672,7 +700,6 @@ with tab10:
     st.markdown("### 📑 견적서 작성 (자동 계산 + 소계)")
     c1, c2, c3 = st.columns(3)
     
-    # [수정] 고객사 정보도 입력 즉시 세션(메모리)에 저장되도록 key 부여
     q_cust = c1.text_input("고객사명", placeholder="예: 에코하우징", key="q_cust_input")
     q_ref = c2.text_input("참조", placeholder="예: 조성옥 대표님", key="q_ref_input")
     q_contact = c3.text_input("연락처", placeholder="예: 010-9941-6763", key="q_contact_input")
@@ -714,7 +741,6 @@ with tab10:
                 qty = float(val_qty) if pd.notna(val_qty) and val_qty != "" else 0.0
                 user_price = float(val_price) if pd.notna(val_price) and val_price != "" else 0.0
                 
-                # PDF 단가 기준표 규칙 적용
                 if w > 0 and h > 0:
                     rw = math.ceil(w / 100) * 100
                     rh = math.ceil(h / 100) * 100
@@ -749,7 +775,6 @@ with tab10:
             except Exception: 
                 pass
         
-        # [수정] 표의 변경된/계산된 내용을 메모리에 영구 저장하여 초기화 방지
         st.session_state.quote_items = edited.copy()
 
         total_supply = int(edited['공급가'].sum())
