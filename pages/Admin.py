@@ -158,7 +158,6 @@ def get_label_content_html(items, mode="roll", rotate=False, margin_top=0):
     html += "</div></body></html>"
     return html
 
-# 8. 작업지시서 HTML (우측 상단 날짜 & 하단 보안문구 적용)
 def get_work_order_html(items):
     html = """<html><head><style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
@@ -172,12 +171,11 @@ def get_work_order_html(items):
     </style></head><body><div style="display:flex; flex-wrap:wrap; justify-content:space-between;">"""
     
     chunk = 8
-    print_date = datetime.now().strftime('%Y-%m-%d %H:%M') # 현재 발행 날짜/시간 생성
+    print_date = datetime.now().strftime('%Y-%m-%d %H:%M')
     
     for i in range(0, len(items), chunk):
         sub = items[i:i + chunk]
         
-        # [수정] 제목 우측에 발행날짜 추가
         html += f"""
         <div style="width:100%; position:relative; margin-bottom:3mm; text-align:center;">
             <span style="font-size:20pt; font-weight:900; text-decoration:underline;">작업 지시서 (Work Order)</span>
@@ -227,11 +225,8 @@ def get_work_order_html(items):
             </div>
             """
         html += '</div>'
-        
-        # [복구] 하단 무단복제 금지 문구 추가
         html += '<div style="width:100%; text-align:center; font-size:11px; color:#444; margin-top:3mm; font-weight:bold; letter-spacing:1px;">※ 본 문서는 (주)베스트룸의 소중한 자산이므로 무단 복제 및 외부 유출을 엄격히 금합니다.</div>'
         html += '<div class="pb"></div>'
-        
     return html + "</body></html>"
 
 def get_access_qr_content_html(url):
@@ -409,7 +404,6 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
 with tab1:
     st.markdown("### 📝 신규 작업 지시 등록")
     
-    # [추가] 작업자를 위한 간단 메뉴얼
     with st.expander("📖 관리자/작업자 시스템 사용 설명서 (클릭해서 열기)"):
         st.markdown("""
         **[1] 지시서 발행 방법 (관리자)**
@@ -433,21 +427,48 @@ with tab1:
         c1, c2 = st.columns([1, 1])
         customer = c1.text_input("고객사 (Customer)", placeholder="예: A건설")
         product = c2.selectbox("제품 종류", ["스마트글라스", "접합필름", "PDLC원단", "일반유리"])
+        
         st.divider()
+        
+        # [원단 선택 및 잔량 표시 로직 보강]
         c_mat1, c_mat2 = st.columns(2)
         stock_options = ["➕ 직접 입력"] 
         if st.session_state.fabric_db:
             for lot, info in st.session_state.fabric_db.items(): 
-                stock_options.append(f"{lot} | {info['name']}")
+                try:
+                    tot = float(info.get('total_len', 0) or 0)
+                    usd = float(info.get('used_len', 0) or 0)
+                    rm = tot - usd
+                    stock_options.append(f"{lot} | {info.get('name','')} (잔량: {rm:.1f}m)")
+                except Exception:
+                    stock_options.append(f"{lot} | {info.get('name','')}")
+                    
         selected_stock = c_mat1.selectbox("🧵 사용할 원단 선택", stock_options)
+        
         default_short = "ROLL"
         fabric_lot = ""
+        
         if "직접 입력" in selected_stock: 
             fabric_lot = c_mat1.text_input("원단 LOT 번호 입력", placeholder="Roll-2312a-KR")
         else:
             fabric_lot = selected_stock.split(" | ")[0]
-            c_mat1.info(f"✅ 선택됨: {fabric_lot}")
             sel_info = st.session_state.fabric_db.get(fabric_lot, {})
+            
+            # [재고 부족 경고창 띄우기]
+            try:
+                tot = float(sel_info.get('total_len', 0) or 0)
+                used = float(sel_info.get('used_len', 0) or 0)
+                rem = tot - used
+                
+                if rem <= 0:
+                    c_mat1.error(f"🚨 재고 소진: {fabric_lot} (현재 잔량: {rem:.1f}m - 입고가 필요합니다!)")
+                elif rem <= 10:
+                    c_mat1.warning(f"⚠️ 재고 임박: {fabric_lot} (현재 잔량: {rem:.1f}m 남았습니다.)")
+                else:
+                    c_mat1.info(f"✅ 선택됨: {fabric_lot} (잔량: {rem:.1f}m)")
+            except Exception:
+                c_mat1.info(f"✅ 선택됨: {fabric_lot}")
+
             if sel_info.get('short_code'): 
                 default_short = sel_info.get('short_code')
         
@@ -494,19 +515,30 @@ with tab1:
                         qty = float(item.get('수량', 1))
                         consumed = h_m * qty 
 
-                        res = supabase.table("fabric_stock").select("used_len").eq("lot_no", lot).execute()
+                        res = supabase.table("fabric_stock").select("used_len, total_len").eq("lot_no", lot).execute()
                         if res.data:
-                            raw_val = res.data[0].get('used_len')
+                            raw_used = res.data[0].get('used_len')
+                            raw_tot = res.data[0].get('total_len')
+                            
                             try:
-                                curr_used = float(raw_val)
+                                curr_used = float(raw_used) if raw_used is not None else 0.0
+                                tot_len = float(raw_tot) if raw_tot is not None else 0.0
                             except (TypeError, ValueError):
                                 curr_used = 0.0
+                                tot_len = 0.0
                                 
                             new_used = curr_used + consumed
+                            rem_stock = tot_len - new_used # 방어막 계산
 
                             up_res = supabase.table("fabric_stock").update({"used_len": new_used}).eq("lot_no", lot).execute()
                             if up_res.data:
-                                st.toast(f"🧵 [{lot}] 원단 {consumed:.3f}m 차감 성공!")
+                                # [사후 알림/경고창 띄우기]
+                                if rem_stock < 0:
+                                    st.error(f"🚨 [{lot}] 원단 재고 초과! (부족분: {abs(rem_stock):.2f}m)")
+                                elif rem_stock <= 10:
+                                    st.warning(f"⚠️ [{lot}] 원단 잔량 부족 주의 (남은 량: {rem_stock:.2f}m)")
+                                else:
+                                    st.toast(f"🧵 [{lot}] 원단 {consumed:.3f}m 차감 성공! (잔량: {rem_stock:.2f}m)")
                     except Exception as e:
                         st.error(f"🚨 {lot} 재고 차감 중 오류 발생: {e}")
 
@@ -534,7 +566,7 @@ with tab1:
             st.session_state.order_list = []
             st.session_state.fabric_db = fetch_fabric_stock() 
             st.success("✅ 발행 및 재고 자동 차감이 완료되었습니다!")
-            time.sleep(1.5)
+            time.sleep(2)
             st.rerun()
 
 # Tab 2: 지시서
@@ -587,7 +619,7 @@ with tab4:
                 html = get_work_order_html(rep_items)
                 components.html(generate_print_html(html), height=0)
 
-# Tab 5: 재고 (수정 완료)
+# Tab 5: 재고
 with tab5:
     with st.form("fabric_in"):
         st.markdown("##### 📥 원단 입고 등록")
